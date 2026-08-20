@@ -48,7 +48,11 @@ export const supabaseService = {
         const { error } = await client.from(table).select('id').limit(1);
         if (error) {
           // If error code is 42P01 (relation does not exist) or similar table missing error
-          if (error.code === '42P01' || error.message?.includes('does not exist') || error.message?.includes('relation')) {
+          if (
+            error.code === '42P01' ||
+            error.code === 'PGRST205' ||
+            /does not exist|relation|could not find the table|schema cache/i.test(error.message || '')
+          ) {
             missingTables.push(table);
           } else if (error.code === 'PGRST301' || error.message?.includes('JWT')) {
             return {

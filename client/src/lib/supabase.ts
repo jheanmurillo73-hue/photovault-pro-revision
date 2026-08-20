@@ -1,5 +1,10 @@
 import { createClient, SupabaseClient, User, Session } from '@supabase/supabase-js';
 
+// El anon key se utiliza exclusivamente desde el cliente y debe estar protegido
+// por las políticas RLS configuradas en el proyecto Supabase.
+const DEFAULT_SUPABASE_URL = 'https://aorhmskjhvdcrrmopzrt.supabase.co';
+const DEFAULT_SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFvcmhtc2tqaHZkY3JybW9wenJ0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODcxNDc2MjcsImV4cCI6MjEwMjcyMzYyN30.4kOu7kl0ktfwAnzq0aUbvX4SIzE3fBaRQgj33xdxIFQ';
+
 const env = (import.meta as any).env || {};
 
 export function cleanSupabaseUrl(rawUrl: string): string {
@@ -30,8 +35,8 @@ export function getActiveSupabaseConfig(): { url: string; anonKey: string; isCus
     };
   }
 
-  const rawEnvUrl = (env.VITE_SUPABASE_URL || '').trim();
-  const rawEnvKey = (env.VITE_SUPABASE_ANON_KEY || '').trim();
+  const rawEnvUrl = (env.VITE_SUPABASE_URL || DEFAULT_SUPABASE_URL).trim();
+  const rawEnvKey = (env.VITE_SUPABASE_ANON_KEY || DEFAULT_SUPABASE_ANON_KEY).trim();
 
   return {
     url: cleanSupabaseUrl(rawEnvUrl),
