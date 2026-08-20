@@ -7,7 +7,6 @@ import {
   APIProvider,
   Map,
   AdvancedMarker,
-  InfoWindow,
   useMap,
 } from '@vis.gl/react-google-maps';
 import {
@@ -547,7 +546,6 @@ export const MapView: React.FC<MapViewProps> = ({
 
   const [mapCenter, setMapCenter] = useState<{ lat: number; lng: number }>(DEFAULT_CENTER);
   const [mapZoom, setMapZoom] = useState<number>(18);
-  const [selectedMarkerPhoto, setSelectedMarkerPhoto] = useState<InspectionPhoto | null>(null);
 
   // Fullscreen container state
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
@@ -1167,7 +1165,7 @@ export const MapView: React.FC<MapViewProps> = ({
                     <AdvancedMarker
                       key={photo.id}
                       position={{ lat: photo.latitude, lng: photo.longitude }}
-                      onClick={() => setSelectedMarkerPhoto(photo)}
+                      onClick={() => onSelectPhoto(photo)}
                     >
                       <div className="relative flex flex-col items-center group cursor-pointer hover:scale-110 transition-transform">
                         <div className={`absolute -top-1 -right-1 w-3 h-3 rounded-full border-2 border-white z-20 ${isTerminado ? 'bg-[#34a853]' : 'bg-[#fbbc04]'}`} />
@@ -1179,47 +1177,6 @@ export const MapView: React.FC<MapViewProps> = ({
                     </AdvancedMarker>
                   );
                 })}
-                {selectedMarkerPhoto && selectedMarkerPhoto.latitude && selectedMarkerPhoto.longitude && (
-                  <InfoWindow
-                    position={{ lat: selectedMarkerPhoto.latitude, lng: selectedMarkerPhoto.longitude }}
-                    onCloseClick={() => setSelectedMarkerPhoto(null)}
-                  >
-                    <div className="p-1 max-w-xs font-['Google_Sans',Roboto,sans-serif]">
-                      <div className="flex items-center gap-2 mb-2">
-                        {getElementType(selectedMarkerPhoto) === 'camara' ? (
-                          <>
-                            <span className="px-2 py-0.5 rounded-full bg-[#1a73e8] text-white text-[11px] font-bold">
-                              {selectedMarkerPhoto.cameraCode || 'Cámara'}
-                            </span>
-                            <span className="px-2 py-0.5 rounded-full bg-[#e8f0fe] text-[#1a73e8] text-[10px] font-bold">
-                              Tipo {selectedMarkerPhoto.cameraType || 'MT'}
-                            </span>
-                          </>
-                        ) : (
-                          <span className="px-2 py-0.5 rounded-full bg-[#fef3c7] text-[#92400e] text-[11px] font-bold">
-                            Caja
-                          </span>
-                        )}
-                      </div>
-                      {selectedMarkerPhoto.imageUrl && (
-                        <div className="w-full h-32 rounded-xl overflow-hidden mb-2 bg-slate-100 relative">
-                          <img src={selectedMarkerPhoto.imageUrl} alt={selectedMarkerPhoto.name} className="w-full h-full object-cover" />
-                        </div>
-                      )}
-                      <h4 className="font-bold text-[#202124] text-[13px] leading-tight">{selectedMarkerPhoto.name}</h4>
-                      <p className="text-[11px] text-[#5f6368] mt-0.5">{selectedMarkerPhoto.location}</p>
-                      <div className="mt-3 flex items-center justify-between gap-2 pt-2 border-t border-[#dadce0]">
-                        <button
-                          type="button"
-                          onClick={() => onSelectPhoto(selectedMarkerPhoto)}
-                          className="w-full py-1.5 bg-[#1a73e8] hover:bg-[#1557b0] text-white text-[11px] font-medium rounded-full shadow-sm"
-                        >
-                          Ver Detalle Completo
-                        </button>
-                      </div>
-                    </div>
-                  </InfoWindow>
-                )}
               </Map>
             </APIProvider>
           </ErrorBoundary>

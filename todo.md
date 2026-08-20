@@ -4,3 +4,4 @@
 - [x] Confirmar y aplicar el rótulo «TRACKING LA NUBIA» en la barra superior.
 - [x] Garantizar una acción visible de regreso al mapa desde los detalles de cámaras y canalizaciones.
 - [x] Convertir el menú de opciones del mapa en un panel modal lateral derecho con cierre mediante una X.
+- [x] Habilitar la apertura de propiedades al hacer clic en marcadores y canalizaciones del mapa.
