@@ -1,3 +1,7 @@
+/**
+ * Diseño: cartografía técnica sobria. La barra superior conserva una marca
+ * operativa, legible y alineada con los controles del plano.
+ */
 import React, { useState } from 'react';
 import { InspectorProfile, ActivityItem } from '../types';
 
@@ -53,7 +57,7 @@ export const TopNavBar: React.FC<TopNavBarProps> = ({
             onClick={() => onTabChange('dashboard')}
             className="text-left font-['Hanken_Grotesk'] text-xl sm:text-2xl font-bold text-[#004d99] hover:opacity-90 transition-opacity tracking-tight flex items-center gap-2"
           >
-            <span>PhotoVault Pro</span>
+            <span>TRACKING LA NUBIA</span>
           </button>
 
           {/* Desktop Nav links */}

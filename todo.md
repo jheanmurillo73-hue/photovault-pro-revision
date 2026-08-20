@@ -1,3 +1,4 @@
 - [x] Identificar el punto exacto en que el plano se persiste en el almacenamiento local.
 - [x] Limitar y comprimir la imagen antes de guardarla, con degradación segura si se alcanza la cuota.
 - [x] Verificar la carga de un plano grande sin caída del mapa ni pérdida del estado existente.
+- [x] Confirmar y aplicar el rótulo «TRACKING LA NUBIA» en la barra superior.
