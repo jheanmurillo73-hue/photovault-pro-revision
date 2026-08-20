@@ -28,7 +28,11 @@ const expected = [
   ['authScreen', 'registeringAsPrimaryAdmin = isPrimaryAdmin(email)'],
   ['authScreen', "role: registeringAsPrimaryAdmin ? 'Administrador principal' : 'Inspector de Campo'"],
   ['authScreen', 'Este correo se registrará como administrador principal.'],
+  ['authScreen', 'const handleResendConfirmation = async () =>'],
+  ['authScreen', 'emailRedirectTo: window.location.origin'],
+  ['authScreen', 'Reenviar enlace'],
   ['authModal', "role: isPrimaryAdmin(email) ? 'Administrador principal' : 'Inspector de Campo'"],
+  ['authModal', 'emailRedirectTo: window.location.origin'],
 ];
 
 const failures = expected

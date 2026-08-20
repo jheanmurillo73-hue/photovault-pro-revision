@@ -40,10 +40,37 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState<boolean>(false);
+  const [pendingConfirmationEmail, setPendingConfirmationEmail] = useState<string | null>(null);
+  const [isResendingConfirmation, setIsResendingConfirmation] = useState<boolean>(false);
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const isConfigured = isSupabaseConfigured();
   const registeringAsPrimaryAdmin = isPrimaryAdmin(email);
+
+  const handleResendConfirmation = async () => {
+    if (!pendingConfirmationEmail) return;
+    const client = getSupabaseClient();
+    if (!client || !isConfigured) {
+      setErrorMsg('No fue posible preparar el reenvío porque Supabase no está configurado.');
+      return;
+    }
+
+    setIsResendingConfirmation(true);
+    setErrorMsg(null);
+    try {
+      const { error } = await client.auth.resend({
+        type: 'signup',
+        email: pendingConfirmationEmail,
+        options: { emailRedirectTo: window.location.origin },
+      });
+      if (error) throw error;
+      setSuccessMsg(`Enviamos un nuevo enlace de confirmación a ${pendingConfirmationEmail}. Revisa también la carpeta de spam.`);
+    } catch (err: any) {
+      setErrorMsg(err?.message || 'No se pudo reenviar el correo de confirmación.');
+    } finally {
+      setIsResendingConfirmation(false);
+    }
+  };
 
   const handleAvatarFile = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -168,7 +195,13 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
 
         onAuthSuccess(profile, profile.email);
       } else {
-        setErrorMsg(err?.message || 'Error al autenticar. Verifica tu correo y contraseña.');
+        const message = err?.message || 'Error al autenticar. Verifica tu correo y contraseña.';
+        if (/email not confirmed|email_not_confirmed/i.test(message)) {
+          setPendingConfirmationEmail(email.trim());
+          setErrorMsg('El correo aún no ha sido confirmado. Solicita un nuevo enlace de activación antes de iniciar sesión.');
+        } else {
+          setErrorMsg(message);
+        }
       }
     } finally {
       setLoading(false);
@@ -195,6 +228,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
           email: email.trim(),
           password,
           options: {
+            emailRedirectTo: window.location.origin,
             data: {
               full_name: fullName.trim(),
               terminal,
@@ -232,6 +266,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
         if (data.session) {
           onAuthSuccess(profile, profile.email);
         } else {
+          setPendingConfirmationEmail(email.trim());
           setSuccessMsg(registeringAsPrimaryAdmin
             ? 'Cuenta administrador creada. Confirma el correo enviado por Supabase y luego inicia sesión para activar los privilegios.'
             : '¡Registro completado en Supabase! Confirma el correo si Supabase lo solicita y luego inicia sesión con tu cuenta.');
@@ -408,6 +443,18 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
             <div className="p-3.5 bg-[#dcfce7] text-[#166534] text-[13px] rounded-xl border border-[#bbf7d0] flex items-center gap-2.5 animate-in fade-in duration-150">
               <span className="material-symbols-outlined text-[20px] shrink-0">check_circle</span>
               <span>{successMsg}</span>
+            </div>
+          )}
+
+          {pendingConfirmationEmail && (
+            <div className="flex flex-col gap-3 rounded-xl border border-[#b9d9e7] bg-[#eef9fd] p-3.5 text-[13px] text-[#17445a] sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex items-start gap-2.5">
+                <span className="material-symbols-outlined mt-0.5 text-[20px] text-[#006aa6]">mark_email_unread</span>
+                <span>Confirma <strong>{pendingConfirmationEmail}</strong> para activar el acceso administrador.</span>
+              </div>
+              <button type="button" onClick={handleResendConfirmation} disabled={isResendingConfirmation} className="shrink-0 rounded-lg border border-[#87bdd6] bg-white px-3 py-2 text-xs font-bold text-[#004d99] transition-colors hover:bg-[#e6f6ff] disabled:cursor-wait disabled:opacity-60">
+                {isResendingConfirmation ? 'Enviando…' : 'Reenviar enlace'}
+              </button>
             </div>
           )}
 

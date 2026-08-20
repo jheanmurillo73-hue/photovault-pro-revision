@@ -190,6 +190,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
           email: email.trim(),
           password,
           options: {
+            emailRedirectTo: window.location.origin,
             data: {
               full_name: fullName.trim(),
               terminal,
@@ -226,7 +227,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
           onAuthSuccess(profile, email);
           onClose();
         } else {
-          setSuccessMsg('¡Cuenta registrada en Supabase! Ya puedes iniciar sesión.');
+          setSuccessMsg('Cuenta registrada. Confirma el enlace enviado por Supabase y luego inicia sesión.');
           setMode('signin');
         }
       } else {

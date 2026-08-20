@@ -10,3 +10,6 @@
 - [x] Corregir el registro y la inicialización del perfil del correo administrador.
 - [x] Cambiar a la rama desarrollo y sincronizar los archivos actuales mediante un commit en GitHub.
 - [x] Crear y publicar la rama produccion a partir de desarrollo.
+- [x] Configurar y verificar políticas de protección de la rama produccion en GitHub.
+- [x] Cambiar la visibilidad del repositorio a público para habilitar las reglas de protección.
+- [x] Diagnosticar y resolver el registro del correo administrador en Supabase.
