@@ -8,6 +8,8 @@ const files = {
   app: readFileSync(resolve(projectRoot, 'client/src/App.tsx'), 'utf8'),
   sideNav: readFileSync(resolve(projectRoot, 'client/src/components/SideNavBar.tsx'), 'utf8'),
   management: readFileSync(resolve(projectRoot, 'client/src/components/UserManagementView.tsx'), 'utf8'),
+  authScreen: readFileSync(resolve(projectRoot, 'client/src/components/AuthScreen.tsx'), 'utf8'),
+  authModal: readFileSync(resolve(projectRoot, 'client/src/components/AuthModal.tsx'), 'utf8'),
 };
 
 const expected = [
@@ -23,6 +25,10 @@ const expected = [
   ['sideNav', "id: 'admin'"],
   ['management', 'Administración de usuarios'],
   ['management', 'Guardar accesos'],
+  ['authScreen', 'registeringAsPrimaryAdmin = isPrimaryAdmin(email)'],
+  ['authScreen', "role: registeringAsPrimaryAdmin ? 'Administrador principal' : 'Inspector de Campo'"],
+  ['authScreen', 'Este correo se registrará como administrador principal.'],
+  ['authModal', "role: isPrimaryAdmin(email) ? 'Administrador principal' : 'Inspector de Campo'"],
 ];
 
 const failures = expected

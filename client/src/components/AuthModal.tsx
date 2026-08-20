@@ -1,6 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { getSupabaseClient, isSupabaseConfigured } from '../lib/supabase';
 import { InspectorProfile } from '../types';
+import { isPrimaryAdmin } from '../lib/accessControl';
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -34,7 +35,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   const [licenseNumber, setLicenseNumber] = useState<string>('');
   const [terminal, setTerminal] = useState<string>('Terminal A-12 (Zona Norte)');
   const [department, setDepartment] = useState<string>('Operaciones de Campo');
-  const [role, setRole] = useState<string>('Inspector Senior');
   const [avatarUrl, setAvatarUrl] = useState<string>(currentInspector.avatarUrl || AVATAR_OPTIONS[0]);
 
   const [loading, setLoading] = useState<boolean>(false);
@@ -106,7 +106,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
           id: user?.id || currentInspector.id,
           name: meta.full_name || meta.name || email.split('@')[0] || currentInspector.name,
           email: user?.email || email.trim(),
-          role: meta.role || role || 'Inspector Certificado',
+          role: isPrimaryAdmin(user?.email || email) ? 'Administrador principal' : 'Inspector Certificado',
           terminal: meta.terminal || terminal || 'Terminal A-12',
           department: meta.department || department || 'Control de Calidad',
           avatarUrl: meta.avatar_url || currentInspector.avatarUrl,
@@ -194,7 +194,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({
               full_name: fullName.trim(),
               terminal,
               department,
-              role,
               document_id: documentId.trim(),
               phone: phone.trim(),
               company: company.trim(),
@@ -213,7 +212,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
           id: user?.id || `INSP-${Date.now().toString().slice(-4)}`,
           name: fullName.trim(),
           email: email.trim(),
-          role,
+          role: isPrimaryAdmin(email) ? 'Administrador principal' : 'Inspector de Campo',
           terminal,
           department,
           avatarUrl,
@@ -237,7 +236,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
           id: `INSP-${Math.floor(1000 + Math.random() * 9000)}`,
           name: fullName.trim(),
           email: email.trim(),
-          role,
+          role: isPrimaryAdmin(email) ? 'Administrador principal' : 'Inspector de Campo',
           terminal,
           department,
           avatarUrl,
@@ -263,7 +262,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
           id: `INSP-${Math.floor(1000 + Math.random() * 9000)}`,
           name: fullName.trim(),
           email: email.trim(),
-          role,
+          role: isPrimaryAdmin(email) ? 'Administrador principal' : 'Inspector de Campo',
           terminal,
           department,
           avatarUrl,

@@ -5,6 +5,7 @@
 import React, { useState, useRef } from 'react';
 import { getSupabaseClient, isSupabaseConfigured } from '../lib/supabase';
 import { InspectorProfile } from '../types';
+import { isPrimaryAdmin, PRIMARY_ADMIN_EMAIL } from '../lib/accessControl';
 
 interface AuthScreenProps {
   onAuthSuccess: (profile: InspectorProfile, email: string) => void;
@@ -32,7 +33,6 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
   const [licenseNumber, setLicenseNumber] = useState<string>('');
   const [terminal, setTerminal] = useState<string>('Terminal A-12 (Zona Norte)');
   const [department, setDepartment] = useState<string>('Operaciones de Campo');
-  const [role, setRole] = useState<string>('Inspector Senior de Redes MT/BT');
   const [bloodType, setBloodType] = useState<string>('O+');
   const [avatarUrl, setAvatarUrl] = useState<string>(defaultInspector.avatarUrl || AVATAR_OPTIONS[0]);
 
@@ -43,6 +43,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const isConfigured = isSupabaseConfigured();
+  const registeringAsPrimaryAdmin = isPrimaryAdmin(email);
 
   const handleAvatarFile = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -103,7 +104,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
           id: user?.id || defaultInspector.id,
           name: meta.full_name || meta.name || email.split('@')[0],
           email: user?.email || email.trim(),
-          role: meta.role || role || 'Inspector de Campo',
+          role: isPrimaryAdmin(user?.email || email) ? 'Administrador principal' : 'Inspector de Campo',
           terminal: meta.terminal || terminal || 'Terminal A-12',
           department: meta.department || department || 'Control de Calidad',
           avatarUrl: meta.avatar_url || defaultInspector.avatarUrl,
@@ -198,7 +199,6 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
               full_name: fullName.trim(),
               terminal,
               department,
-              role,
               document_id: documentId.trim(),
               phone: phone.trim(),
               company: company.trim(),
@@ -218,7 +218,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
           id: user?.id || `INSP-${Date.now().toString().slice(-4)}`,
           name: fullName.trim(),
           email: email.trim(),
-          role,
+          role: registeringAsPrimaryAdmin ? 'Administrador principal' : 'Inspector de Campo',
           terminal,
           department,
           avatarUrl,
@@ -232,7 +232,9 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
         if (data.session) {
           onAuthSuccess(profile, profile.email);
         } else {
-          setSuccessMsg('¡Registro completado en Supabase! Ya puedes iniciar sesión con tu cuenta.');
+          setSuccessMsg(registeringAsPrimaryAdmin
+            ? 'Cuenta administrador creada. Confirma el correo enviado por Supabase y luego inicia sesión para activar los privilegios.'
+            : '¡Registro completado en Supabase! Confirma el correo si Supabase lo solicita y luego inicia sesión con tu cuenta.');
           setMode('signin');
         }
       } else {
@@ -243,7 +245,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
           id: `INSP-${Math.floor(1000 + Math.random() * 9000)}`,
           name: fullName.trim(),
           email: email.trim() || 'inspector@empresa.com',
-          role,
+          role: registeringAsPrimaryAdmin ? 'Administrador principal' : 'Inspector de Campo',
           terminal,
           department,
           avatarUrl,
@@ -269,7 +271,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
           id: `INSP-${Math.floor(1000 + Math.random() * 9000)}`,
           name: fullName.trim(),
           email: email.trim() || 'inspector@empresa.com',
-          role,
+          role: registeringAsPrimaryAdmin ? 'Administrador principal' : 'Inspector de Campo',
           terminal,
           department,
           avatarUrl,
@@ -664,18 +666,21 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
                     className="w-full bg-[#f3faff] border border-[#c2c6d4] rounded-xl px-3 py-2 text-[13px] text-[#071e27] focus:border-[#004d99] focus:outline-none"
                   />
                 </div>
-                <div>
-                  <label className="block text-[12px] font-bold text-[#071e27] mb-1">
-                    Rol / Cargo
-                  </label>
-                  <input
-                    type="text"
-                    value={role}
-                    onChange={(e) => setRole(e.target.value)}
-                    className="w-full bg-[#f3faff] border border-[#c2c6d4] rounded-xl px-3 py-2 text-[13px] text-[#071e27] focus:border-[#004d99] focus:outline-none"
-                  />
+                <div className={`rounded-xl border px-3 py-2 ${registeringAsPrimaryAdmin ? 'border-[#87bdd6] bg-[#e8f5fb]' : 'border-[#dce7eb] bg-[#f8fbfc]'}`}>
+                  <p className="text-[11px] font-bold text-[#17313d]">Perfil de acceso</p>
+                  <p className="mt-0.5 text-[12px] leading-snug text-[#4e6572]">
+                    {registeringAsPrimaryAdmin
+                      ? 'Este correo se registrará como administrador principal.'
+                      : 'Los nuevos usuarios se registran como inspectores; un administrador asignará sus módulos.'}
+                  </p>
                 </div>
               </div>
+
+              {registeringAsPrimaryAdmin && (
+                <div className="rounded-xl border border-[#b9d9e7] bg-[#eef9fd] px-3 py-2 text-[12px] text-[#17445a]">
+                  Estás usando el correo administrador principal: <strong>{PRIMARY_ADMIN_EMAIL}</strong>.
+                </div>
+              )}
 
               <button
                 type="submit"

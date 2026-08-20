@@ -7,3 +7,4 @@
 - [x] Habilitar la apertura de propiedades al hacer clic en marcadores y canalizaciones del mapa.
 - [x] Configurar y comprobar la conexión segura de la aplicación con el proyecto Supabase proporcionado.
 - [x] Implementar el administrador principal, perfiles de inspector por defecto y permisos asignables por módulo.
+- [x] Corregir el registro y la inicialización del perfil del correo administrador.
