@@ -1,3 +1,7 @@
+/**
+ * Diseño: cartografía técnica sobria. El detalle de cualquier elemento mantiene
+ * una salida directa hacia el plano para conservar el flujo espacial de trabajo.
+ */
 import React, { useState, useEffect } from 'react';
 import {
   InspectionPhoto,
@@ -332,6 +336,10 @@ export default function App() {
               <PhotoDetailView
                 photo={selectedPhoto}
                 onBack={handleBackToGallery}
+                onBackToMap={() => {
+                  setCurrentTab('map');
+                  showToast('Regresaste al mapa del elemento seleccionado', 'info');
+                }}
                 onEdit={(photo) => setEditingPhoto(photo)}
                 onDelete={handleDeletePhoto}
                 onUpdatePhoto={handleUpdatePhoto}

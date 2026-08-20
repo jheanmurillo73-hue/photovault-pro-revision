@@ -2,3 +2,4 @@
 - [x] Limitar y comprimir la imagen antes de guardarla, con degradación segura si se alcanza la cuota.
 - [x] Verificar la carga de un plano grande sin caída del mapa ni pérdida del estado existente.
 - [x] Confirmar y aplicar el rótulo «TRACKING LA NUBIA» en la barra superior.
+- [x] Garantizar una acción visible de regreso al mapa desde los detalles de cámaras y canalizaciones.
