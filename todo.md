@@ -9,3 +9,4 @@
 - [x] Implementar el administrador principal, perfiles de inspector por defecto y permisos asignables por módulo.
 - [x] Corregir el registro y la inicialización del perfil del correo administrador.
 - [x] Cambiar a la rama desarrollo y sincronizar los archivos actuales mediante un commit en GitHub.
+- [x] Crear y publicar la rama produccion a partir de desarrollo.
