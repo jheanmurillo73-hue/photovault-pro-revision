@@ -595,6 +595,17 @@ export const MapView: React.FC<MapViewProps> = ({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const blueprintStorageReadyRef = useRef(false);
 
+  useEffect(() => {
+    if (!isLayersModalOpen) return;
+
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setIsLayersModalOpen(false);
+    };
+
+    window.addEventListener('keydown', closeOnEscape);
+    return () => window.removeEventListener('keydown', closeOnEscape);
+  }, [isLayersModalOpen]);
+
   // Restore the full blueprint image from IndexedDB and migrate any previous localStorage image.
   useEffect(() => {
     let isActive = true;
@@ -1340,27 +1351,41 @@ export const MapView: React.FC<MapViewProps> = ({
 
       {/* ----------------- GOOGLE MAPS STYLE LAYERS & BLUEPRINT POPOVER ----------------- */}
       {isLayersModalOpen && (
-        <div className="absolute bottom-24 left-4 z-40 w-80 sm:w-96 max-h-[80vh] overflow-y-auto bg-white rounded-3xl shadow-[0_4px_24px_rgba(0,0,0,0.25)] border border-[#dadce0] p-5 font-['Google_Sans',Roboto,sans-serif] animate-in fade-in slide-in-from-bottom-3 duration-200">
+        <div className="fixed inset-0 z-40 font-['Google_Sans',Roboto,sans-serif]">
+          <button
+            type="button"
+            className="absolute inset-0 w-full cursor-default bg-slate-950/30 backdrop-blur-[1px]"
+            onClick={() => setIsLayersModalOpen(false)}
+            aria-label="Cerrar panel de opciones del mapa"
+          />
+          <aside
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="map-layers-title"
+            className="absolute inset-y-0 right-0 z-50 flex w-full max-w-md flex-col border-l border-[#c8dce7] bg-white shadow-[-16px_0_42px_rgba(12,57,86,0.22)] animate-in slide-in-from-right duration-200"
+          >
           {/* Header */}
-          <div className="flex items-center justify-between pb-3 border-b border-[#dadce0]">
+          <div className="flex items-center justify-between border-b border-[#dadce0] bg-white px-5 py-4">
             <div className="flex items-center gap-2">
               <span className="material-symbols-outlined text-[#1a73e8] text-[22px]">
                 layers
               </span>
-              <h3 className="font-semibold text-[#202124] text-[16px]">
+              <h3 id="map-layers-title" className="font-semibold text-[#202124] text-[16px]">
                 Capas de Mapa y Plano
               </h3>
             </div>
             <button
               type="button"
               onClick={() => setIsLayersModalOpen(false)}
-              className="w-8 h-8 rounded-full flex items-center justify-center text-[#5f6368] hover:bg-[#f1f3f4]"
+              className="flex h-10 w-10 items-center justify-center rounded-full border border-[#c2d6e1] bg-white text-[#3d5563] shadow-sm transition-colors hover:bg-[#e8f0fe] hover:text-[#004d99]"
+              aria-label="Cerrar opciones del mapa"
+              title="Cerrar"
             >
-              <span className="material-symbols-outlined text-[20px]">close</span>
+              <span className="material-symbols-outlined text-[22px]">close</span>
             </button>
           </div>
 
-          <div className="mt-4 space-y-5">
+          <div className="flex-1 overflow-y-auto px-5 pb-8 pt-5 space-y-5">
             {/* Map Style Selector (Satellite / Streets / Topo) */}
             <div>
               <label className="block text-[13px] font-semibold text-[#202124] mb-2">
@@ -1622,6 +1647,7 @@ export const MapView: React.FC<MapViewProps> = ({
               )}
             </div>
           </div>
+          </aside>
         </div>
       )}
 
