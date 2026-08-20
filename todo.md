@@ -8,4 +8,4 @@
 - [x] Configurar y comprobar la conexión segura de la aplicación con el proyecto Supabase proporcionado.
 - [x] Implementar el administrador principal, perfiles de inspector por defecto y permisos asignables por módulo.
 - [x] Corregir el registro y la inicialización del perfil del correo administrador.
-- [ ] Cambiar a la rama desarrollo y sincronizar los archivos actuales mediante un commit en GitHub.
+- [x] Cambiar a la rama desarrollo y sincronizar los archivos actuales mediante un commit en GitHub.
