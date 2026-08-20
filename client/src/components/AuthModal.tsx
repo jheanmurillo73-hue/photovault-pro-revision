@@ -103,7 +103,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         const meta = user?.user_metadata || {};
 
         const profile: InspectorProfile = {
-          id: user?.id ? `SUPA-${user.id.slice(0, 6)}` : currentInspector.id,
+          id: user?.id || currentInspector.id,
           name: meta.full_name || meta.name || email.split('@')[0] || currentInspector.name,
           email: user?.email || email.trim(),
           role: meta.role || role || 'Inspector Certificado',
@@ -210,7 +210,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
         const user = data.user;
         const profile: InspectorProfile = {
-          id: user?.id ? `SUPA-${user.id.slice(0, 6)}` : `INSP-${Date.now().toString().slice(-4)}`,
+          id: user?.id || `INSP-${Date.now().toString().slice(-4)}`,
           name: fullName.trim(),
           email: email.trim(),
           role,

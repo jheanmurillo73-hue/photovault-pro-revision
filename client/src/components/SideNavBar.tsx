@@ -1,10 +1,12 @@
 import React from 'react';
-import { InspectorProfile } from '../types';
+import { InspectorProfile, AppModule } from '../types';
 
 interface SideNavBarProps {
   currentTab: string;
   onTabChange: (tab: string) => void;
   inspector: InspectorProfile;
+  allowedModules: AppModule[];
+  isAdmin: boolean;
   onOpenProfile: () => void;
   isMobileOpen: boolean;
   onCloseMobile: () => void;
@@ -17,6 +19,8 @@ export const SideNavBar: React.FC<SideNavBarProps> = ({
   currentTab,
   onTabChange,
   inspector,
+  allowedModules,
+  isAdmin,
   onOpenProfile,
   isMobileOpen,
   onCloseMobile,
@@ -55,6 +59,12 @@ export const SideNavBar: React.FC<SideNavBarProps> = ({
       label: 'Configuración',
       icon: 'settings',
     },
+    {
+      id: 'admin',
+      label: 'Administrar Usuarios',
+      icon: 'admin_panel_settings',
+      adminOnly: true,
+    },
   ];
 
   const handleNavClick = (tabId: string) => {
@@ -67,7 +77,7 @@ export const SideNavBar: React.FC<SideNavBarProps> = ({
       <div>
         {/* Navigation Items */}
         <div className="flex flex-col gap-2">
-          {navItems.map((item) => {
+          {navItems.filter((item) => item.adminOnly ? isAdmin : isAdmin || allowedModules.includes(item.id as AppModule)).map((item) => {
             const isActive = currentTab === item.id || (item.id === 'dashboard' && currentTab === 'detail');
             return (
               <button
@@ -129,6 +139,9 @@ export const SideNavBar: React.FC<SideNavBarProps> = ({
             </div>
             <div className="text-[11px] text-[#424752] truncate">
               {inspector.email}
+            </div>
+            <div className="mt-0.5 text-[10px] font-bold uppercase tracking-[0.08em] text-[#004d99]">
+              {isAdmin ? 'Administrador' : 'Inspector'}
             </div>
           </div>
         </div>

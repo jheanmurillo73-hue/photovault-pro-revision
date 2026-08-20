@@ -12,6 +12,25 @@ export type CameraType = 'MT' | 'BT' | 'Datos' | string;
 
 export type ElementType = 'caja' | 'camara' | 'tuberia';
 
+export type AppRole = 'admin' | 'inspector';
+
+export type AppModule =
+  | 'dashboard'
+  | 'map'
+  | 'database'
+  | 'upload'
+  | 'history'
+  | 'activity'
+  | 'settings';
+
+export interface UserAccess {
+  id: string;
+  email: string;
+  name: string;
+  role: AppRole;
+  allowedModules: AppModule[];
+}
+
 export type PhotoCategory = 'inspection' | 'maintenance' | 'site_visit' | 'safety_hazard' | 'structural' | 'electrical';
 
 export interface InspectionPhoto {

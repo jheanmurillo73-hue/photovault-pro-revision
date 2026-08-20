@@ -6,3 +6,4 @@
 - [x] Convertir el menú de opciones del mapa en un panel modal lateral derecho con cierre mediante una X.
 - [x] Habilitar la apertura de propiedades al hacer clic en marcadores y canalizaciones del mapa.
 - [x] Configurar y comprobar la conexión segura de la aplicación con el proyecto Supabase proporcionado.
+- [x] Implementar el administrador principal, perfiles de inspector por defecto y permisos asignables por módulo.

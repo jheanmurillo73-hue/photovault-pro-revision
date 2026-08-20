@@ -3,12 +3,14 @@
  * operativa, legible y alineada con los controles del plano.
  */
 import React, { useState } from 'react';
-import { InspectorProfile, ActivityItem } from '../types';
+import { InspectorProfile, ActivityItem, AppModule } from '../types';
 
 interface TopNavBarProps {
   currentTab: string;
   onTabChange: (tab: string) => void;
   inspector: InspectorProfile;
+  allowedModules: AppModule[];
+  isAdmin: boolean;
   onOpenProfile: () => void;
   activities: ActivityItem[];
   onOpenPhoto: (photoId: string) => void;
@@ -21,6 +23,8 @@ export const TopNavBar: React.FC<TopNavBarProps> = ({
   currentTab,
   onTabChange,
   inspector,
+  allowedModules,
+  isAdmin,
   onOpenProfile,
   activities,
   onOpenPhoto,
@@ -37,6 +41,15 @@ export const TopNavBar: React.FC<TopNavBarProps> = ({
   const isHistoryActive = currentTab === 'history' || currentTab === 'collections';
   const isUploadActive = currentTab === 'upload';
   const isActivityActive = currentTab === 'activity';
+  const canUseModule = (module: AppModule) => isAdmin || allowedModules.includes(module);
+  const desktopNavItems: Array<{ id: AppModule; label: string; icon?: string; isActive: boolean }> = [
+    { id: 'dashboard', label: 'Galería', isActive: isGalleryActive },
+    { id: 'map', label: 'Mapa', icon: 'map', isActive: isMapActive },
+    { id: 'database', label: 'Base de Datos', icon: 'database', isActive: isDatabaseActive },
+    { id: 'history', label: 'Historial', isActive: isHistoryActive },
+    { id: 'upload', label: 'Subir', isActive: isUploadActive },
+    { id: 'activity', label: 'Actividad', isActive: isActivityActive },
+  ];
 
   return (
     <>
@@ -62,74 +75,21 @@ export const TopNavBar: React.FC<TopNavBarProps> = ({
 
           {/* Desktop Nav links */}
           <nav className="hidden md:flex items-center space-x-6 ml-6">
-            <button
-              type="button"
-              onClick={() => onTabChange('dashboard')}
-              className={`pb-1 font-['Inter'] text-[14px] font-bold tracking-[0.02em] transition-all relative ${
-                isGalleryActive
-                  ? 'text-[#004d99] border-b-2 border-[#004d99]'
-                  : 'text-[#424752] hover:text-[#004d99]'
-              }`}
-            >
-              Galería
-            </button>
-            <button
-              type="button"
-              onClick={() => onTabChange('map')}
-              className={`pb-1 font-['Inter'] text-[14px] font-bold tracking-[0.02em] transition-all relative flex items-center gap-1.5 ${
-                isMapActive
-                  ? 'text-[#004d99] border-b-2 border-[#004d99]'
-                  : 'text-[#424752] hover:text-[#004d99]'
-              }`}
-            >
-              <span className="material-symbols-outlined text-[16px]">map</span>
-              <span>Mapa</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => onTabChange('database')}
-              className={`pb-1 font-['Inter'] text-[14px] font-bold tracking-[0.02em] transition-all relative flex items-center gap-1.5 ${
-                isDatabaseActive
-                  ? 'text-[#004d99] border-b-2 border-[#004d99]'
-                  : 'text-[#424752] hover:text-[#004d99]'
-              }`}
-            >
-              <span className="material-symbols-outlined text-[16px]">database</span>
-              <span>Base de Datos</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => onTabChange('history')}
-              className={`pb-1 font-['Inter'] text-[14px] font-bold tracking-[0.02em] transition-all relative ${
-                isHistoryActive
-                  ? 'text-[#004d99] border-b-2 border-[#004d99]'
-                  : 'text-[#424752] hover:text-[#004d99]'
-              }`}
-            >
-              Historial
-            </button>
-            <button
-              type="button"
-              onClick={() => onTabChange('upload')}
-              className={`pb-1 font-['Inter'] text-[14px] font-bold tracking-[0.02em] transition-all relative ${
-                isUploadActive
-                  ? 'text-[#004d99] border-b-2 border-[#004d99]'
-                  : 'text-[#424752] hover:text-[#004d99]'
-              }`}
-            >
-              Subir
-            </button>
-            <button
-              type="button"
-              onClick={() => onTabChange('activity')}
-              className={`pb-1 font-['Inter'] text-[14px] font-bold tracking-[0.02em] transition-all relative ${
-                isActivityActive
-                  ? 'text-[#004d99] border-b-2 border-[#004d99]'
-                  : 'text-[#424752] hover:text-[#004d99]'
-              }`}
-            >
-              Actividad
-            </button>
+            {desktopNavItems.filter((item) => canUseModule(item.id)).map((item) => (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => onTabChange(item.id)}
+                className={`pb-1 font-['Inter'] text-[14px] font-bold tracking-[0.02em] transition-all relative flex items-center gap-1.5 ${
+                  item.isActive
+                    ? 'text-[#004d99] border-b-2 border-[#004d99]'
+                    : 'text-[#424752] hover:text-[#004d99]'
+                }`}
+              >
+                {item.icon && <span className="material-symbols-outlined text-[16px]">{item.icon}</span>}
+                <span>{item.label}</span>
+              </button>
+            ))}
           </nav>
         </div>
 

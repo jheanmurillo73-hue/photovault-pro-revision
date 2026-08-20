@@ -1,5 +1,6 @@
 import { getSupabaseClient, isSupabaseConfigured, getActiveSupabaseConfig } from '../lib/supabase';
-import { InspectionPhoto, InspectorProfile, ActivityItem, InspectionCollection, AppSettings } from '../types';
+import { InspectionPhoto, InspectorProfile, ActivityItem, InspectionCollection, AppSettings, AppModule, AppRole, UserAccess } from '../types';
+import { ALL_OPERATIONAL_MODULES, createFallbackAccess, isPrimaryAdmin, normalizeModules } from '../lib/accessControl';
 
 export interface SupabaseConnectionStatus {
   connected: boolean;
@@ -12,6 +13,69 @@ export interface SupabaseConnectionStatus {
 export const supabaseService = {
   isConfigured: () => isSupabaseConfigured(),
   getConfig: () => getActiveSupabaseConfig(),
+
+  getUserAccess: async (profile: Pick<InspectorProfile, 'id' | 'email' | 'name'>): Promise<UserAccess> => {
+    const fallback = createFallbackAccess(profile);
+    if (isPrimaryAdmin(profile.email) || !isSupabaseConfigured()) return fallback;
+
+    const client = getSupabaseClient();
+    if (!client) return fallback;
+
+    try {
+      const { data, error } = await client
+        .from('profiles')
+        .select('id, name, email, role, allowed_modules')
+        .eq('id', profile.id)
+        .maybeSingle();
+
+      if (error || !data) return fallback;
+      const role: AppRole = data.role === 'admin' ? 'admin' : 'inspector';
+      return {
+        id: data.id,
+        name: data.name || profile.name,
+        email: data.email || profile.email,
+        role,
+        allowedModules: role === 'admin' ? [...ALL_OPERATIONAL_MODULES] : normalizeModules(data.allowed_modules),
+      };
+    } catch {
+      return fallback;
+    }
+  },
+
+  listUserAccess: async (): Promise<UserAccess[] | null> => {
+    const client = getSupabaseClient();
+    if (!client || !isSupabaseConfigured()) return null;
+
+    const { data, error } = await client
+      .from('profiles')
+      .select('id, name, email, role, allowed_modules')
+      .order('name', { ascending: true });
+
+    if (error || !data) return null;
+    return data.map((user) => {
+      const role: AppRole = isPrimaryAdmin(user.email) || user.role === 'admin' ? 'admin' : 'inspector';
+      return {
+        id: user.id,
+        name: user.name || user.email,
+        email: user.email,
+        role,
+        allowedModules: role === 'admin' ? [...ALL_OPERATIONAL_MODULES] : normalizeModules(user.allowed_modules),
+      };
+    });
+  },
+
+  updateUserAccess: async (userId: string, role: AppRole, allowedModules: AppModule[]): Promise<boolean> => {
+    const client = getSupabaseClient();
+    if (!client || !isSupabaseConfigured()) return false;
+
+    const accessModules = role === 'admin' ? ALL_OPERATIONAL_MODULES : normalizeModules(allowedModules);
+    const { error } = await client
+      .from('profiles')
+      .update({ role, allowed_modules: accessModules, updated_at: new Date().toISOString() })
+      .eq('id', userId);
+
+    return !error;
+  },
 
   // Test connection to Supabase and check if tables exist
   testConnection: async (): Promise<SupabaseConnectionStatus> => {
@@ -301,17 +365,23 @@ export const supabaseService = {
     }
 
     try {
-      const { error } = await client.from('profiles').upsert({
+      const record: Record<string, unknown> = {
         id: userId || profile.id,
         name: profile.name,
         email: profile.email,
-        role: profile.role,
         terminal: profile.terminal,
         department: profile.department,
         avatar_url: profile.avatarUrl,
         phone: profile.phone,
         updated_at: new Date().toISOString(),
-      });
+      };
+
+      if (isPrimaryAdmin(profile.email)) {
+        record.role = 'admin';
+        record.allowed_modules = ALL_OPERATIONAL_MODULES;
+      }
+
+      const { error } = await client.from('profiles').upsert(record);
 
       if (error) {
         console.warn('Supabase profile sync note:', error.message);
@@ -430,7 +500,8 @@ CREATE TABLE IF NOT EXISTS public.profiles (
   id TEXT PRIMARY KEY,
   name TEXT NOT NULL,
   email TEXT NOT NULL,
-  role TEXT DEFAULT 'Inspector de Campo',
+  role TEXT NOT NULL DEFAULT 'inspector' CHECK (role IN ('admin', 'inspector')),
+  allowed_modules JSONB NOT NULL DEFAULT '["dashboard", "map", "upload", "history"]'::jsonb,
   terminal TEXT DEFAULT 'Terminal A-12',
   department TEXT DEFAULT 'Garantía Estructural y Calidad',
   phone TEXT DEFAULT '',
@@ -438,6 +509,14 @@ CREATE TABLE IF NOT EXISTS public.profiles (
   created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now()),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())
 );
+
+-- Migración segura para proyectos creados con versiones anteriores.
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS allowed_modules JSONB NOT NULL DEFAULT '["dashboard", "map", "upload", "history"]'::jsonb;
+ALTER TABLE public.profiles ALTER COLUMN role SET DEFAULT 'inspector';
+UPDATE public.profiles
+SET role = 'admin', allowed_modules = '["dashboard", "map", "database", "upload", "history", "activity", "settings"]'::jsonb
+WHERE lower(email) = 'jheanmurillo73@gmail.com';
+UPDATE public.profiles SET role = 'inspector' WHERE role IS NULL OR role NOT IN ('admin', 'inspector');
 
 -- 2. TABLA PRINCIPAL DE FOTOS Y REGISTROS DE INSPECCIÓN (inspection_photos)
 CREATE TABLE IF NOT EXISTS public.inspection_photos (
@@ -530,21 +609,90 @@ ALTER TABLE public.inspection_activities ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.inspection_collections ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.app_settings ENABLE ROW LEVEL SECURITY;
 
--- Políticas de lectura y escritura para permitir sincronización sin fricción
+-- Funciones y políticas de acceso por rol y módulo.
+CREATE OR REPLACE FUNCTION public.photovault_is_admin()
+RETURNS BOOLEAN LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS $$
+  SELECT COALESCE((
+    SELECT lower(email) = 'jheanmurillo73@gmail.com' OR role = 'admin'
+    FROM public.profiles WHERE id = auth.uid()::text
+  ), false);
+$$;
+
+CREATE OR REPLACE FUNCTION public.photovault_can_access_module(module_name TEXT)
+RETURNS BOOLEAN LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS $$
+  SELECT auth.uid() IS NOT NULL AND (
+    public.photovault_is_admin() OR EXISTS (
+      SELECT 1 FROM public.profiles
+      WHERE id = auth.uid()::text AND allowed_modules @> jsonb_build_array(module_name)
+    )
+  );
+$$;
+
+CREATE OR REPLACE FUNCTION public.enforce_photovault_profile_access()
+RETURNS TRIGGER LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+BEGIN
+  IF lower(COALESCE(NEW.email, '')) = 'jheanmurillo73@gmail.com' THEN
+    NEW.role := 'admin';
+    NEW.allowed_modules := '["dashboard", "map", "database", "upload", "history", "activity", "settings"]'::jsonb;
+  ELSIF TG_OP = 'INSERT' THEN
+    NEW.role := 'inspector';
+    NEW.allowed_modules := '["dashboard", "map", "upload", "history"]'::jsonb;
+  ELSIF NOT public.photovault_is_admin() THEN
+    NEW.role := OLD.role;
+    NEW.allowed_modules := OLD.allowed_modules;
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS protect_photovault_profile_access ON public.profiles;
+CREATE TRIGGER protect_photovault_profile_access
+BEFORE INSERT OR UPDATE ON public.profiles
+FOR EACH ROW EXECUTE FUNCTION public.enforce_photovault_profile_access();
+
 DROP POLICY IF EXISTS "Acceso total a perfiles" ON public.profiles;
-CREATE POLICY "Acceso total a perfiles" ON public.profiles FOR ALL USING (true) WITH CHECK (true);
+DROP POLICY IF EXISTS "Perfil propio o administracion" ON public.profiles;
+DROP POLICY IF EXISTS "Crear perfil propio" ON public.profiles;
+DROP POLICY IF EXISTS "Actualizar perfil propio o administracion" ON public.profiles;
+CREATE POLICY "Perfil propio o administracion" ON public.profiles FOR SELECT
+USING (id = auth.uid()::text OR public.photovault_is_admin());
+CREATE POLICY "Crear perfil propio" ON public.profiles FOR INSERT
+WITH CHECK (id = auth.uid()::text);
+CREATE POLICY "Actualizar perfil propio o administracion" ON public.profiles FOR UPDATE
+USING (id = auth.uid()::text OR public.photovault_is_admin())
+WITH CHECK (id = auth.uid()::text OR public.photovault_is_admin());
 
 DROP POLICY IF EXISTS "Acceso total a fotos de inspeccion" ON public.inspection_photos;
-CREATE POLICY "Acceso total a fotos de inspeccion" ON public.inspection_photos FOR ALL USING (true) WITH CHECK (true);
+DROP POLICY IF EXISTS "Lectura de inspecciones por modulo" ON public.inspection_photos;
+DROP POLICY IF EXISTS "Escritura de inspecciones por modulo" ON public.inspection_photos;
+CREATE POLICY "Lectura de inspecciones por modulo" ON public.inspection_photos FOR SELECT
+USING (
+  public.photovault_can_access_module('dashboard') OR
+  public.photovault_can_access_module('map') OR
+  public.photovault_can_access_module('database') OR
+  public.photovault_can_access_module('history')
+);
+CREATE POLICY "Escritura de inspecciones por modulo" ON public.inspection_photos FOR ALL
+USING (public.photovault_can_access_module('upload'))
+WITH CHECK (public.photovault_can_access_module('upload'));
 
 DROP POLICY IF EXISTS "Acceso total a actividades" ON public.inspection_activities;
-CREATE POLICY "Acceso total a actividades" ON public.inspection_activities FOR ALL USING (true) WITH CHECK (true);
+DROP POLICY IF EXISTS "Acceso a actividades por modulo" ON public.inspection_activities;
+CREATE POLICY "Acceso a actividades por modulo" ON public.inspection_activities FOR ALL
+USING (public.photovault_can_access_module('activity') OR public.photovault_can_access_module('upload'))
+WITH CHECK (public.photovault_can_access_module('activity') OR public.photovault_can_access_module('upload'));
 
 DROP POLICY IF EXISTS "Acceso total a colecciones" ON public.inspection_collections;
-CREATE POLICY "Acceso total a colecciones" ON public.inspection_collections FOR ALL USING (true) WITH CHECK (true);
+DROP POLICY IF EXISTS "Acceso a colecciones por modulo" ON public.inspection_collections;
+CREATE POLICY "Acceso a colecciones por modulo" ON public.inspection_collections FOR ALL
+USING (public.photovault_can_access_module('history'))
+WITH CHECK (public.photovault_can_access_module('history'));
 
 DROP POLICY IF EXISTS "Acceso total a configuracion" ON public.app_settings;
-CREATE POLICY "Acceso total a configuracion" ON public.app_settings FOR ALL USING (true) WITH CHECK (true);
+DROP POLICY IF EXISTS "Acceso a configuracion por modulo" ON public.app_settings;
+CREATE POLICY "Acceso a configuracion por modulo" ON public.app_settings FOR ALL
+USING (public.photovault_can_access_module('settings'))
+WITH CHECK (public.photovault_can_access_module('settings'));
 
 -- Notificar recarga de caché
 NOTIFY pgrst, 'reload schema';

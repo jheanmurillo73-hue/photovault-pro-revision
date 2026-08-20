@@ -100,7 +100,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
         const meta = user?.user_metadata || {};
 
         const profile: InspectorProfile = {
-          id: user?.id ? `SUPA-${user.id.slice(0, 6)}` : defaultInspector.id,
+          id: user?.id || defaultInspector.id,
           name: meta.full_name || meta.name || email.split('@')[0],
           email: user?.email || email.trim(),
           role: meta.role || role || 'Inspector de Campo',
@@ -215,7 +215,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
 
         const user = data.user;
         const profile: InspectorProfile = {
-          id: user?.id ? `SUPA-${user.id.slice(0, 6)}` : `INSP-${Date.now().toString().slice(-4)}`,
+          id: user?.id || `INSP-${Date.now().toString().slice(-4)}`,
           name: fullName.trim(),
           email: email.trim(),
           role,

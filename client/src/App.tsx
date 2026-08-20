@@ -9,6 +9,8 @@ import {
   AppSettings,
   ActivityItem,
   InspectionCollection,
+  AppModule,
+  UserAccess,
 } from './types';
 import {
   INITIAL_PHOTOS,
@@ -33,7 +35,9 @@ import { SignOutModal } from './components/SignOutModal';
 import { AuthModal } from './components/AuthModal';
 import { AuthScreen } from './components/AuthScreen';
 import { SupabaseTablesModal } from './components/SupabaseTablesModal';
+import { UserManagementView } from './components/UserManagementView';
 import { supabaseService } from './services/supabaseService';
+import { canAccessModule, createFallbackAccess, MODULE_DEFINITIONS } from './lib/accessControl';
 import { Footer } from './components/Footer';
 import { Toast } from './components/Toast';
 
@@ -61,6 +65,10 @@ export default function App() {
     const saved = localStorage.getItem('photovault_inspector');
     return saved ? JSON.parse(saved) : DEFAULT_INSPECTOR;
   });
+
+  const [userAccess, setUserAccess] = useState<UserAccess>(() =>
+    createFallbackAccess({ id: inspector.id, email: inspector.email, name: inspector.name }),
+  );
 
   const [settings, setSettings] = useState<AppSettings>(() => {
     const saved = localStorage.getItem('photovault_settings');
@@ -109,6 +117,22 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem('photovault_activities', JSON.stringify(activities));
   }, [activities]);
+
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    let active = true;
+
+    const resolveUserAccess = async () => {
+      await supabaseService.syncProfile(inspector, inspector.id);
+      const access = await supabaseService.getUserAccess(inspector);
+      if (active) setUserAccess(access);
+    };
+
+    resolveUserAccess();
+    return () => {
+      active = false;
+    };
+  }, [isAuthenticated, inspector.id, inspector.email, inspector.name]);
 
   // Initial optional load from Supabase if configured and photos array is empty
   useEffect(() => {
@@ -248,9 +272,9 @@ export default function App() {
 
   const handleAuthSuccess = (newProfile: InspectorProfile, userEmail: string) => {
     setInspector(newProfile);
+    setUserAccess(createFallbackAccess({ id: newProfile.id, email: newProfile.email, name: newProfile.name }));
     setIsAuthenticated(true);
     sessionStorage.setItem('photovault_authenticated', 'true');
-    supabaseService.syncProfile(newProfile, newProfile.id);
     showToast(`Sesión iniciada como ${newProfile.name} (${userEmail})`, 'success');
   };
 
@@ -281,12 +305,33 @@ export default function App() {
   };
 
   const handleTabChange = (tab: string) => {
+    if (tab === 'admin' && userAccess.role !== 'admin') {
+      showToast('Solo los administradores pueden gestionar usuarios y permisos.', 'error');
+      return;
+    }
+
+    const isOperationalModule = MODULE_DEFINITIONS.some((module) => module.id === tab);
+    if (isOperationalModule && !canAccessModule(userAccess, tab as AppModule)) {
+      showToast('Tu usuario no tiene permiso para acceder a este módulo.', 'error');
+      return;
+    }
+
     if (tab !== 'detail') {
       setSelectedPhotoId(null);
     }
     setCurrentTab(tab);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
+
+  useEffect(() => {
+    const activeModule = MODULE_DEFINITIONS.find((module) => module.id === currentTab);
+    if (currentTab === 'admin' && userAccess.role !== 'admin') {
+      setCurrentTab('dashboard');
+    } else if (activeModule && !canAccessModule(userAccess, activeModule.id)) {
+      const fallbackModule = MODULE_DEFINITIONS.find((module) => canAccessModule(userAccess, module.id));
+      setCurrentTab(fallbackModule?.id || 'dashboard');
+    }
+  }, [currentTab, userAccess]);
 
   // If not authenticated, display full Authentication Gate directly
   if (!isAuthenticated) {
@@ -307,6 +352,8 @@ export default function App() {
         currentTab={currentTab}
         onTabChange={handleTabChange}
         inspector={inspector}
+        allowedModules={userAccess.allowedModules}
+        isAdmin={userAccess.role === 'admin'}
         onOpenProfile={() => setIsProfileModalOpen(true)}
         activities={activities}
         onOpenPhoto={handleOpenPhotoFromActivity}
@@ -321,6 +368,8 @@ export default function App() {
           currentTab={currentTab}
           onTabChange={handleTabChange}
           inspector={inspector}
+          allowedModules={userAccess.allowedModules}
+          isAdmin={userAccess.role === 'admin'}
           onOpenProfile={() => setIsProfileModalOpen(true)}
           isMobileOpen={isMobileMenuOpen}
           onCloseMobile={() => setIsMobileMenuOpen(false)}
@@ -332,13 +381,17 @@ export default function App() {
         {/* Main Content Area */}
         <div className={`flex-1 md:ml-64 flex flex-col ${currentTab === 'map' ? 'h-[calc(100vh-64px)] overflow-hidden' : 'min-h-[calc(100vh-64px)] justify-between'}`}>
           <main className={`${currentTab === 'map' ? 'p-0 h-full w-full relative overflow-hidden' : 'p-4 sm:p-6 lg:p-8 flex-1'}`}>
-            {currentTab === 'detail' && selectedPhoto ? (
+            {currentTab === 'admin' && userAccess.role === 'admin' ? (
+              <UserManagementView currentUser={userAccess} onShowToast={showToast} />
+            ) : currentTab === 'detail' && selectedPhoto ? (
               <PhotoDetailView
                 photo={selectedPhoto}
                 onBack={handleBackToGallery}
                 onBackToMap={() => {
-                  setCurrentTab('map');
-                  showToast('Regresaste al mapa del elemento seleccionado', 'info');
+                  handleTabChange('map');
+                  if (canAccessModule(userAccess, 'map')) {
+                    showToast('Regresaste al mapa del elemento seleccionado', 'info');
+                  }
                 }}
                 onEdit={(photo) => setEditingPhoto(photo)}
                 onDelete={handleDeletePhoto}
@@ -360,7 +413,7 @@ export default function App() {
                   if (targetPhoto) {
                     setSelectedPhotoId(targetPhoto.id);
                   }
-                  setCurrentTab('map');
+                  handleTabChange('map');
                 }}
                 onNavigateToUpload={() => handleTabChange('upload')}
                 onEditPhoto={(photo) => setEditingPhoto(photo)}
