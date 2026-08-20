@@ -18,6 +18,8 @@ import {
 } from '../types';
 import { DEFAULT_BLUEPRINT_SVG, SAMPLE_BLUEPRINTS } from '../data/blueprintTemplates';
 import { ErrorBoundary } from './ErrorBoundary';
+import { compressImageForDevice } from '../services/deviceStorageService';
+import { isQuotaExceededError, loadBlueprintImage, saveBlueprintImage } from '../services/blueprintStorageService';
 
 interface MapViewProps {
   photos: InspectionPhoto[];
@@ -560,7 +562,11 @@ export const MapView: React.FC<MapViewProps> = ({
     const saved = localStorage.getItem('photovault_blueprint');
     if (saved) {
       try {
-        return JSON.parse(saved);
+        const parsed = JSON.parse(saved) as BlueprintOverlay;
+        return {
+          ...parsed,
+          imageUrl: parsed.imageUrl || DEFAULT_BLUEPRINT_SVG,
+        };
       } catch {
         // fallback
       }
@@ -585,11 +591,71 @@ export const MapView: React.FC<MapViewProps> = ({
   // Layer Popover / Panel state (Bottom Left "Capas" button)
   const [isLayersModalOpen, setIsLayersModalOpen] = useState<boolean>(false);
   const [isBlueprintLocked, setIsBlueprintLocked] = useState<boolean>(false);
+  const [blueprintStorageNotice, setBlueprintStorageNotice] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const blueprintStorageReadyRef = useRef(false);
 
-  // Save blueprint state to local storage
+  // Restore the full blueprint image from IndexedDB and migrate any previous localStorage image.
   useEffect(() => {
-    localStorage.setItem('photovault_blueprint', JSON.stringify(blueprint));
+    let isActive = true;
+    const restoreBlueprintImage = async () => {
+      try {
+        const indexedImage = await loadBlueprintImage();
+        if (indexedImage && isActive) {
+          setBlueprint((prev) => ({ ...prev, imageUrl: indexedImage }));
+          return;
+        }
+
+        const storedMetadata = localStorage.getItem('photovault_blueprint');
+        const legacyBlueprint = storedMetadata ? (JSON.parse(storedMetadata) as BlueprintOverlay) : null;
+        const legacyImage = legacyBlueprint?.imageUrl;
+
+        if (legacyImage && legacyImage !== DEFAULT_BLUEPRINT_SVG) {
+          await saveBlueprintImage(legacyImage);
+          localStorage.setItem('photovault_blueprint', JSON.stringify({ ...legacyBlueprint, imageUrl: '' }));
+        }
+      } catch {
+        // A browser without IndexedDB can still display and use the current session's plan.
+      } finally {
+        blueprintStorageReadyRef.current = true;
+      }
+    };
+
+    void restoreBlueprintImage();
+
+    return () => {
+      isActive = false;
+    };
+  }, []);
+
+  // Store only lightweight plane metadata in localStorage. The image itself is kept in IndexedDB.
+  useEffect(() => {
+    if (!blueprintStorageReadyRef.current) return;
+
+    const persistBlueprint = async () => {
+      const { imageUrl, ...metadata } = blueprint;
+
+      try {
+        localStorage.setItem('photovault_blueprint', JSON.stringify({ ...metadata, imageUrl: '' }));
+      } catch (error) {
+        if (isQuotaExceededError(error)) {
+          setBlueprintStorageNotice('El plano sigue abierto, pero sus ajustes no se pudieron guardar en el almacenamiento local.');
+        }
+      }
+
+      try {
+        await saveBlueprintImage(imageUrl);
+        setBlueprintStorageNotice(null);
+      } catch (error) {
+        if (isQuotaExceededError(error)) {
+          setBlueprintStorageNotice('El plano es demasiado grande para el almacenamiento disponible. Se mantiene abierto durante esta sesión.');
+        } else {
+          setBlueprintStorageNotice('No se pudo conservar el plano para la próxima sesión; el mapa continúa disponible.');
+        }
+      }
+    };
+
+    void persistBlueprint();
   }, [blueprint]);
 
   // Request Inspector Geolocation on mount and watch
@@ -707,29 +773,34 @@ export const MapView: React.FC<MapViewProps> = ({
   };
 
   // Upload Custom Blueprint file
-  const handleBlueprintUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleBlueprintUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      const dataUrl = ev.target?.result as string;
-      if (dataUrl) {
-        setBlueprint((prev) => ({
-          ...prev,
-          name: file.name.replace(/\.[^/.]+$/, ''),
-          imageUrl: dataUrl,
-          visible: true,
-          bounds: {
-            north: mapCenter.lat + 0.0012,
-            south: mapCenter.lat - 0.0012,
-            east: mapCenter.lng + 0.0018,
-            west: mapCenter.lng - 0.0018,
-          },
-        }));
-      }
-    };
-    reader.readAsDataURL(file);
+    if (!file.type.startsWith('image/')) {
+      setBlueprintStorageNotice('Selecciona una imagen de plano válida en formato JPG, PNG, WEBP o similar.');
+      return;
+    }
+
+    setBlueprintStorageNotice('Optimizando el plano para cargarlo con seguridad…');
+    try {
+      const optimizedImage = await compressImageForDevice(file, 2048, 1536, 0.82);
+      setBlueprint((prev) => ({
+        ...prev,
+        name: file.name.replace(/\.[^/.]+$/, ''),
+        imageUrl: optimizedImage,
+        visible: true,
+        bounds: {
+          north: mapCenter.lat + 0.0012,
+          south: mapCenter.lat - 0.0012,
+          east: mapCenter.lng + 0.0018,
+          west: mapCenter.lng - 0.0018,
+        },
+      }));
+      e.target.value = '';
+    } catch {
+      setBlueprintStorageNotice('No se pudo procesar esta imagen. Intenta con otro archivo de plano.');
+    }
   };
 
   // Adjust blueprint bounds
@@ -761,6 +832,20 @@ export const MapView: React.FC<MapViewProps> = ({
         isFullscreen ? 'fixed inset-0 z-50 bg-[#202124]' : 'relative'
       }`}
     >
+      {blueprintStorageNotice && (
+        <div className="absolute right-3 top-3 z-50 flex max-w-sm items-start gap-2 rounded-xl border border-amber-300 bg-amber-50/95 px-3 py-2.5 text-[12px] text-amber-900 shadow-lg backdrop-blur-sm">
+          <span className="material-symbols-outlined mt-0.5 text-[18px] text-amber-700">info</span>
+          <span>{blueprintStorageNotice}</span>
+          <button
+            type="button"
+            onClick={() => setBlueprintStorageNotice(null)}
+            className="ml-1 rounded p-0.5 text-amber-800 hover:bg-amber-100"
+            aria-label="Cerrar aviso de almacenamiento"
+          >
+            <span className="material-symbols-outlined text-[16px]">close</span>
+          </button>
+        </div>
+      )}
       {/* ----------------- GOOGLE MAPS FLOATING TOP BAR & SEARCH CARD ----------------- */}
       <div className="absolute top-3 left-3 z-30 flex flex-col md:flex-row items-start gap-2.5 max-w-[calc(100vw-24px)] pointer-events-auto">
         {/* Floating Google Maps Search Card */}
