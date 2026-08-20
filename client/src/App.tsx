@@ -1,42 +1,468 @@
-import { Toaster } from "@/components/ui/sonner";
-import { TooltipProvider } from "@/components/ui/tooltip";
-import NotFound from "@/pages/NotFound";
-import { Route, Switch } from "wouter";
-import ErrorBoundary from "./components/ErrorBoundary";
-import { ThemeProvider } from "./contexts/ThemeContext";
-import Home from "./pages/Home";
+import React, { useState, useEffect } from 'react';
+import {
+  InspectionPhoto,
+  InspectorProfile,
+  AppSettings,
+  ActivityItem,
+  InspectionCollection,
+} from './types';
+import {
+  INITIAL_PHOTOS,
+  DEFAULT_INSPECTOR,
+  INITIAL_SETTINGS,
+  INITIAL_COLLECTIONS,
+  INITIAL_ACTIVITIES,
+} from './data/mockData';
+import { TopNavBar } from './components/TopNavBar';
+import { SideNavBar } from './components/SideNavBar';
+import { DashboardView } from './components/DashboardView';
+import { PhotoDetailView } from './components/PhotoDetailView';
+import { UploadPhotoView } from './components/UploadPhotoView';
+import { SettingsView } from './components/SettingsView';
+import { HistoryView } from './components/HistoryView';
+import { ActivityView } from './components/ActivityView';
+import { MapView } from './components/MapView';
+import { DatabaseTableView } from './components/DatabaseTableView';
+import { EditPhotoModal } from './components/EditPhotoModal';
+import { ProfileModal } from './components/ProfileModal';
+import { SignOutModal } from './components/SignOutModal';
+import { AuthModal } from './components/AuthModal';
+import { AuthScreen } from './components/AuthScreen';
+import { SupabaseTablesModal } from './components/SupabaseTablesModal';
+import { supabaseService } from './services/supabaseService';
+import { Footer } from './components/Footer';
+import { Toast } from './components/Toast';
 
+export default function App() {
+  // Session Authentication State
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
+    return sessionStorage.getItem('photovault_authenticated') === 'true';
+  });
 
-function Router() {
+  // Local storage persisted state
+  const [photos, setPhotos] = useState<InspectionPhoto[]>(() => {
+    const saved = localStorage.getItem('photovault_photos');
+    if (!saved) return INITIAL_PHOTOS;
+    try {
+      const parsed: InspectionPhoto[] = JSON.parse(saved);
+      return parsed.filter(
+        (p) => !['photo-1', 'photo-2', 'photo-3', 'photo-4', 'photo-5'].includes(p.id)
+      );
+    } catch {
+      return INITIAL_PHOTOS;
+    }
+  });
+
+  const [inspector, setInspector] = useState<InspectorProfile>(() => {
+    const saved = localStorage.getItem('photovault_inspector');
+    return saved ? JSON.parse(saved) : DEFAULT_INSPECTOR;
+  });
+
+  const [settings, setSettings] = useState<AppSettings>(() => {
+    const saved = localStorage.getItem('photovault_settings');
+    return saved ? JSON.parse(saved) : INITIAL_SETTINGS;
+  });
+
+  const [collections] = useState<InspectionCollection[]>(INITIAL_COLLECTIONS);
+
+  const [activities, setActivities] = useState<ActivityItem[]>(() => {
+    const saved = localStorage.getItem('photovault_activities');
+    if (!saved) return INITIAL_ACTIVITIES;
+    try {
+      const parsed: ActivityItem[] = JSON.parse(saved);
+      return parsed.filter(
+        (a) => !['act-1', 'act-2', 'act-3', 'act-4'].includes(a.id)
+      );
+    } catch {
+      return INITIAL_ACTIVITIES;
+    }
+  });
+
+  // Navigation & UI State
+  const [currentTab, setCurrentTab] = useState<string>('dashboard');
+  const [selectedPhotoId, setSelectedPhotoId] = useState<string | null>(null);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState<boolean>(false);
+  const [editingPhoto, setEditingPhoto] = useState<InspectionPhoto | null>(null);
+  const [isProfileModalOpen, setIsProfileModalOpen] = useState<boolean>(false);
+  const [isSignOutModalOpen, setIsSignOutModalOpen] = useState<boolean>(false);
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState<boolean>(false);
+  const [isSupabaseModalOpen, setIsSupabaseModalOpen] = useState<boolean>(false);
+  const [toast, setToast] = useState<{ message: string; type?: 'success' | 'info' | 'error' } | null>(null);
+
+  // Sync to local storage
+  useEffect(() => {
+    localStorage.setItem('photovault_photos', JSON.stringify(photos));
+  }, [photos]);
+
+  useEffect(() => {
+    localStorage.setItem('photovault_inspector', JSON.stringify(inspector));
+  }, [inspector]);
+
+  useEffect(() => {
+    localStorage.setItem('photovault_settings', JSON.stringify(settings));
+  }, [settings]);
+
+  useEffect(() => {
+    localStorage.setItem('photovault_activities', JSON.stringify(activities));
+  }, [activities]);
+
+  // Initial optional load from Supabase if configured and photos array is empty
+  useEffect(() => {
+    const checkAndLoadSupabase = async () => {
+      if (supabaseService.isConfigured() && photos.length === 0) {
+        try {
+          const remotePhotos = await supabaseService.fetchPhotos();
+          if (remotePhotos && remotePhotos.length > 0) {
+            setPhotos(remotePhotos);
+            showToast(`Se cargaron ${remotePhotos.length} inspecciones desde Supabase`, 'info');
+          }
+        } catch (err) {
+          console.warn('Initial Supabase fetch skipped:', err);
+        }
+      }
+    };
+    checkAndLoadSupabase();
+  }, []);
+
+  const showToast = (message: string, type: 'success' | 'info' | 'error' = 'success') => {
+    setToast({ message, type });
+  };
+
+  const addActivity = (action: string, photoName: string, photoId: string, type: ActivityItem['type']) => {
+    const newAct: ActivityItem = {
+      id: `act-${Date.now()}`,
+      timestamp: 'Justo ahora',
+      action,
+      photoName,
+      photoId,
+      user: inspector.name,
+      type,
+    };
+    setActivities((prev) => [newAct, ...prev]);
+
+    // Sync activity to Supabase in background
+    supabaseService.logActivity(newAct, inspector.id);
+  };
+
+  // Photo handlers
+  const handleSelectPhoto = (photo: InspectionPhoto) => {
+    setSelectedPhotoId(photo.id);
+    setCurrentTab('detail');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleBackToGallery = () => {
+    setSelectedPhotoId(null);
+    setCurrentTab('dashboard');
+  };
+
+  const handleUpdatePhotoTitle = (id: string, newTitle: string) => {
+    setPhotos((prev) =>
+      prev.map((p) => {
+        if (p.id === id) {
+          const updated = { ...p, name: newTitle };
+          supabaseService.savePhoto(updated, inspector.id);
+          return updated;
+        }
+        return p;
+      })
+    );
+  };
+
+  const handleUpdatePhoto = (updated: InspectionPhoto) => {
+    setPhotos((prev) =>
+      prev.map((p) => (p.id === updated.id ? updated : p))
+    );
+    addActivity('Detalles actualizados', updated.name, updated.id, 'edit');
+    showToast(`Actualizado "${updated.name}"`);
+
+    // Sync to Supabase
+    supabaseService.savePhoto(updated, inspector.id);
+  };
+
+  const handleDeletePhoto = (id: string) => {
+    const photo = photos.find((p) => p.id === id);
+    setPhotos((prev) => prev.filter((p) => p.id !== id));
+    if (selectedPhotoId === id) {
+      setSelectedPhotoId(null);
+      setCurrentTab('dashboard');
+    }
+    if (photo) {
+      addActivity('Inspección eliminada', photo.name, photo.id, 'flag');
+      showToast(`"${photo.name}" ha sido eliminada`, 'info');
+      // Delete in Supabase
+      supabaseService.deletePhoto(id);
+    }
+  };
+
+  const handleUploadSuccess = (newPhoto: InspectionPhoto) => {
+    setPhotos((prev) => [newPhoto, ...prev]);
+    addActivity('Foto de inspección subida', newPhoto.name, newPhoto.id, 'upload');
+    showToast(`"${newPhoto.name}" subida exitosamente`);
+    
+    // Sync to Supabase in background
+    supabaseService.savePhoto(newPhoto, inspector.id);
+
+    setSelectedPhotoId(newPhoto.id);
+    setCurrentTab('detail');
+  };
+
+  const handleOpenPhotoFromActivity = (photoId: string) => {
+    const found = photos.find((p) => p.id === photoId);
+    if (found) {
+      setSelectedPhotoId(photoId);
+      setCurrentTab('detail');
+    } else {
+      showToast('La foto de inspección ya no está disponible en la caché.', 'error');
+    }
+  };
+
+  const handleSaveSettings = (newSettings: AppSettings) => {
+    setSettings(newSettings);
+    showToast('Preferencias actualizadas');
+  };
+
+  const handleSaveProfile = (updatedProfile: InspectorProfile) => {
+    const oldInspector = inspector;
+    setInspector(updatedProfile);
+    // Also propagate new avatar and name to photos belonging to this inspector
+    setPhotos((prev) =>
+      prev.map((p) =>
+        p.inspectorId === updatedProfile.id || p.inspectorName === oldInspector.name || p.inspectorId === oldInspector.id
+          ? {
+              ...p,
+              inspectorName: updatedProfile.name,
+              inspectorAvatar: updatedProfile.avatarUrl,
+              inspectorId: updatedProfile.id,
+            }
+          : p
+      )
+    );
+    supabaseService.syncProfile(updatedProfile, updatedProfile.id);
+    showToast('Credenciales y foto del inspector actualizadas');
+  };
+
+  const handleAuthSuccess = (newProfile: InspectorProfile, userEmail: string) => {
+    setInspector(newProfile);
+    setIsAuthenticated(true);
+    sessionStorage.setItem('photovault_authenticated', 'true');
+    supabaseService.syncProfile(newProfile, newProfile.id);
+    showToast(`Sesión iniciada como ${newProfile.name} (${userEmail})`, 'success');
+  };
+
+  const handleRestoreBackup = (backupData: {
+    photos?: InspectionPhoto[];
+    inspector?: InspectorProfile;
+    settings?: AppSettings;
+    activities?: ActivityItem[];
+  }) => {
+    if (backupData.photos && Array.isArray(backupData.photos)) {
+      setPhotos(backupData.photos);
+    }
+    if (backupData.inspector) {
+      setInspector(backupData.inspector);
+    }
+    if (backupData.settings) {
+      setSettings(backupData.settings);
+    }
+    if (backupData.activities && Array.isArray(backupData.activities)) {
+      setActivities(backupData.activities);
+    }
+    showToast('Respaldo cargado exitosamente en la memoria del dispositivo.', 'success');
+  };
+
+  const handlePhotosImported = (importedPhotos: InspectionPhoto[]) => {
+    setPhotos(importedPhotos);
+    showToast(`Se cargaron ${importedPhotos.length} fotos desde Supabase`, 'success');
+  };
+
+  const handleTabChange = (tab: string) => {
+    if (tab !== 'detail') {
+      setSelectedPhotoId(null);
+    }
+    setCurrentTab(tab);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  // If not authenticated, display full Authentication Gate directly
+  if (!isAuthenticated) {
+    return (
+      <AuthScreen
+        onAuthSuccess={handleAuthSuccess}
+        defaultInspector={inspector}
+      />
+    );
+  }
+
+  const selectedPhoto = photos.find((p) => p.id === selectedPhotoId);
+
   return (
-    <Switch>
-      <Route path={"/"} component={Home} />
-      <Route path={"/404"} component={NotFound} />
-      {/* Final fallback route */}
-      <Route component={NotFound} />
-    </Switch>
+    <div className="min-h-screen flex flex-col bg-[#f3faff] text-[#071e27] font-['Inter']">
+      {/* Fixed Top Nav Bar */}
+      <TopNavBar
+        currentTab={currentTab}
+        onTabChange={handleTabChange}
+        inspector={inspector}
+        onOpenProfile={() => setIsProfileModalOpen(true)}
+        activities={activities}
+        onOpenPhoto={handleOpenPhotoFromActivity}
+        onToggleMobileMenu={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+        onOpenAuth={() => setIsAuthModalOpen(true)}
+        onOpenSupabaseModal={() => setIsSupabaseModalOpen(true)}
+      />
+
+      <div className="flex flex-1 pt-16">
+        {/* Fixed Side Nav Bar (Desktop & Mobile Drawer) */}
+        <SideNavBar
+          currentTab={currentTab}
+          onTabChange={handleTabChange}
+          inspector={inspector}
+          onOpenProfile={() => setIsProfileModalOpen(true)}
+          isMobileOpen={isMobileMenuOpen}
+          onCloseMobile={() => setIsMobileMenuOpen(false)}
+          onSignOut={() => setIsSignOutModalOpen(true)}
+          onOpenAuth={() => setIsAuthModalOpen(true)}
+          onOpenSupabaseModal={() => setIsSupabaseModalOpen(true)}
+        />
+
+        {/* Main Content Area */}
+        <div className={`flex-1 md:ml-64 flex flex-col ${currentTab === 'map' ? 'h-[calc(100vh-64px)] overflow-hidden' : 'min-h-[calc(100vh-64px)] justify-between'}`}>
+          <main className={`${currentTab === 'map' ? 'p-0 h-full w-full relative overflow-hidden' : 'p-4 sm:p-6 lg:p-8 flex-1'}`}>
+            {currentTab === 'detail' && selectedPhoto ? (
+              <PhotoDetailView
+                photo={selectedPhoto}
+                onBack={handleBackToGallery}
+                onEdit={(photo) => setEditingPhoto(photo)}
+                onDelete={handleDeletePhoto}
+                onUpdatePhoto={handleUpdatePhoto}
+              />
+            ) : currentTab === 'map' ? (
+              <MapView
+                photos={photos}
+                inspector={inspector}
+                onSelectPhoto={handleSelectPhoto}
+                onNavigateToUpload={() => handleTabChange('upload')}
+              />
+            ) : currentTab === 'database' ? (
+              <DatabaseTableView
+                photos={photos}
+                inspector={inspector}
+                onSelectPhoto={handleSelectPhoto}
+                onNavigateToMap={(targetPhoto) => {
+                  if (targetPhoto) {
+                    setSelectedPhotoId(targetPhoto.id);
+                  }
+                  setCurrentTab('map');
+                }}
+                onNavigateToUpload={() => handleTabChange('upload')}
+                onEditPhoto={(photo) => setEditingPhoto(photo)}
+                onDeletePhoto={handleDeletePhoto}
+                onUpdatePhoto={handleUpdatePhoto}
+              />
+            ) : currentTab === 'upload' ? (
+              <UploadPhotoView
+                onUploadSuccess={handleUploadSuccess}
+                onCancel={handleBackToGallery}
+                inspector={inspector}
+                onOpenAuth={() => setIsAuthModalOpen(true)}
+              />
+            ) : currentTab === 'settings' ? (
+              <SettingsView
+                settings={settings}
+                onSaveSettings={handleSaveSettings}
+                inspector={inspector}
+                onOpenProfile={() => setIsProfileModalOpen(true)}
+                onShowToast={showToast}
+                onOpenSupabaseModal={() => setIsSupabaseModalOpen(true)}
+                photos={photos}
+                activities={activities}
+                onRestoreBackup={handleRestoreBackup}
+              />
+            ) : currentTab === 'history' || currentTab === 'collections' ? (
+              <HistoryView
+                photos={photos}
+                onSelectPhoto={handleSelectPhoto}
+                onUpdatePhoto={handleUpdatePhoto}
+                onDeletePhoto={handleDeletePhoto}
+                onNavigateToUpload={() => handleTabChange('upload')}
+              />
+            ) : currentTab === 'activity' ? (
+              <ActivityView
+                activities={activities}
+                photos={photos}
+                onOpenPhoto={handleOpenPhotoFromActivity}
+              />
+            ) : (
+              <DashboardView
+                photos={photos}
+                onSelectPhoto={handleSelectPhoto}
+                onUpdatePhotoTitle={handleUpdatePhotoTitle}
+                onDeletePhoto={handleDeletePhoto}
+                onNavigateToUpload={() => handleTabChange('upload')}
+              />
+            )}
+          </main>
+
+          {/* Footer - only for non-map views */}
+          {currentTab !== 'map' && <Footer />}
+        </div>
+      </div>
+
+      {/* Supabase Tables & Schema Modal */}
+      <SupabaseTablesModal
+        isOpen={isSupabaseModalOpen}
+        onClose={() => setIsSupabaseModalOpen(false)}
+        photos={photos}
+        inspector={inspector}
+        onPhotosImported={handlePhotosImported}
+        onShowToast={showToast}
+      />
+
+      {/* Supabase Authentication Modal */}
+      <AuthModal
+        isOpen={isAuthModalOpen}
+        onClose={() => setIsAuthModalOpen(false)}
+        onAuthSuccess={handleAuthSuccess}
+        currentInspector={inspector}
+      />
+
+      {/* Edit Photo Details Modal */}
+      {editingPhoto && (
+        <EditPhotoModal
+          photo={editingPhoto}
+          isOpen={!!editingPhoto}
+          onClose={() => setEditingPhoto(null)}
+          onSave={handleUpdatePhoto}
+        />
+      )}
+
+      {/* Inspector Profile Modal */}
+      <ProfileModal
+        inspector={inspector}
+        isOpen={isProfileModalOpen}
+        onClose={() => setIsProfileModalOpen(false)}
+        onSave={handleSaveProfile}
+      />
+
+      {/* Sign Out Confirmation Modal */}
+      <SignOutModal
+        isOpen={isSignOutModalOpen}
+        onClose={() => setIsSignOutModalOpen(false)}
+        onConfirm={() => {
+          setIsSignOutModalOpen(false);
+          setIsAuthenticated(false);
+          sessionStorage.removeItem('photovault_authenticated');
+          showToast('Has cerrado sesión correctamente', 'info');
+        }}
+        inspector={inspector}
+      />
+
+      {/* Floating Action Toast Notification */}
+      <Toast
+        message={toast?.message || null}
+        type={toast?.type}
+        onClose={() => setToast(null)}
+      />
+    </div>
   );
 }
-
-// NOTE: About Theme
-// - First choose a default theme according to your design style (dark or light bg), than change color palette in index.css
-//   to keep consistent foreground/background color across components
-// - If you want to make theme switchable, pass `switchable` ThemeProvider and use `useTheme` hook
-
-function App() {
-  return (
-    <ErrorBoundary>
-      <ThemeProvider
-        defaultTheme="light"
-        // switchable
-      >
-        <TooltipProvider>
-          <Toaster />
-          <Router />
-        </TooltipProvider>
-      </ThemeProvider>
-    </ErrorBoundary>
-  );
-}
-
-export default App;

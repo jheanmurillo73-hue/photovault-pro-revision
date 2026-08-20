@@ -1,54 +1,60 @@
-import { cn } from "@/lib/utils";
-import { AlertTriangle, RotateCcw } from "lucide-react";
-import { Component, ReactNode } from "react";
+import React, { ErrorInfo, ReactNode } from 'react';
 
-interface Props {
+interface ErrorBoundaryProps {
   children: ReactNode;
+  fallback?: ReactNode;
 }
 
-interface State {
+interface ErrorBoundaryState {
   hasError: boolean;
   error: Error | null;
 }
 
-class ErrorBoundary extends Component<Props, State> {
-  constructor(props: Props) {
+export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
+  constructor(props: ErrorBoundaryProps) {
     super(props);
-    this.state = { hasError: false, error: null };
+    this.state = {
+      hasError: false,
+      error: null,
+    };
   }
 
-  static getDerivedStateFromError(error: Error): State {
+  public static getDerivedStateFromError(error: Error): ErrorBoundaryState {
     return { hasError: true, error };
   }
 
-  render() {
+  public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
+    console.warn('Captured handled UI boundary error:', error, errorInfo);
+  }
+
+  public handleReset = () => {
+    this.setState({ hasError: false, error: null });
+  };
+
+  public render() {
     if (this.state.hasError) {
+      if (this.props.fallback) {
+        return this.props.fallback;
+      }
+
       return (
-        <div className="flex items-center justify-center min-h-screen p-8 bg-background">
-          <div className="flex flex-col items-center w-full max-w-2xl p-8">
-            <AlertTriangle
-              size={48}
-              className="text-destructive mb-6 flex-shrink-0"
-            />
-
-            <h2 className="text-xl mb-4">An unexpected error occurred.</h2>
-
-            <div className="p-4 w-full rounded bg-muted overflow-auto mb-6">
-              <pre className="text-sm text-muted-foreground whitespace-break-spaces">
-                {this.state.error?.stack}
-              </pre>
+        <div className="min-h-screen flex items-center justify-center bg-[#f3faff] p-6">
+          <div className="max-w-md w-full bg-white rounded-2xl border border-[#c2c6d4] shadow-xl p-6 text-center font-['Inter']">
+            <div className="w-12 h-12 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center mx-auto mb-4 border border-amber-200">
+              <span className="material-symbols-outlined text-[24px]">refresh</span>
             </div>
-
+            <h2 className="font-['Hanken_Grotesk'] font-bold text-lg text-[#071e27] mb-2">
+              Se restableció la vista
+            </h2>
+            <p className="text-xs text-[#424752] mb-6">
+              El sistema recuperó el estado de la aplicación. Puedes continuar navegando normalmente.
+            </p>
             <button
-              onClick={() => window.location.reload()}
-              className={cn(
-                "flex items-center gap-2 px-4 py-2 rounded-lg",
-                "bg-primary text-primary-foreground",
-                "hover:opacity-90 cursor-pointer"
-              )}
+              type="button"
+              onClick={this.handleReset}
+              className="w-full py-2.5 px-4 bg-[#004d99] hover:bg-[#1565c0] text-white font-bold text-xs rounded-xl shadow-xs transition-all"
             >
-              <RotateCcw size={16} />
-              Reload Page
+              Reintentar y Continuar
             </button>
           </div>
         </div>
@@ -58,5 +64,3 @@ class ErrorBoundary extends Component<Props, State> {
     return this.props.children;
   }
 }
-
-export default ErrorBoundary;
