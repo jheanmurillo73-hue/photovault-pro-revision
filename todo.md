@@ -22,3 +22,4 @@
 - [x] Preparar el script SQL de perfiles y permisos requerido por el panel de administración.
 - [x] Cancelar la configuración de la clave de Google Maps por reemplazo del flujo cartográfico.
 - [x] Reemplazar Google Maps por un plano JPG escalable con ubicación manual de cajas, cámaras y canalizaciones.
+- [x] Añadir controles de aumento y disminución para el plano JPG y los iconos de inspección.

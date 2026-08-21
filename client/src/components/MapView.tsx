@@ -38,6 +38,8 @@ const EMPTY_BLUEPRINT: BlueprintOverlay = {
 };
 
 const clampPercent = (value: number) => Math.min(100, Math.max(0, value));
+const clampScale = (value: number, minimum: number, maximum: number) =>
+  Math.min(maximum, Math.max(minimum, value));
 
 const isPlaced = (photo: InspectionPhoto) =>
   typeof photo.planX === 'number' && typeof photo.planY === 'number';
@@ -82,6 +84,10 @@ export const MapView: React.FC<MapViewProps> = ({
   const [placement, setPlacement] = useState<PlacementTarget | null>(null);
   const [isPanelOpen, setIsPanelOpen] = useState<boolean>(false);
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
+  const [iconScale, setIconScale] = useState<number>(() => {
+    const saved = Number(localStorage.getItem('photovault_plan_icon_scale'));
+    return Number.isFinite(saved) ? clampScale(saved, 0.7, 1.8) : 1;
+  });
   const [blueprintStorageNotice, setBlueprintStorageNotice] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const blueprintStorageReadyRef = useRef(false);
@@ -133,6 +139,14 @@ export const MapView: React.FC<MapViewProps> = ({
 
     void persistUserBlueprint();
   }, [blueprint]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('photovault_plan_icon_scale', String(iconScale));
+    } catch {
+      // La escala permanece disponible durante la sesión aunque el navegador no permita persistirla.
+    }
+  }, [iconScale]);
 
   useEffect(() => {
     if (!isPanelOpen) return;
@@ -238,6 +252,17 @@ export const MapView: React.FC<MapViewProps> = ({
     setPlacement(null);
   };
 
+  const planScale = clampScale(Number(blueprint.scale) || 1, 0.6, 1.8);
+  const adjustPlanScale = (difference: number) => {
+    setBlueprint((previous) => ({
+      ...previous,
+      scale: clampScale((Number(previous.scale) || 1) + difference, 0.6, 1.8),
+    }));
+  };
+  const adjustIconScale = (difference: number) => {
+    setIconScale((previous) => clampScale(previous + difference, 0.7, 1.8));
+  };
+
   const placementInstruction = placement
     ? placement.stage === 'pipe-start'
       ? `Haz clic para ubicar el inicio de ${elementLabel(placement.photo)}.`
@@ -327,21 +352,23 @@ export const MapView: React.FC<MapViewProps> = ({
         ))}
       </div>
 
-      <main className="absolute inset-x-0 bottom-0 top-[62px] flex items-center justify-center p-5 pt-16">
+      <main className="absolute inset-x-0 bottom-0 top-[62px] overflow-auto p-5 pt-16">
         {blueprint.imageUrl ? (
-          <div
-            onClick={handleCanvasClick}
-            className={`relative inline-flex max-h-full max-w-full overflow-hidden border border-[#9dbbc9] bg-white shadow-[0_18px_46px_rgba(7,63,116,0.22)] ${
-              placement ? 'cursor-crosshair' : 'cursor-default'
-            }`}
-            aria-label="Plano interactivo de inspección"
-          >
-            <img
-              src={blueprint.imageUrl}
-              alt={blueprint.name}
-              className="block max-h-[calc(100vh-10rem)] max-w-[calc(100vw-3rem)] object-contain"
-              draggable={false}
-            />
+          <div className="flex min-h-full min-w-full items-center justify-center py-3">
+            <div
+              onClick={handleCanvasClick}
+              className={`relative inline-flex max-h-[calc(100vh-10rem)] max-w-[calc(100vw-3rem)] overflow-hidden border border-[#9dbbc9] bg-white shadow-[0_18px_46px_rgba(7,63,116,0.22)] transition-transform duration-200 ${
+                placement ? 'cursor-crosshair' : 'cursor-default'
+              }`}
+              style={{ transform: `scale(${planScale})` }}
+              aria-label="Plano interactivo de inspección"
+            >
+              <img
+                src={blueprint.imageUrl}
+                alt={blueprint.name}
+                className="block max-h-[calc(100vh-10rem)] max-w-[calc(100vw-3rem)] object-contain"
+                draggable={false}
+              />
 
             <svg className="pointer-events-none absolute inset-0 h-full w-full" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
               <defs>
@@ -380,8 +407,8 @@ export const MapView: React.FC<MapViewProps> = ({
                       event.stopPropagation();
                       onSelectPhoto(photo);
                     }}
-                    style={{ left: `${midpointX}%`, top: `${midpointY}%` }}
-                    className={`absolute z-10 -translate-x-1/2 -translate-y-1/2 rounded-full border border-white bg-[#073f74] px-2.5 py-1 text-[10px] font-bold text-white shadow-lg transition hover:scale-105 ${placement ? 'pointer-events-none' : ''}`}
+                    style={{ left: `${midpointX}%`, top: `${midpointY}%`, transform: `translate(-50%, -50%) scale(${iconScale})` }}
+                    className={`absolute z-10 rounded-full border border-white bg-[#073f74] px-2.5 py-1 text-[10px] font-bold text-white shadow-lg transition hover:scale-105 ${placement ? 'pointer-events-none' : ''}`}
                     title={`Abrir ${elementLabel(photo)}`}
                   >
                     {photo.metraje ? `${photo.metraje} m` : 'Tubería'}
@@ -399,8 +426,8 @@ export const MapView: React.FC<MapViewProps> = ({
                     event.stopPropagation();
                     onSelectPhoto(photo);
                   }}
-                  style={{ left: `${photo.planX}%`, top: `${photo.planY}%`, backgroundColor: markerColor }}
-                  className={`absolute z-10 flex -translate-x-1/2 -translate-y-1/2 items-center gap-1.5 rounded-full border-2 border-white px-2.5 py-1 text-[10px] font-bold text-white shadow-[0_3px_10px_rgba(6,36,58,0.35)] transition hover:scale-105 ${placement ? 'pointer-events-none' : ''}`}
+                  style={{ left: `${photo.planX}%`, top: `${photo.planY}%`, backgroundColor: markerColor, transform: `translate(-50%, -50%) scale(${iconScale})` }}
+                  className={`absolute z-10 flex items-center gap-1.5 rounded-full border-2 border-white px-2.5 py-1 text-[10px] font-bold text-white shadow-[0_3px_10px_rgba(6,36,58,0.35)] transition hover:scale-105 ${placement ? 'pointer-events-none' : ''}`}
                   title={`Abrir ${elementLabel(photo)}`}
                 >
                   <span className="material-symbols-outlined text-[14px]">{isCamera ? 'videocam' : 'inventory_2'}</span>
@@ -408,6 +435,7 @@ export const MapView: React.FC<MapViewProps> = ({
                 </button>
               );
             })}
+            </div>
           </div>
         ) : (
           <div className="max-w-lg rounded-2xl border border-dashed border-[#8bb5c9] bg-white p-8 text-center shadow-[0_14px_34px_rgba(7,63,116,0.12)]">
@@ -433,6 +461,30 @@ export const MapView: React.FC<MapViewProps> = ({
       )}
 
       <div className="absolute bottom-4 right-4 z-20 flex items-center gap-2">
+        {blueprint.imageUrl && (
+          <div className="flex items-center divide-x divide-[#c7d7df] overflow-hidden rounded-xl border border-[#c7d7df] bg-white/95 shadow-sm">
+            <div className="flex items-center gap-1.5 px-2 py-1.5">
+              <span className="material-symbols-outlined text-[16px] text-[#0566aa]">zoom_in</span>
+              <span className="font-mono text-[10px] font-bold text-[#355c70]">PLANO {Math.round(planScale * 100)}%</span>
+              <button type="button" onClick={() => adjustPlanScale(-0.1)} disabled={planScale <= 0.6} className="flex h-6 w-6 items-center justify-center rounded text-[#285b72] transition hover:bg-[#eaf6fb] disabled:cursor-not-allowed disabled:opacity-35" aria-label="Reducir tamaño del plano" title="Reducir plano">
+                <span className="material-symbols-outlined text-[16px]">remove</span>
+              </button>
+              <button type="button" onClick={() => adjustPlanScale(0.1)} disabled={planScale >= 1.8} className="flex h-6 w-6 items-center justify-center rounded text-[#285b72] transition hover:bg-[#eaf6fb] disabled:cursor-not-allowed disabled:opacity-35" aria-label="Aumentar tamaño del plano" title="Aumentar plano">
+                <span className="material-symbols-outlined text-[16px]">add</span>
+              </button>
+            </div>
+            <div className="flex items-center gap-1.5 px-2 py-1.5">
+              <span className="material-symbols-outlined text-[16px] text-[#b77812]">ads_click</span>
+              <span className="font-mono text-[10px] font-bold text-[#355c70]">ICONOS {Math.round(iconScale * 100)}%</span>
+              <button type="button" onClick={() => adjustIconScale(-0.1)} disabled={iconScale <= 0.7} className="flex h-6 w-6 items-center justify-center rounded text-[#285b72] transition hover:bg-[#eaf6fb] disabled:cursor-not-allowed disabled:opacity-35" aria-label="Reducir tamaño de los iconos" title="Reducir iconos">
+                <span className="material-symbols-outlined text-[16px]">remove</span>
+              </button>
+              <button type="button" onClick={() => adjustIconScale(0.1)} disabled={iconScale >= 1.8} className="flex h-6 w-6 items-center justify-center rounded text-[#285b72] transition hover:bg-[#eaf6fb] disabled:cursor-not-allowed disabled:opacity-35" aria-label="Aumentar tamaño de los iconos" title="Aumentar iconos">
+                <span className="material-symbols-outlined text-[16px]">add</span>
+              </button>
+            </div>
+          </div>
+        )}
         <div className="hidden rounded-xl border border-[#c7d7df] bg-white/95 px-3 py-2 text-[11px] text-[#426373] shadow-sm sm:block">
           <strong className="text-[#0b2940]">{photos.filter((photo) => isPlaced(photo)).length}</strong> ubicados · <strong className="text-[#0b2940]">{totalPipelineMeters.toFixed(1)} m</strong> de tubería
         </div>
