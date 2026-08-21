@@ -352,14 +352,17 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
           <span className="h-px w-10 bg-[#1783B8]/50" /> CAPA DE PLANO ACTIVA
         </div>
       </div>
-      <div className="relative z-10 w-full max-w-lg overflow-hidden rounded-[18px] border border-[#abc7d6] bg-white shadow-[0_24px_60px_rgba(7,55,83,0.18)] animate-in fade-in zoom-in-95 duration-200">
+      <div className="relative z-10 w-full max-w-xl overflow-hidden rounded-[6px] border-2 border-[#0c4d77] bg-white shadow-[0_24px_60px_rgba(7,55,83,0.18)] animate-in fade-in zoom-in-95 duration-200">
         {/* Brand Header */}
-        <div className="relative overflow-hidden bg-[#073f74] p-6 text-center text-white sm:p-8">
+        <div className="relative overflow-hidden bg-[#073f74] p-6 text-white sm:p-8">
           <div className="absolute inset-0 opacity-25" aria-hidden="true" style={{ backgroundImage: 'linear-gradient(120deg, transparent 47%, rgba(103, 220, 255, 0.75) 48%, transparent 49%), linear-gradient(90deg, rgba(255,255,255,0.16) 1px, transparent 1px)', backgroundSize: '100% 100%, 24px 24px' }} />
-          <div className="absolute left-5 top-4 font-mono text-[9px] tracking-[0.18em] text-cyan-100/80">PLANO / CONTROL 01</div>
-          <div className="relative z-10 flex flex-col items-center">
-            <div className="mb-3 flex h-14 w-14 items-center justify-center rounded-[14px] border border-cyan-100/35 bg-white/10 shadow-inner backdrop-blur-md">
-              <svg viewBox="0 0 64 64" className="h-11 w-11" aria-label="Símbolo de cámara, caja y tubería conectadas" role="img">
+          <div className="absolute inset-y-0 left-0 flex w-1 flex-col" aria-hidden="true"><span className="h-1/3 bg-cyan-300" /><span className="h-1/3 bg-amber-300" /><span className="h-1/3 bg-violet-300" /></div>
+          <div className="absolute left-6 top-4 font-mono text-[9px] tracking-[0.2em] text-cyan-100/80">ESTACIÓN / PLANO 01</div>
+          <div className="absolute right-6 top-4 font-mono text-[9px] tracking-[0.18em] text-cyan-100/70">ACCESO CONTROLADO</div>
+          <div className="relative z-10 mt-5 flex flex-col items-start text-left">
+            <div className="mb-4 flex items-center gap-4">
+              <div className="flex h-20 w-20 items-center justify-center border border-cyan-100/45 bg-[#062f59] shadow-inner">
+                <svg viewBox="0 0 64 64" className="h-16 w-16" aria-label="Símbolo modular de cámara, caja y tubería" role="img">
                 <path d="M17 17H32M32 17L46 32M32 17L32 47" stroke="#8CE7FF" strokeWidth="2.5" strokeLinecap="round" />
                 <circle cx="16" cy="17" r="8" fill="none" stroke="#E8FBFF" strokeWidth="3" />
                 <circle cx="16" cy="17" r="2.5" fill="#E8FBFF" />
@@ -367,16 +370,19 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
                 <path d="M46 32H57M53 27V37" stroke="#D9C8FF" strokeWidth="3" strokeLinecap="round" />
                 <circle cx="46" cy="32" r="5" fill="#D9C8FF" />
               </svg>
+              </div>
+              <div>
+                <p className="font-mono text-[10px] font-semibold tracking-[0.22em] text-cyan-100/75">CONTROL DE OBRA</p>
+                <h1 className="mt-1 font-['Space_Grotesk'] text-3xl font-bold tracking-[-0.04em] text-white sm:text-4xl">
+                  <span className="text-cyan-100">TRACKING</span><span className="mx-1.5 text-white/35">/</span><span className="tracking-[0.08em]">LA NUBIA</span>
+                </h1>
+              </div>
             </div>
-            <h1 className="font-['Space_Grotesk'] text-2xl font-bold tracking-[-0.04em] text-white sm:text-3xl">
-              <span className="text-cyan-100">PhotoVault</span><span className="mx-1 text-white/35">/</span><span className="tracking-[0.08em]">OBRA</span>
-            </h1>
-            <p className="mt-1 max-w-sm text-[13px] text-white/80 sm:text-[14px]">
-              Configura y verifica cajas, cámaras y tuberías sin mezclar sus propiedades.
+            <p className="max-w-md border-l border-cyan-200/40 pl-3 text-[13px] leading-5 text-white/80 sm:text-[14px]">
+              Acceso operativo para cargar el plano, ubicar componentes y verificar tramos de obra.
             </p>
 
-            {/* Supabase Status Pill */}
-            <div className="mt-4 inline-flex items-center gap-2 rounded-full border border-white/20 bg-black/25 px-3 py-1 text-[12px] font-semibold">
+            <div className="mt-5 inline-flex items-center gap-2 rounded-sm border border-white/25 bg-black/25 px-3 py-1.5 font-mono text-[10px] font-semibold tracking-[0.12em]">
               <span
                 className={`h-2 w-2 rounded-full ${
                   isConfigured ? 'bg-[#a0f399] animate-pulse' : 'bg-[#fde047]'
@@ -384,14 +390,14 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
               ></span>
               <span className="text-white/95">
                 {isConfigured
-                  ? 'Supabase Auth Conectado'
-                  : 'Modo Local / Dispositivo Activo'}
+                  ? 'ACCESO AL PLANO VERIFICADO'
+                  : 'MODO DE PLANO LOCAL'}
               </span>
             </div>
-            <div className="mt-3 flex flex-wrap justify-center gap-x-3 gap-y-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-white/80">
-              <span className="inline-flex items-center gap-1"><i className="h-1.5 w-1.5 rounded-full bg-cyan-300" />Cámaras</span>
-              <span className="inline-flex items-center gap-1"><i className="h-1.5 w-1.5 rounded-full bg-amber-300" />Cajas</span>
-              <span className="inline-flex items-center gap-1"><i className="h-1.5 w-1.5 rounded-full bg-violet-300" />Tuberías</span>
+            <div className="mt-4 grid w-full grid-cols-3 border border-white/20 text-[10px] font-semibold uppercase tracking-[0.12em] text-white/85">
+              <span className="flex items-center gap-1.5 border-r border-white/20 bg-cyan-300/10 px-3 py-2"><i className="h-2 w-2 bg-cyan-300" />Cámaras</span>
+              <span className="flex items-center gap-1.5 border-r border-white/20 bg-amber-300/10 px-3 py-2"><i className="h-2 w-2 bg-amber-300" />Cajas</span>
+              <span className="flex items-center gap-1.5 bg-violet-300/10 px-3 py-2"><i className="h-2 w-2 bg-violet-300" />Tuberías</span>
             </div>
           </div>
         </div>
@@ -432,6 +438,10 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
 
         {/* Form Container */}
         <div className="p-6 sm:p-8 space-y-5 max-h-[75vh] overflow-y-auto">
+          <div className="flex items-center justify-between border-y border-[#c2c6d4] bg-[#f3faff] px-3 py-2 font-mono text-[10px] font-semibold tracking-[0.14em] text-[#35566b]">
+            <span>ESTACIÓN DE ACCESO</span>
+            <span className="text-[#004d99]">CONTROL 01</span>
+          </div>
           {errorMsg && (
             <div className="p-3.5 bg-[#ffdad6] text-[#93000a] text-[13px] rounded-xl border border-[#ffb4ab] flex items-center gap-2.5 animate-in fade-in duration-150">
               <span className="material-symbols-outlined text-[20px] shrink-0">error</span>
@@ -474,7 +484,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     placeholder="inspector@empresa.com"
-                    className="w-full bg-[#f3faff] border border-[#c2c6d4] rounded-xl pl-11 pr-4 py-3 text-[14px] text-[#071e27] placeholder-[#727783] focus:border-[#004d99] focus:bg-white focus:outline-none transition-colors"
+                    className="w-full bg-[#f3faff] border border-[#9ebfcc] rounded-md pl-11 pr-4 py-3 text-[14px] text-[#071e27] placeholder-[#727783] focus:border-[#004d99] focus:bg-white focus:outline-none transition-colors"
                   />
                 </div>
               </div>
@@ -493,7 +503,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="••••••••"
-                    className="w-full bg-[#f3faff] border border-[#c2c6d4] rounded-xl pl-11 pr-11 py-3 text-[14px] text-[#071e27] placeholder-[#727783] focus:border-[#004d99] focus:bg-white focus:outline-none transition-colors"
+                    className="w-full bg-[#f3faff] border border-[#9ebfcc] rounded-md pl-11 pr-11 py-3 text-[14px] text-[#071e27] placeholder-[#727783] focus:border-[#004d99] focus:bg-white focus:outline-none transition-colors"
                   />
                   <button
                     type="button"
@@ -511,7 +521,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full mt-2 py-3.5 px-4 bg-[#004d99] hover:bg-[#00468c] active:scale-[0.99] text-white font-['Inter'] font-bold text-[14px] rounded-xl transition-all shadow-sm flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60"
+                className="w-full mt-2 py-3.5 px-4 bg-[#004d99] hover:bg-[#00468c] active:scale-[0.99] text-white font-['Space_Grotesk'] font-bold text-[14px] tracking-[0.02em] rounded-md transition-all shadow-sm flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60"
               >
                 {loading ? (
                   <>

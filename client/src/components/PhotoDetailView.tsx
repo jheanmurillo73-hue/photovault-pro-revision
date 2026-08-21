@@ -89,7 +89,7 @@ export const PhotoDetailView: React.FC<PhotoDetailViewProps> = ({
               }`}
             >
               <span className="material-symbols-outlined text-[18px]">map</span>
-              <span>Regresar al Mapa</span>
+              <span>Regresar al Plano</span>
               {originTab === 'map' && (
                 <span className="px-1.5 py-0.2 bg-white/20 text-white text-[10px] rounded-full uppercase tracking-wider font-mono">
                   Origen
@@ -427,27 +427,27 @@ export const PhotoDetailView: React.FC<PhotoDetailViewProps> = ({
 
                 </>
               )}
-              {/* Georreferenciación en Mapa */}
+              {/* Ubicación relativa en plano */}
               <div className="grid grid-cols-3 gap-2 items-center border-b border-[#c2c6d4] pb-3">
                 <span className="col-span-1 font-['Inter'] font-bold text-[14px] text-[#424752]">
-                  Georreferenciación
+                  Ubicación en plano
                 </span>
                 <div className="col-span-2 flex flex-wrap items-center gap-2">
                   <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-[#e6f6ff] text-[#004d99] font-mono text-[12px] border border-[#c2c6d4]">
-                    <span className="material-symbols-outlined text-[14px]">my_location</span>
-                    {photo.latitude && photo.longitude
-                      ? `Lat: ${photo.latitude.toFixed(5)}, Lng: ${photo.longitude.toFixed(5)}`
-                      : 'Coord. Predio Industrial (Auto)'}
+                    <span className="material-symbols-outlined text-[14px]">ads_click</span>
+                    {typeof photo.planX === 'number' && typeof photo.planY === 'number'
+                      ? `Punto: ${photo.planX.toFixed(1)}%, ${photo.planY.toFixed(1)}%`
+                      : 'Pendiente de ubicar en el plano'}
                   </span>
                   {onBackToMap && (
                     <button
                       type="button"
                       onClick={onBackToMap}
                       className="px-2.5 py-1 bg-[#004d99] hover:bg-[#003870] text-white text-[11px] font-bold rounded-md flex items-center gap-1 shadow-2xs transition-colors"
-                      title="Ver y centrar en el plano/mapa"
+                      title="Ver en el plano"
                     >
                       <span className="material-symbols-outlined text-[13px]">explore</span>
-                      Ver en Mapa
+                      Ver en plano
                     </button>
                   )}
                 </div>
@@ -536,7 +536,7 @@ export const PhotoDetailView: React.FC<PhotoDetailViewProps> = ({
                 className="w-full py-3 px-4 bg-[#e8f0fe] hover:bg-[#d2e3fc] text-[#004d99] border border-[#004d99]/30 rounded-lg font-['Inter'] font-bold text-[14px] flex items-center justify-center gap-2 transition-colors shadow-2xs"
               >
                 <span className="material-symbols-outlined text-[18px]">map</span>
-                {originTab === 'map' ? 'Regresar al Mapa de Obra' : 'Ver y Centrar en el Mapa'}
+                {originTab === 'map' ? 'Regresar al Plano de Obra' : 'Ver y centrar en el plano'}
               </button>
             )}
 

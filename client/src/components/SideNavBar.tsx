@@ -36,7 +36,7 @@ export const SideNavBar: React.FC<SideNavBarProps> = ({
     },
     {
       id: 'map',
-      label: 'Mapa de Obra',
+      label: 'Plano de Obra',
       icon: 'map',
     },
     {

@@ -167,7 +167,7 @@ export const DatabaseTableView: React.FC<DatabaseTableViewProps> = ({
       return acc + (isNaN(m) ? 0 : m);
     }, 0);
 
-    const georeferencedCount = photos.filter((p) => p.latitude && p.longitude).length;
+    const positionedOnPlanCount = photos.filter((p) => typeof p.planX === 'number' && typeof p.planY === 'number').length;
     const percentTerminado = total > 0 ? Math.round((terminadosCount / total) * 100) : 0;
 
     return {
@@ -178,7 +178,7 @@ export const DatabaseTableView: React.FC<DatabaseTableViewProps> = ({
       terminadosCount,
       enProcesoCount,
       totalMetros: Math.round(totalMetros * 10) / 10,
-      georeferencedCount,
+      positionedOnPlanCount,
       percentTerminado,
     };
   }, [photos]);
@@ -477,22 +477,22 @@ export const DatabaseTableView: React.FC<DatabaseTableViewProps> = ({
           </div>
         </div>
 
-        {/* Georreferenciadas */}
+        {/* Ubicadas en plano */}
         <div className="bg-white p-4 rounded-2xl border border-[#c2c6d4] shadow-xs col-span-2 sm:col-span-1">
           <div className="flex items-center justify-between">
             <span className="text-[11px] font-['Inter'] font-bold text-[#727783] uppercase tracking-wider">
-              Georreferenciadas
+              Ubicadas en plano
             </span>
             <span className="w-7 h-7 rounded-lg bg-cyan-50 text-cyan-600 flex items-center justify-center">
               <span className="material-symbols-outlined text-[16px]">location_on</span>
             </span>
           </div>
           <div className="mt-2 text-2xl font-bold font-['Hanken_Grotesk'] text-[#071e27]">
-            {metrics.georeferencedCount}
+            {metrics.positionedOnPlanCount}
           </div>
           <div className="mt-1 text-[11px] text-cyan-700 font-medium flex items-center gap-1">
             <span className="w-1.5 h-1.5 rounded-full bg-cyan-500"></span>
-            Listas en Plano y GPS
+            Marcadas sobre el JPG
           </div>
         </div>
       </div>
@@ -746,8 +746,8 @@ export const DatabaseTableView: React.FC<DatabaseTableViewProps> = ({
                   </div>
                 </th>
 
-                {/* Coordenadas GPS */}
-                <th className="py-3.5 px-3">Georreferenciación (GPS)</th>
+                {/* Ubicación manual en plano */}
+                <th className="py-3.5 px-3">Ubicación en plano</th>
 
                 {/* Estado de Ejecución */}
                 <th
@@ -922,26 +922,26 @@ export const DatabaseTableView: React.FC<DatabaseTableViewProps> = ({
                         )}
                       </td>
 
-                      {/* GPS Georeferencing */}
+                      {/* Ubicación en plano JPG */}
                       <td className="py-3 px-3 whitespace-nowrap">
-                        {photo.latitude && photo.longitude ? (
+                        {typeof photo.planX === 'number' && typeof photo.planY === 'number' ? (
                           <button
                             type="button"
                             onClick={() => onNavigateToMap(photo)}
                             className="inline-flex items-center gap-1.5 text-xs text-[#004d99] hover:underline font-mono bg-cyan-50 hover:bg-cyan-100 px-2 py-1 rounded-lg border border-cyan-200 transition-colors"
-                            title="Haga clic para enfocar en el mapa"
+                            title="Haga clic para ver la posición en el plano"
                           >
                             <span className="material-symbols-outlined text-[14px] text-cyan-700">
-                              explore
+                              ads_click
                             </span>
                             <span>
-                              {photo.latitude.toFixed(4)}, {photo.longitude.toFixed(4)}
+                              {photo.planX.toFixed(0)}%, {photo.planY.toFixed(0)}%
                             </span>
                           </button>
                         ) : (
                           <span className="text-slate-400 text-xs flex items-center gap-1">
                             <span className="material-symbols-outlined text-[14px]">location_off</span>
-                            Sin GPS
+                            Sin ubicar
                           </span>
                         )}
                       </td>

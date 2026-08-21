@@ -223,6 +223,10 @@ export const supabaseService = {
         requires_immediate_action: photo.requiresImmediateAction || false,
         file_size: photo.fileSize || '1.4 MB',
         resolution: photo.resolution || '1920x1080',
+        plan_x: photo.planX ?? null,
+        plan_y: photo.planY ?? null,
+        plan_end_x: photo.planEndX ?? null,
+        plan_end_y: photo.planEndY ?? null,
         user_id: userId || photo.inspectorId,
         updated_at: new Date().toISOString(),
       });
@@ -270,6 +274,10 @@ export const supabaseService = {
       requires_immediate_action: photo.requiresImmediateAction || false,
       file_size: photo.fileSize || '1.4 MB',
       resolution: photo.resolution || '1920x1080',
+      plan_x: photo.planX ?? null,
+      plan_y: photo.planY ?? null,
+      plan_end_x: photo.planEndX ?? null,
+      plan_end_y: photo.planEndY ?? null,
       user_id: userId || photo.inspectorId,
       updated_at: new Date().toISOString(),
     }));
@@ -332,6 +340,10 @@ export const supabaseService = {
         requiresImmediateAction: Boolean(item.requires_immediate_action),
         fileSize: item.file_size || '1.4 MB',
         resolution: item.resolution || '1920x1080',
+        planX: typeof item.plan_x === 'number' ? item.plan_x : undefined,
+        planY: typeof item.plan_y === 'number' ? item.plan_y : undefined,
+        planEndX: typeof item.plan_end_x === 'number' ? item.plan_end_x : undefined,
+        planEndY: typeof item.plan_end_y === 'number' ? item.plan_end_y : undefined,
       }));
     } catch (err) {
       console.warn('Error in fetchPhotos:', err);
@@ -553,10 +565,19 @@ CREATE TABLE IF NOT EXISTS public.inspection_photos (
   requires_immediate_action BOOLEAN NOT NULL DEFAULT false,
   file_size TEXT DEFAULT '1.4 MB',
   resolution TEXT DEFAULT '1920x1080',
+  plan_x NUMERIC CHECK (plan_x >= 0 AND plan_x <= 100),
+  plan_y NUMERIC CHECK (plan_y >= 0 AND plan_y <= 100),
+  plan_end_x NUMERIC CHECK (plan_end_x >= 0 AND plan_end_x <= 100),
+  plan_end_y NUMERIC CHECK (plan_end_y >= 0 AND plan_end_y <= 100),
   user_id TEXT,
   created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now()),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())
 );
+
+ALTER TABLE public.inspection_photos ADD COLUMN IF NOT EXISTS plan_x NUMERIC CHECK (plan_x >= 0 AND plan_x <= 100);
+ALTER TABLE public.inspection_photos ADD COLUMN IF NOT EXISTS plan_y NUMERIC CHECK (plan_y >= 0 AND plan_y <= 100);
+ALTER TABLE public.inspection_photos ADD COLUMN IF NOT EXISTS plan_end_x NUMERIC CHECK (plan_end_x >= 0 AND plan_end_x <= 100);
+ALTER TABLE public.inspection_photos ADD COLUMN IF NOT EXISTS plan_end_y NUMERIC CHECK (plan_end_y >= 0 AND plan_end_y <= 100);
 
 -- 3. TABLA DE REGISTRO DE ACTIVIDADES Y AUDITORÍA (inspection_activities)
 CREATE TABLE IF NOT EXISTS public.inspection_activities (

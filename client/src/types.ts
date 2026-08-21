@@ -54,6 +54,10 @@ export interface InspectionPhoto {
   longitude?: number;
   endLatitude?: number;
   endLongitude?: number;
+  planX?: number;
+  planY?: number;
+  planEndX?: number;
+  planEndY?: number;
   inspectorName: string;
   inspectorId: string;
   inspectorAvatar: string;

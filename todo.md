@@ -18,3 +18,7 @@
 - [x] Auditar y normalizar la ruta restante que provoca controles indefinidos.
 - [x] Integrar y validar Google Maps en el plano de inspección.
 - [x] Habilitar y validar la conexión operativa con Supabase.
+- [x] Evaluar si inspection_collections es necesaria y definir su retiro seguro si no se utiliza.
+- [x] Preparar el script SQL de perfiles y permisos requerido por el panel de administración.
+- [x] Cancelar la configuración de la clave de Google Maps por reemplazo del flujo cartográfico.
+- [x] Reemplazar Google Maps por un plano JPG escalable con ubicación manual de cajas, cámaras y canalizaciones.

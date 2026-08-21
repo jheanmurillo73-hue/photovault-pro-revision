@@ -44,7 +44,7 @@ export const TopNavBar: React.FC<TopNavBarProps> = ({
   const canUseModule = (module: AppModule) => isAdmin || allowedModules.includes(module);
   const desktopNavItems: Array<{ id: AppModule; label: string; icon?: string; isActive: boolean }> = [
     { id: 'dashboard', label: 'Galería', isActive: isGalleryActive },
-    { id: 'map', label: 'Mapa', icon: 'map', isActive: isMapActive },
+    { id: 'map', label: 'Plano', icon: 'map', isActive: isMapActive },
     { id: 'database', label: 'Base de Datos', icon: 'database', isActive: isDatabaseActive },
     { id: 'history', label: 'Historial', isActive: isHistoryActive },
     { id: 'upload', label: 'Subir', isActive: isUploadActive },

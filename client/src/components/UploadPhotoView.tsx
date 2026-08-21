@@ -2,22 +2,11 @@
  * Diseño: cartografía técnica sobria. Este formulario muestra únicamente las
  * propiedades propias del elemento activo para evitar registros híbridos.
  */
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef } from 'react';
 import { InspectionPhoto, PhotoCategory, InspectorProfile, ExecutionStatus, CameraCode, CameraType, ElementType } from '../types';
 import { WAREHOUSE_LOCATIONS, CAMERA_CODES, CAMERA_TYPES } from '../data/mockData';
 import { compressImageForDevice } from '../services/deviceStorageService';
 import { TramoSelector } from './TramoSelector';
-
-// Helper to calculate offset coordinates based on meters and bearing
-function getOffsetLatLng(lat: number, lng: number, distanceMeters: number, bearingDegrees: number) {
-  const earthRadius = 6378137; // meters
-  const dLat = (distanceMeters * Math.cos((bearingDegrees * Math.PI) / 180)) / earthRadius;
-  const dLng = (distanceMeters * Math.sin((bearingDegrees * Math.PI) / 180)) / (earthRadius * Math.cos((lat * Math.PI) / 180));
-  return {
-    lat: lat + (dLat * 180) / Math.PI,
-    lng: lng + (dLng * 180) / Math.PI,
-  };
-}
 
 interface UploadPhotoViewProps {
   onUploadSuccess: (newPhoto: InspectionPhoto) => void;
@@ -44,36 +33,12 @@ export const UploadPhotoView: React.FC<UploadPhotoViewProps> = ({
   const [metraje, setMetraje] = useState<string>('12');
   const [fieldNotes, setFieldNotes] = useState<string>('');
   const [requiresImmediateAction, setRequiresImmediateAction] = useState<boolean>(false);
-  const [gpsCoords, setGpsCoords] = useState<{ lat: number; lng: number }>({ lat: 4.6832, lng: -74.0886 });
-  const [isLocatingGps, setIsLocatingGps] = useState<boolean>(false);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
   const [imageSizeFormatted, setImageSizeFormatted] = useState<string>('1.2 MB');
   const [isDragging, setIsDragging] = useState<boolean>(false);
   const [isProcessingImage, setIsProcessingImage] = useState<boolean>(false);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-
-  // Auto-acquire inspector GPS location
-  const refreshGpsLocation = () => {
-    if ('geolocation' in navigator) {
-      setIsLocatingGps(true);
-      navigator.geolocation.getCurrentPosition(
-        (pos) => {
-          setGpsCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude });
-          setIsLocatingGps(false);
-        },
-        (err) => {
-          console.warn('GPS auto location fallback:', err);
-          setIsLocatingGps(false);
-        },
-        { enableHighAccuracy: true, timeout: 6000 }
-      );
-    }
-  };
-
-  useEffect(() => {
-    refreshGpsLocation();
-  }, []);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
@@ -181,10 +146,6 @@ export const UploadPhotoView: React.FC<UploadPhotoViewProps> = ({
       cameraType: elementType === 'camara' ? cameraType : undefined,
       tramo: elementType === 'tuberia' ? tramo.trim() || undefined : undefined,
       metraje: elementType === 'tuberia' ? metraje.trim() || undefined : undefined,
-      latitude: gpsCoords.lat,
-      longitude: gpsCoords.lng,
-      endLatitude: elementType === 'tuberia' && metraje.trim() ? getOffsetLatLng(gpsCoords.lat, gpsCoords.lng, parseFloat(metraje.trim()) || 10, 90).lat : undefined,
-      endLongitude: elementType === 'tuberia' && metraje.trim() ? getOffsetLatLng(gpsCoords.lat, gpsCoords.lng, parseFloat(metraje.trim()) || 10, 90).lng : undefined,
       inspectorName: inspector.name,
       inspectorId: inspector.id,
       inspectorAvatar: inspector.avatarUrl,
@@ -638,35 +599,24 @@ export const UploadPhotoView: React.FC<UploadPhotoViewProps> = ({
 
               </>
             )}
-            {/* Georreferenciación Automática en Mapa */}
+            {/* Ubicación manual en el plano */}
             <div className="md:col-span-2 p-3.5 bg-[#e6f6ff] border border-[#004d99]/30 rounded-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
               <div className="flex items-center gap-2.5">
                 <div className="w-8 h-8 rounded-lg bg-[#004d99] text-white flex items-center justify-center">
-                  <span className="material-symbols-outlined text-[18px]">location_on</span>
+                  <span className="material-symbols-outlined text-[18px]">ads_click</span>
                 </div>
                 <div>
                   <div className="font-bold text-[13px] text-[#071e27] flex items-center gap-1.5">
-                    <span>Georreferenciación de la Caja en Mapa</span>
+                    <span>Ubicación manual en el plano JPG</span>
                     <span className="px-1.5 py-0.2 bg-emerald-100 text-emerald-800 text-[10px] rounded font-bold">
-                      Automático
+                      Pendiente
                     </span>
                   </div>
-                  <div className="text-[12px] font-mono text-[#424752] mt-0.5">
-                    Lat: {gpsCoords.lat.toFixed(5)} • Lng: {gpsCoords.lng.toFixed(5)}
+                  <div className="text-[12px] text-[#424752] mt-0.5">
+                    Después de guardar, abre el plano y elige el punto exacto del elemento. Las tuberías se trazan con un punto inicial y uno final.
                   </div>
                 </div>
               </div>
-              <button
-                type="button"
-                onClick={refreshGpsLocation}
-                disabled={isLocatingGps}
-                className="px-3 py-1.5 rounded-lg bg-white border border-[#c2c6d4] text-[#004d99] hover:bg-[#cfe6f2] font-bold text-[12px] flex items-center gap-1.5 transition-all self-end sm:self-center"
-              >
-                <span className={`material-symbols-outlined text-[16px] ${isLocatingGps ? 'animate-spin' : ''}`}>
-                  sync
-                </span>
-                <span>{isLocatingGps ? 'Adquiriendo GPS...' : 'Actualizar GPS'}</span>
-              </button>
             </div>
 
             {/* Field Notes */}

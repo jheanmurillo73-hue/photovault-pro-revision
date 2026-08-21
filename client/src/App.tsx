@@ -52,6 +52,11 @@ const normalizeSettings = (candidate?: Partial<AppSettings> | null): AppSettings
     : INITIAL_SETTINGS.offlineStorageLimitMb,
 });
 
+const normalizePlanCoordinate = (value: unknown): number | undefined => {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return undefined;
+  return value >= 0 && value <= 100 ? value : undefined;
+};
+
 const normalizeInspectionPhoto = (photo: InspectionPhoto): InspectionPhoto => ({
   ...photo,
   name: photo.name ?? 'Inspección sin nombre',
@@ -62,6 +67,10 @@ const normalizeInspectionPhoto = (photo: InspectionPhoto): InspectionPhoto => ({
   status: photo.status ?? 'Synced',
   requiresImmediateAction: Boolean(photo.requiresImmediateAction),
   verified: Boolean(photo.verified),
+  planX: normalizePlanCoordinate(photo.planX),
+  planY: normalizePlanCoordinate(photo.planY),
+  planEndX: normalizePlanCoordinate(photo.planEndX),
+  planEndY: normalizePlanCoordinate(photo.planEndY),
 });
 
 export default function App() {
@@ -233,6 +242,20 @@ export default function App() {
 
     // Sync to Supabase
     supabaseService.savePhoto(updated, inspector.id);
+  };
+
+  const handleUpdatePhotoPosition = (
+    photoId: string,
+    position: Pick<InspectionPhoto, 'planX' | 'planY' | 'planEndX' | 'planEndY'>,
+  ) => {
+    const currentPhoto = photos.find((photo) => photo.id === photoId);
+    if (!currentPhoto) return;
+
+    const updated = normalizeInspectionPhoto({ ...currentPhoto, ...position });
+    setPhotos((previous) => previous.map((photo) => (photo.id === photoId ? updated : photo)));
+    supabaseService.savePhoto(updated, inspector.id);
+    addActivity('Ubicación actualizada en el plano', updated.name, updated.id, 'edit');
+    showToast(`Ubicación guardada para "${updated.name}"`);
   };
 
   const handleDeletePhoto = (id: string) => {
@@ -430,6 +453,7 @@ export default function App() {
                 inspector={inspector}
                 onSelectPhoto={handleSelectPhoto}
                 onNavigateToUpload={() => handleTabChange('upload')}
+                onUpdatePhotoPosition={handleUpdatePhotoPosition}
               />
             ) : currentTab === 'database' ? (
               <DatabaseTableView

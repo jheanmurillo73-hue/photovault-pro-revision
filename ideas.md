@@ -69,3 +69,6 @@ Un símbolo modular de tres nodos conectados por una retícula técnica: un lent
 - Las pantallas de acceso incorporan siempre una señal cartográfica visible: retícula técnica, referencias de coordenadas y una micro-leyenda de las tres categorías.
 - La marca usa un símbolo modular de lente, caja y trazo de tubería conectados; se descarta el icono de escudo genérico.
 - Los mensajes de autenticación son operativos y sitúan al usuario en el plano o en una inspección; no usan llamados a la acción genéricos.
+- Las pantallas de acceso se componen como una estación de control sobre la retícula técnica: divisiones precisas, rótulos de estado y geometría contenida en vez de una tarjeta SaaS genérica.
+- El estado de acceso no nombra proveedores ni infraestructura; se expresa como autorización operativa para el plano.
+- Cian, ámbar y violeta grisáceo se mantienen visibles como códigos persistentes de cámara, caja y tubería.
