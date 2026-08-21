@@ -379,27 +379,6 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
                 <span className="mt-1 block font-mono text-[9px] tracking-[0.18em] text-cyan-100/70">NODO · CAJA · TRAZADO</span>
               </div>
             </div>
-            <p className="max-w-md border-l border-cyan-200/40 pl-3 text-[13px] leading-5 text-white/80 sm:text-[14px]">
-              Acceso operativo para cargar el plano, ubicar componentes y verificar tramos de obra.
-            </p>
-
-            <div className="mt-5 inline-flex items-center gap-2 rounded-sm border border-white/25 bg-black/25 px-3 py-1.5 font-mono text-[10px] font-semibold tracking-[0.12em]">
-              <span
-                className={`h-2 w-2 rounded-full ${
-                  isConfigured ? 'bg-[#a0f399] animate-pulse' : 'bg-[#fde047]'
-                }`}
-              ></span>
-              <span className="text-white/95">
-                {isConfigured
-                  ? 'ACCESO AL PLANO VERIFICADO'
-                  : 'MODO DE PLANO LOCAL'}
-              </span>
-            </div>
-            <div className="mt-4 grid w-full grid-cols-3 border border-white/20 text-[10px] font-semibold uppercase tracking-[0.12em] text-white/85">
-              <span className="flex items-center gap-1.5 border-r border-white/20 bg-cyan-300/10 px-3 py-2"><i className="h-2 w-2 bg-cyan-300" />Cámaras</span>
-              <span className="flex items-center gap-1.5 border-r border-white/20 bg-amber-300/10 px-3 py-2"><i className="h-2 w-2 bg-amber-300" />Cajas</span>
-              <span className="flex items-center gap-1.5 bg-violet-300/10 px-3 py-2"><i className="h-2 w-2 bg-violet-300" />Tuberías</span>
-            </div>
           </div>
         </div>
 
