@@ -15,7 +15,7 @@ interface MapViewProps {
   onEditPhoto: (photo: InspectionPhoto) => void;
   onNavigateToUpload: () => void;
   onCreatePhoto: (
-    elementType: 'camara' | 'tuberia',
+    elementType: 'caja' | 'camara' | 'tuberia',
     position: Pick<InspectionPhoto, 'planX' | 'planY' | 'planEndX' | 'planEndY'>,
   ) => InspectionPhoto;
   onUpdatePhotoPosition: (
@@ -99,8 +99,9 @@ export const MapView: React.FC<MapViewProps> = ({
   const [activeFilter, setActiveFilter] = useState<'all' | 'camara' | 'caja' | 'tuberia' | 'pending'>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [placement, setPlacement] = useState<PlacementTarget | null>(null);
-  const [creationMode, setCreationMode] = useState<'camara' | 'tuberia' | null>(null);
+  const [creationMode, setCreationMode] = useState<'caja' | 'camara' | 'tuberia' | null>(null);
   const [pipeStart, setPipeStart] = useState<PlanPoint | null>(null);
+  const [pipePreview, setPipePreview] = useState<PlanPoint | null>(null);
   const [selectedPlanPhotoId, setSelectedPlanPhotoId] = useState<string | null>(null);
   const [dragTarget, setDragTarget] = useState<DragTarget | null>(null);
   const [isPanelOpen, setIsPanelOpen] = useState<boolean>(false);
@@ -217,10 +218,11 @@ export const MapView: React.FC<MapViewProps> = ({
     [photos, selectedPlanPhotoId],
   );
 
-  const activateCreation = (elementType: 'camara' | 'tuberia') => {
+  const activateCreation = (elementType: 'caja' | 'camara' | 'tuberia') => {
     setPlacement(null);
     setSelectedPlanPhotoId(null);
     setPipeStart(null);
+    setPipePreview(null);
     setCreationMode((previous) => (previous === elementType ? null : elementType));
   };
 
@@ -290,8 +292,8 @@ export const MapView: React.FC<MapViewProps> = ({
     if (!bounds.width || !bounds.height) return;
     const { planX, planY } = getPlanPosition(bounds, event.clientX, event.clientY);
 
-    if (creationMode === 'camara') {
-      const created = onCreatePhoto('camara', { planX, planY });
+    if (creationMode === 'camara' || creationMode === 'caja') {
+      const created = onCreatePhoto(creationMode, { planX, planY });
       setActiveFilter('all');
       setSelectedPlanPhotoId(created.id);
       setCreationMode(null);
@@ -312,12 +314,24 @@ export const MapView: React.FC<MapViewProps> = ({
       setActiveFilter('all');
       setSelectedPlanPhotoId(created.id);
       setPipeStart(null);
+      setPipePreview(null);
       setCreationMode(null);
       return;
     }
 
     if (!placement) return;
     placeTargetAt(placement, planX, planY);
+  };
+
+  const handleCanvasMouseMove = (event: React.MouseEvent<HTMLDivElement>) => {
+    if (creationMode !== 'tuberia' || !pipeStart) return;
+    const bounds = event.currentTarget.getBoundingClientRect();
+    if (!bounds.width || !bounds.height) return;
+    setPipePreview(getPlanPosition(bounds, event.clientX, event.clientY));
+  };
+
+  const handleCanvasMouseLeave = () => {
+    if (creationMode === 'tuberia') setPipePreview(null);
   };
 
   const handleCanvasDrop = (event: React.DragEvent<HTMLDivElement>) => {
@@ -374,11 +388,22 @@ export const MapView: React.FC<MapViewProps> = ({
     setIconScale((previous) => clampScale(previous + difference, 0.7, 1.8));
   };
 
+  const pipePreviewDistance = useMemo(() => {
+    if (!pipeStart || !pipePreview) return null;
+    return Math.hypot(pipePreview.planX - pipeStart.planX, pipePreview.planY - pipeStart.planY);
+  }, [pipePreview, pipeStart]);
+
+  const pipePreviewMidpoint = pipeStart && pipePreview
+    ? { planX: (pipeStart.planX + pipePreview.planX) / 2, planY: (pipeStart.planY + pipePreview.planY) / 2 }
+    : null;
+
   const placementInstruction = creationMode === 'camara'
     ? 'Haz clic sobre el plano para agregar una nueva cámara.'
+    : creationMode === 'caja'
+      ? 'Haz clic sobre el plano para agregar una nueva caja.'
     : creationMode === 'tuberia'
       ? pipeStart
-        ? 'Haz clic para definir el final del nuevo tramo de tubería.'
+        ? `Haz clic para definir el final del nuevo tramo. Guía actual: ${pipePreviewDistance?.toFixed(1) ?? '0.0'}% del plano.`
         : 'Haz clic para definir el inicio del nuevo tramo de tubería.'
       : placement
     ? placement.stage === 'pipe-start'
@@ -470,6 +495,19 @@ export const MapView: React.FC<MapViewProps> = ({
         <span className="mx-1 hidden h-6 w-px bg-[#b8ced9] sm:block" aria-hidden="true" />
         <button
           type="button"
+          onClick={() => activateCreation('caja')}
+          className={`inline-flex h-8 items-center gap-1.5 rounded-full border px-3 text-[11px] font-bold shadow-sm transition ${
+            creationMode === 'caja'
+              ? 'border-[#b77812] bg-[#b77812] text-white'
+              : 'border-[#e0bf78] bg-white text-[#8b5d05] hover:bg-[#fff6df]'
+          }`}
+          title="Agregar caja directamente al plano"
+        >
+          <span className="material-symbols-outlined text-[16px]">inventory_2</span>
+          Caja
+        </button>
+        <button
+          type="button"
           onClick={() => activateCreation('camara')}
           className={`inline-flex h-8 items-center gap-1.5 rounded-full border px-3 text-[11px] font-bold shadow-sm transition ${
             creationMode === 'camara'
@@ -501,6 +539,8 @@ export const MapView: React.FC<MapViewProps> = ({
           <div className="flex min-h-full min-w-full items-center justify-center py-3">
             <div
               onClick={handleCanvasClick}
+              onMouseMove={handleCanvasMouseMove}
+              onMouseLeave={handleCanvasMouseLeave}
               onDragOver={(event) => {
                 event.preventDefault();
                 event.dataTransfer.dropEffect = 'move';
@@ -541,9 +581,27 @@ export const MapView: React.FC<MapViewProps> = ({
                 );
               })}
               {creationMode === 'tuberia' && pipeStart && (
-                <circle cx={pipeStart.planX} cy={pipeStart.planY} r="1.6" fill="#073f74" stroke="white" strokeWidth="0.7" />
+                <>
+                  {pipePreview && (
+                    <>
+                      <line x1={pipeStart.planX} y1={pipeStart.planY} x2={pipePreview.planX} y2={pipePreview.planY} stroke="rgba(255,255,255,0.92)" strokeWidth="2.8" strokeLinecap="round" />
+                      <line x1={pipeStart.planX} y1={pipeStart.planY} x2={pipePreview.planX} y2={pipePreview.planY} stroke="#073f74" strokeWidth="1.3" strokeDasharray="2.2 1.4" strokeLinecap="round" />
+                      <circle cx={pipePreview.planX} cy={pipePreview.planY} r="1.25" fill="#eab308" stroke="white" strokeWidth="0.65" />
+                    </>
+                  )}
+                  <circle cx={pipeStart.planX} cy={pipeStart.planY} r="1.6" fill="#073f74" stroke="white" strokeWidth="0.7" />
+                </>
               )}
             </svg>
+
+            {pipePreviewDistance !== null && pipePreviewMidpoint && (
+              <div
+                className="pointer-events-none absolute z-20 -translate-x-1/2 -translate-y-1/2 rounded-full border border-[#f8d878] bg-[#0b2940]/95 px-2.5 py-1 font-mono text-[10px] font-bold text-white shadow-lg"
+                style={{ left: `${pipePreviewMidpoint.planX}%`, top: `${pipePreviewMidpoint.planY}%` }}
+              >
+                ↔ {pipePreviewDistance.toFixed(1)}% del plano
+              </div>
+            )}
 
             {positionedPhotos.map((photo) => {
               const type = getElementType(photo);
@@ -676,7 +734,7 @@ export const MapView: React.FC<MapViewProps> = ({
         <div className="absolute bottom-5 left-1/2 z-30 flex w-[min(92vw,560px)] -translate-x-1/2 items-center gap-3 rounded-xl border border-[#73b7d4] bg-[#073f74] px-4 py-3 text-sm text-white shadow-xl">
           <span className="material-symbols-outlined text-[21px] text-cyan-200">ads_click</span>
           <p className="flex-1 font-medium">{placementInstruction}</p>
-          <button type="button" onClick={() => { setPlacement(null); setCreationMode(null); setPipeStart(null); }} className="rounded-md px-2 py-1 text-xs font-bold text-cyan-100 hover:bg-white/10">Cancelar</button>
+          <button type="button" onClick={() => { setPlacement(null); setCreationMode(null); setPipeStart(null); setPipePreview(null); }} className="rounded-md px-2 py-1 text-xs font-bold text-cyan-100 hover:bg-white/10">Cancelar</button>
         </div>
       )}
 

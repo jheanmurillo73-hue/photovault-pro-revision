@@ -26,3 +26,5 @@
 - [x] Permitir ubicar y mover elementos directamente mediante iconos compactos sin descripciones visibles.
 - [x] Eliminar los textos operativos, el estado y la leyenda de categorías del encabezado de acceso.
 - [x] Crear cámaras y tramos de tubería directamente en el plano y editar sus propiedades desde la selección.
+- [x] Permitir crear cajas directamente desde el panel del plano.
+- [x] Mostrar una guía visual de distancia en tiempo real al trazar tuberías.

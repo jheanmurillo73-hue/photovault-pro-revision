@@ -74,12 +74,14 @@ const normalizeInspectionPhoto = (photo: InspectionPhoto): InspectionPhoto => ({
   planEndY: normalizePlanCoordinate(photo.planEndY),
 });
 
-const createMapElementPreview = (elementType: Extract<ElementType, 'camara' | 'tuberia'>) => {
-  const isCamera = elementType === 'camara';
-  const accent = isCamera ? '#0566aa' : '#073f74';
-  const symbol = isCamera ? 'C' : 'T';
+const createMapElementPreview = (elementType: Extract<ElementType, 'caja' | 'camara' | 'tuberia'>) => {
+  const visual = elementType === 'camara'
+    ? { accent: '#0566aa', symbol: 'C' }
+    : elementType === 'caja'
+      ? { accent: '#b77812', symbol: 'B' }
+      : { accent: '#073f74', symbol: 'T' };
   return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(
-    `<svg xmlns="http://www.w3.org/2000/svg" width="640" height="420" viewBox="0 0 640 420"><rect width="640" height="420" fill="#edf6fa"/><path d="M0 70H640M0 140H640M0 210H640M0 280H640M0 350H640M106 0V420M213 0V420M320 0V420M427 0V420M534 0V420" stroke="#c9dee8" stroke-width="2"/><circle cx="320" cy="210" r="86" fill="${accent}"/><text x="320" y="237" text-anchor="middle" font-family="Arial, sans-serif" font-size="106" font-weight="700" fill="white">${symbol}</text></svg>`,
+    `<svg xmlns="http://www.w3.org/2000/svg" width="640" height="420" viewBox="0 0 640 420"><rect width="640" height="420" fill="#edf6fa"/><path d="M0 70H640M0 140H640M0 210H640M0 280H640M0 350H640M106 0V420M213 0V420M320 0V420M427 0V420M534 0V420" stroke="#c9dee8" stroke-width="2"/><circle cx="320" cy="210" r="86" fill="${visual.accent}"/><text x="320" y="237" text-anchor="middle" font-family="Arial, sans-serif" font-size="106" font-weight="700" fill="white">${visual.symbol}</text></svg>`,
   )}`;
 };
 
@@ -269,16 +271,18 @@ export default function App() {
   };
 
   const handleCreatePhotoFromPlan = (
-    elementType: Extract<ElementType, 'camara' | 'tuberia'>,
+    elementType: Extract<ElementType, 'caja' | 'camara' | 'tuberia'>,
     position: Pick<InspectionPhoto, 'planX' | 'planY' | 'planEndX' | 'planEndY'>,
   ): InspectionPhoto => {
     const createdAt = new Date();
     const suffix = Math.floor(100 + Math.random() * 900);
     const isCamera = elementType === 'camara';
+    const isPipeline = elementType === 'tuberia';
+    const elementName = isCamera ? 'Cámara' : isPipeline ? 'Tramo de tubería' : 'Caja';
     const newPhoto = normalizeInspectionPhoto({
       id: `plan-${Date.now()}`,
       displayId: `INSP-${createdAt.getFullYear()}-${suffix}`,
-      name: isCamera ? 'Nueva cámara' : 'Nuevo tramo de tubería',
+      name: isCamera ? 'Nueva cámara' : isPipeline ? 'Nuevo tramo de tubería' : 'Nueva caja',
       imageUrl: createMapElementPreview(elementType),
       date: createdAt.toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' })
         + `, ${createdAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`,
@@ -291,13 +295,13 @@ export default function App() {
       elementType,
       cameraCode: isCamera ? 'SB850' : undefined,
       cameraType: isCamera ? 'MT' : undefined,
-      tramo: isCamera ? undefined : '',
-      metraje: isCamera ? undefined : 0,
+      tramo: isPipeline ? '' : undefined,
+      metraje: isPipeline ? 0 : undefined,
       ...position,
       inspectorName: inspector.name,
       inspectorId: inspector.id,
       inspectorAvatar: inspector.avatarUrl,
-      type: isCamera ? 'Cámara de inspección' : 'Canalización de obra',
+      type: isCamera ? 'Cámara de inspección' : isPipeline ? 'Canalización de obra' : 'Caja de inspección',
       verified: false,
       fieldNotes: 'Creado directamente en el plano de obra.',
       requiresImmediateAction: false,
@@ -308,7 +312,7 @@ export default function App() {
     setPhotos((previous) => [newPhoto, ...previous]);
     supabaseService.savePhoto(newPhoto, inspector.id);
     addActivity('Elemento creado directamente en el plano', newPhoto.name, newPhoto.id, 'upload');
-    showToast(`${isCamera ? 'Cámara' : 'Tramo de tubería'} agregado al plano`);
+    showToast(`${elementName} agregada al plano`);
     return newPhoto;
   };
 
