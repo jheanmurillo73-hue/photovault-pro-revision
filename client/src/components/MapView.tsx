@@ -12,7 +12,12 @@ interface MapViewProps {
   photos: InspectionPhoto[];
   inspector: InspectorProfile;
   onSelectPhoto: (photo: InspectionPhoto) => void;
+  onEditPhoto: (photo: InspectionPhoto) => void;
   onNavigateToUpload: () => void;
+  onCreatePhoto: (
+    elementType: 'camara' | 'tuberia',
+    position: Pick<InspectionPhoto, 'planX' | 'planY' | 'planEndX' | 'planEndY'>,
+  ) => InspectionPhoto;
   onUpdatePhotoPosition: (
     photoId: string,
     position: Pick<InspectionPhoto, 'planX' | 'planY' | 'planEndX' | 'planEndY'>,
@@ -29,6 +34,11 @@ interface PlacementTarget {
 interface DragTarget {
   photo: InspectionPhoto;
   source: 'palette' | 'plan';
+}
+
+interface PlanPoint {
+  planX: number;
+  planY: number;
 }
 
 const EMPTY_BLUEPRINT: BlueprintOverlay = {
@@ -65,7 +75,9 @@ export const MapView: React.FC<MapViewProps> = ({
   photos,
   inspector,
   onSelectPhoto,
+  onEditPhoto,
   onNavigateToUpload,
+  onCreatePhoto,
   onUpdatePhotoPosition,
 }) => {
   const [blueprint, setBlueprint] = useState<BlueprintOverlay>(() => {
@@ -87,6 +99,9 @@ export const MapView: React.FC<MapViewProps> = ({
   const [activeFilter, setActiveFilter] = useState<'all' | 'camara' | 'caja' | 'tuberia' | 'pending'>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [placement, setPlacement] = useState<PlacementTarget | null>(null);
+  const [creationMode, setCreationMode] = useState<'camara' | 'tuberia' | null>(null);
+  const [pipeStart, setPipeStart] = useState<PlanPoint | null>(null);
+  const [selectedPlanPhotoId, setSelectedPlanPhotoId] = useState<string | null>(null);
   const [dragTarget, setDragTarget] = useState<DragTarget | null>(null);
   const [isPanelOpen, setIsPanelOpen] = useState<boolean>(false);
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
@@ -197,6 +212,18 @@ export const MapView: React.FC<MapViewProps> = ({
     [photos],
   );
 
+  const selectedPlanPhoto = useMemo(
+    () => photos.find((photo) => photo.id === selectedPlanPhotoId) ?? null,
+    [photos, selectedPlanPhotoId],
+  );
+
+  const activateCreation = (elementType: 'camara' | 'tuberia') => {
+    setPlacement(null);
+    setSelectedPlanPhotoId(null);
+    setPipeStart(null);
+    setCreationMode((previous) => (previous === elementType ? null : elementType));
+  };
+
   const selectForPlacement = (photo: InspectionPhoto) => {
     const type = getElementType(photo);
     if (type === 'tuberia') {
@@ -259,10 +286,37 @@ export const MapView: React.FC<MapViewProps> = ({
   };
 
   const handleCanvasClick = (event: React.MouseEvent<HTMLDivElement>) => {
-    if (!placement) return;
     const bounds = event.currentTarget.getBoundingClientRect();
     if (!bounds.width || !bounds.height) return;
     const { planX, planY } = getPlanPosition(bounds, event.clientX, event.clientY);
+
+    if (creationMode === 'camara') {
+      const created = onCreatePhoto('camara', { planX, planY });
+      setActiveFilter('all');
+      setSelectedPlanPhotoId(created.id);
+      setCreationMode(null);
+      return;
+    }
+
+    if (creationMode === 'tuberia') {
+      if (!pipeStart) {
+        setPipeStart({ planX, planY });
+        return;
+      }
+      const created = onCreatePhoto('tuberia', {
+        planX: pipeStart.planX,
+        planY: pipeStart.planY,
+        planEndX: planX,
+        planEndY: planY,
+      });
+      setActiveFilter('all');
+      setSelectedPlanPhotoId(created.id);
+      setPipeStart(null);
+      setCreationMode(null);
+      return;
+    }
+
+    if (!placement) return;
     placeTargetAt(placement, planX, planY);
   };
 
@@ -320,7 +374,13 @@ export const MapView: React.FC<MapViewProps> = ({
     setIconScale((previous) => clampScale(previous + difference, 0.7, 1.8));
   };
 
-  const placementInstruction = placement
+  const placementInstruction = creationMode === 'camara'
+    ? 'Haz clic sobre el plano para agregar una nueva cámara.'
+    : creationMode === 'tuberia'
+      ? pipeStart
+        ? 'Haz clic para definir el final del nuevo tramo de tubería.'
+        : 'Haz clic para definir el inicio del nuevo tramo de tubería.'
+      : placement
     ? placement.stage === 'pipe-start'
       ? `Haz clic para ubicar el inicio de ${elementLabel(placement.photo)}.`
       : placement.stage === 'pipe-end'
@@ -407,6 +467,33 @@ export const MapView: React.FC<MapViewProps> = ({
             {label}
           </button>
         ))}
+        <span className="mx-1 hidden h-6 w-px bg-[#b8ced9] sm:block" aria-hidden="true" />
+        <button
+          type="button"
+          onClick={() => activateCreation('camara')}
+          className={`inline-flex h-8 items-center gap-1.5 rounded-full border px-3 text-[11px] font-bold shadow-sm transition ${
+            creationMode === 'camara'
+              ? 'border-[#0566aa] bg-[#0566aa] text-white'
+              : 'border-[#8ec6dd] bg-white text-[#075a91] hover:bg-[#e5f4fb]'
+          }`}
+          title="Agregar cámara directamente al plano"
+        >
+          <span className="material-symbols-outlined text-[16px]">add_a_photo</span>
+          Cámara
+        </button>
+        <button
+          type="button"
+          onClick={() => activateCreation('tuberia')}
+          className={`inline-flex h-8 items-center gap-1.5 rounded-full border px-3 text-[11px] font-bold shadow-sm transition ${
+            creationMode === 'tuberia'
+              ? 'border-[#073f74] bg-[#073f74] text-white'
+              : 'border-[#9fb5c5] bg-white text-[#173f58] hover:bg-[#eaf3f8]'
+          }`}
+          title="Agregar tramo de tubería directamente al plano"
+        >
+          <span className="material-symbols-outlined text-[16px]">timeline</span>
+          Tubería
+        </button>
       </div>
 
       <main className="absolute inset-x-0 bottom-0 top-[62px] overflow-auto p-5 pt-16">
@@ -420,7 +507,7 @@ export const MapView: React.FC<MapViewProps> = ({
               }}
               onDrop={handleCanvasDrop}
               className={`relative inline-flex max-h-[calc(100vh-10rem)] max-w-[calc(100vw-3rem)] overflow-hidden border border-[#9dbbc9] bg-white shadow-[0_18px_46px_rgba(7,63,116,0.22)] transition-transform duration-200 ${
-                placement ? 'cursor-crosshair' : dragTarget ? 'ring-2 ring-[#18a9cf] ring-offset-2' : 'cursor-default'
+                placement || creationMode ? 'cursor-crosshair' : dragTarget ? 'ring-2 ring-[#18a9cf] ring-offset-2' : 'cursor-default'
               }`}
               style={{ transform: `scale(${planScale})` }}
               aria-label="Plano interactivo de inspección"
@@ -453,6 +540,9 @@ export const MapView: React.FC<MapViewProps> = ({
                   </g>
                 );
               })}
+              {creationMode === 'tuberia' && pipeStart && (
+                <circle cx={pipeStart.planX} cy={pipeStart.planY} r="1.6" fill="#073f74" stroke="white" strokeWidth="0.7" />
+              )}
             </svg>
 
             {positionedPhotos.map((photo) => {
@@ -473,10 +563,11 @@ export const MapView: React.FC<MapViewProps> = ({
                     }}
                     onClick={(event) => {
                       event.stopPropagation();
-                      onSelectPhoto(photo);
+                      if (placement || creationMode) return;
+                      setSelectedPlanPhotoId(photo.id);
                     }}
                     style={{ left: `${midpointX}%`, top: `${midpointY}%`, transform: `translate(-50%, -50%) scale(${iconScale})` }}
-                    className={`absolute z-10 flex h-8 w-8 items-center justify-center rounded-full border-2 border-white bg-[#073f74] text-white shadow-lg transition hover:scale-110 active:cursor-grabbing ${placement ? 'pointer-events-none' : 'cursor-grab'}`}
+                    className={`absolute z-10 flex h-8 w-8 items-center justify-center rounded-full border-2 border-white bg-[#073f74] text-white shadow-lg transition hover:scale-110 active:cursor-grabbing ${placement || creationMode ? 'pointer-events-none' : 'cursor-grab'} ${selectedPlanPhotoId === photo.id ? 'ring-4 ring-cyan-300 ring-offset-2' : ''}`}
                     title={`Abrir o mover ${elementLabel(photo)}`}
                     aria-label={`Abrir o mover ${elementLabel(photo)}`}
                   >
@@ -499,10 +590,11 @@ export const MapView: React.FC<MapViewProps> = ({
                     }}
                     onClick={(event) => {
                       event.stopPropagation();
-                      onSelectPhoto(photo);
+                      if (placement || creationMode) return;
+                      setSelectedPlanPhotoId(photo.id);
                     }}
                     style={{ left: `${photo.planX}%`, top: `${photo.planY}%`, backgroundColor: markerColor, transform: `translate(-50%, -50%) scale(${iconScale})` }}
-                    className={`absolute z-10 flex h-9 w-9 items-center justify-center rounded-full border-2 border-white text-white shadow-[0_3px_10px_rgba(6,36,58,0.35)] transition hover:scale-110 active:cursor-grabbing ${placement ? 'pointer-events-none' : 'cursor-grab'}`}
+                    className={`absolute z-10 flex h-9 w-9 items-center justify-center rounded-full border-2 border-white text-white shadow-[0_3px_10px_rgba(6,36,58,0.35)] transition hover:scale-110 active:cursor-grabbing ${placement || creationMode ? 'pointer-events-none' : 'cursor-grab'} ${selectedPlanPhotoId === photo.id ? 'ring-4 ring-cyan-300 ring-offset-2' : ''}`}
                     title={`Abrir o mover ${elementLabel(photo)}`}
                     aria-label={`Abrir o mover ${elementLabel(photo)}`}
                   >
@@ -526,6 +618,30 @@ export const MapView: React.FC<MapViewProps> = ({
           </div>
         )}
       </main>
+
+      {selectedPlanPhoto && !placementInstruction && (
+        <aside className="absolute right-4 top-[138px] z-30 w-[min(88vw,300px)] border border-[#9dbbc9] bg-white/95 p-3 shadow-[0_14px_32px_rgba(7,63,116,0.2)] backdrop-blur">
+          <div className="flex items-start justify-between gap-3 border-b border-[#d3e1e8] pb-2">
+            <div className="min-w-0">
+              <p className="font-mono text-[9px] font-bold tracking-[0.14em] text-[#527284]">ELEMENTO SELECCIONADO</p>
+              <p className="mt-0.5 truncate text-sm font-bold text-[#0b2940]">{elementLabel(selectedPlanPhoto)}</p>
+            </div>
+            <button type="button" onClick={() => setSelectedPlanPhotoId(null)} className="text-[#527284] transition hover:text-[#0b2940]" aria-label="Cerrar propiedades del elemento">
+              <span className="material-symbols-outlined text-[18px]">close</span>
+            </button>
+          </div>
+          <div className="mt-3 grid grid-cols-2 gap-2">
+            <button type="button" onClick={() => onEditPhoto(selectedPlanPhoto)} className="inline-flex h-9 items-center justify-center gap-1.5 bg-[#0566aa] px-3 text-xs font-bold text-white transition hover:bg-[#004d84]">
+              <span className="material-symbols-outlined text-[16px]">edit</span>
+              Propiedades
+            </button>
+            <button type="button" onClick={() => onSelectPhoto(selectedPlanPhoto)} className="inline-flex h-9 items-center justify-center gap-1.5 border border-[#b4cbd8] bg-white px-3 text-xs font-bold text-[#154860] transition hover:bg-[#eaf6fb]">
+              <span className="material-symbols-outlined text-[16px]">open_in_new</span>
+              Detalle
+            </button>
+          </div>
+        </aside>
+      )}
 
       {blueprint.imageUrl && pendingPhotos.length > 0 && (
         <div className="absolute bottom-4 left-4 z-20 flex items-center gap-1.5 rounded-xl border border-[#b6d0dd] bg-white/95 p-2 shadow-sm backdrop-blur">
@@ -560,7 +676,7 @@ export const MapView: React.FC<MapViewProps> = ({
         <div className="absolute bottom-5 left-1/2 z-30 flex w-[min(92vw,560px)] -translate-x-1/2 items-center gap-3 rounded-xl border border-[#73b7d4] bg-[#073f74] px-4 py-3 text-sm text-white shadow-xl">
           <span className="material-symbols-outlined text-[21px] text-cyan-200">ads_click</span>
           <p className="flex-1 font-medium">{placementInstruction}</p>
-          <button type="button" onClick={() => setPlacement(null)} className="rounded-md px-2 py-1 text-xs font-bold text-cyan-100 hover:bg-white/10">Cancelar</button>
+          <button type="button" onClick={() => { setPlacement(null); setCreationMode(null); setPipeStart(null); }} className="rounded-md px-2 py-1 text-xs font-bold text-cyan-100 hover:bg-white/10">Cancelar</button>
         </div>
       )}
 
