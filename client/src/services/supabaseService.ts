@@ -24,7 +24,7 @@ export const supabaseService = {
     try {
       const { data, error } = await client
         .from('profiles')
-        .select('id, name, email, role, allowed_modules')
+        .select('id, name, email, role, allowed_modules, email_confirmed_at')
         .eq('id', profile.id)
         .maybeSingle();
 
@@ -36,6 +36,7 @@ export const supabaseService = {
         email: data.email || profile.email,
         role,
         allowedModules: role === 'admin' ? [...ALL_OPERATIONAL_MODULES] : normalizeModules(data.allowed_modules),
+        emailConfirmedAt: data.email_confirmed_at || null,
       };
     } catch {
       return fallback;
@@ -48,7 +49,7 @@ export const supabaseService = {
 
     const { data, error } = await client
       .from('profiles')
-      .select('id, name, email, role, allowed_modules')
+      .select('id, name, email, role, allowed_modules, email_confirmed_at')
       .order('name', { ascending: true });
 
     if (error || !data) return null;
@@ -60,6 +61,7 @@ export const supabaseService = {
         email: user.email,
         role,
         allowedModules: role === 'admin' ? [...ALL_OPERATIONAL_MODULES] : normalizeModules(user.allowed_modules),
+        emailConfirmedAt: user.email_confirmed_at || null,
       };
     });
   },
@@ -506,17 +508,24 @@ CREATE TABLE IF NOT EXISTS public.profiles (
   department TEXT DEFAULT 'Garantía Estructural y Calidad',
   phone TEXT DEFAULT '',
   avatar_url TEXT DEFAULT '',
+  email_confirmed_at TIMESTAMPTZ,
   created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now()),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())
 );
 
 -- Migración segura para proyectos creados con versiones anteriores.
 ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS allowed_modules JSONB NOT NULL DEFAULT '["dashboard", "map", "upload", "history"]'::jsonb;
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS email_confirmed_at TIMESTAMPTZ;
 ALTER TABLE public.profiles ALTER COLUMN role SET DEFAULT 'inspector';
 UPDATE public.profiles
 SET role = 'admin', allowed_modules = '["dashboard", "map", "database", "upload", "history", "activity", "settings"]'::jsonb
 WHERE lower(email) = 'jheanmurillo73@gmail.com';
 UPDATE public.profiles SET role = 'inspector' WHERE role IS NULL OR role NOT IN ('admin', 'inspector');
+UPDATE public.profiles p
+SET email_confirmed_at = u.email_confirmed_at
+FROM auth.users u
+WHERE p.id = u.id::text
+  AND p.email_confirmed_at IS DISTINCT FROM u.email_confirmed_at;
 
 -- 2. TABLA PRINCIPAL DE FOTOS Y REGISTROS DE INSPECCIÓN (inspection_photos)
 CREATE TABLE IF NOT EXISTS public.inspection_photos (
@@ -641,6 +650,9 @@ BEGIN
     NEW.role := OLD.role;
     NEW.allowed_modules := OLD.allowed_modules;
   END IF;
+  IF TG_OP = 'UPDATE' AND auth.uid() IS NOT NULL THEN
+    NEW.email_confirmed_at := OLD.email_confirmed_at;
+  END IF;
   RETURN NEW;
 END;
 $$;
@@ -649,6 +661,35 @@ DROP TRIGGER IF EXISTS protect_photovault_profile_access ON public.profiles;
 CREATE TRIGGER protect_photovault_profile_access
 BEFORE INSERT OR UPDATE ON public.profiles
 FOR EACH ROW EXECUTE FUNCTION public.enforce_photovault_profile_access();
+
+-- Mantiene el estado de correo confirmado sincronizado desde Auth sin exponer auth.users al cliente.
+CREATE OR REPLACE FUNCTION public.sync_photovault_auth_profile()
+RETURNS TRIGGER LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+BEGIN
+  INSERT INTO public.profiles (id, name, email, email_confirmed_at, role, allowed_modules)
+  VALUES (
+    NEW.id::text,
+    COALESCE(NEW.raw_user_meta_data->>'full_name', split_part(NEW.email, '@', 1)),
+    NEW.email,
+    NEW.email_confirmed_at,
+    CASE WHEN lower(NEW.email) = 'jheanmurillo73@gmail.com' THEN 'admin' ELSE 'inspector' END,
+    CASE WHEN lower(NEW.email) = 'jheanmurillo73@gmail.com'
+      THEN '["dashboard", "map", "database", "upload", "history", "activity", "settings"]'::jsonb
+      ELSE '["dashboard", "map", "upload", "history"]'::jsonb
+    END
+  )
+  ON CONFLICT (id) DO UPDATE SET
+    email = EXCLUDED.email,
+    email_confirmed_at = EXCLUDED.email_confirmed_at,
+    updated_at = timezone('utc'::text, now());
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS sync_photovault_auth_profile ON auth.users;
+CREATE TRIGGER sync_photovault_auth_profile
+AFTER INSERT OR UPDATE OF email, email_confirmed_at ON auth.users
+FOR EACH ROW EXECUTE FUNCTION public.sync_photovault_auth_profile();
 
 DROP POLICY IF EXISTS "Acceso total a perfiles" ON public.profiles;
 DROP POLICY IF EXISTS "Perfil propio o administracion" ON public.profiles;

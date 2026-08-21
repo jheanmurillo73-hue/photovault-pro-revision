@@ -13,3 +13,4 @@
 - [x] Configurar y verificar políticas de protección de la rama produccion en GitHub.
 - [x] Cambiar la visibilidad del repositorio a público para habilitar las reglas de protección.
 - [x] Diagnosticar y resolver el registro del correo administrador en Supabase.
+- [x] Mostrar el estado de confirmación de correo de cada usuario en el panel administrativo.

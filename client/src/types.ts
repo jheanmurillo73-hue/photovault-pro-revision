@@ -29,6 +29,7 @@ export interface UserAccess {
   name: string;
   role: AppRole;
   allowedModules: AppModule[];
+  emailConfirmedAt?: string | null;
 }
 
 export type PhotoCategory = 'inspection' | 'maintenance' | 'site_visit' | 'safety_hazard' | 'structural' | 'electrical';

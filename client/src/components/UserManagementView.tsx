@@ -115,6 +115,8 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({ currentU
             const primary = isPrimaryAdmin(user.email);
             const effectiveRole: AppRole = primary ? 'admin' : user.role;
             const effectiveModules = effectiveRole === 'admin' ? ALL_OPERATIONAL_MODULES : user.allowedModules;
+            const emailConfirmed = Boolean(user.emailConfirmedAt);
+            const emailStatusAvailable = user.emailConfirmedAt !== undefined;
             return (
               <article key={user.id} className="overflow-hidden rounded-2xl border border-[#c2d6df] bg-white shadow-[0_4px_16px_rgba(7,62,92,0.06)]">
                 <div className="flex flex-col gap-4 border-b border-[#e0edf2] bg-[#f7fbfc] px-5 py-4 lg:flex-row lg:items-center lg:justify-between">
@@ -125,6 +127,10 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({ currentU
                         {effectiveRole === 'admin' ? 'Administrador' : 'Inspector'}
                       </span>
                       {primary && <span className="rounded-full bg-[#fff5d7] px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.08em] text-[#8a5a00]">Principal</span>}
+                      <span title={emailConfirmed ? `Confirmado el ${new Date(user.emailConfirmedAt as string).toLocaleString('es-CO')}` : emailStatusAvailable ? 'El usuario aún debe confirmar el enlace enviado por Supabase.' : 'Ejecuta el Script SQL actualizado para sincronizar este estado.'} className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.08em] ${emailConfirmed ? 'bg-[#dcfce7] text-[#166534]' : emailStatusAvailable ? 'bg-[#fff4cc] text-[#8a5a00]' : 'bg-slate-100 text-slate-600'}`}>
+                        <span className="material-symbols-outlined text-[14px]">{emailConfirmed ? 'verified' : emailStatusAvailable ? 'mark_email_unread' : 'help'}</span>
+                        {emailConfirmed ? 'Correo confirmado' : emailStatusAvailable ? 'Correo pendiente' : 'Estado no disponible'}
+                      </span>
                     </div>
                     <p className="mt-1 truncate text-sm text-[#4e6572]">{user.email}</p>
                   </div>
