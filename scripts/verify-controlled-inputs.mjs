@@ -6,6 +6,7 @@ const files = {
   dashboard: readFileSync(resolve(root, 'client/src/components/DashboardView.tsx'), 'utf8'),
   editModal: readFileSync(resolve(root, 'client/src/components/EditPhotoModal.tsx'), 'utf8'),
   map: readFileSync(resolve(root, 'client/src/components/MapView.tsx'), 'utf8'),
+  app: readFileSync(resolve(root, 'client/src/App.tsx'), 'utf8'),
 };
 
 const expectations = [
@@ -16,6 +17,10 @@ const expectations = [
   ['editModal', 'useState(photo.verified ?? false)'],
   ['map', 'checked={Boolean(blueprint.visible)}'],
   ['map', 'value={blueprint.opacity ?? 0.7}'],
+  ['app', 'const normalizeSettings ='],
+  ['app', 'const normalizeInspectionPhoto ='],
+  ['app', '.map(normalizeInspectionPhoto)'],
+  ['app', 'setSettings(normalizeSettings(backupData.settings))'],
 ];
 
 const missing = expectations

@@ -15,3 +15,4 @@
 - [x] Diagnosticar y resolver el registro del correo administrador en Supabase.
 - [x] Mostrar el estado de confirmación de correo de cada usuario en el panel administrativo.
 - [x] Eliminar valores indefinidos en campos controlados de los formularios.
+- [x] Auditar y normalizar la ruta restante que provoca controles indefinidos.

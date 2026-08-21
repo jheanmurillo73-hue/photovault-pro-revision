@@ -41,6 +41,29 @@ import { canAccessModule, createFallbackAccess, MODULE_DEFINITIONS } from './lib
 import { Footer } from './components/Footer';
 import { Toast } from './components/Toast';
 
+const normalizeSettings = (candidate?: Partial<AppSettings> | null): AppSettings => ({
+  emailNotifications: candidate?.emailNotifications ?? INITIAL_SETTINGS.emailNotifications,
+  pushNotifications: candidate?.pushNotifications ?? INITIAL_SETTINGS.pushNotifications,
+  syncWifiOnly: candidate?.syncWifiOnly ?? INITIAL_SETTINGS.syncWifiOnly,
+  highQualityUploads: candidate?.highQualityUploads ?? INITIAL_SETTINGS.highQualityUploads,
+  autoVerifyPassed: candidate?.autoVerifyPassed ?? INITIAL_SETTINGS.autoVerifyPassed,
+  offlineStorageLimitMb: typeof candidate?.offlineStorageLimitMb === 'number'
+    ? candidate.offlineStorageLimitMb
+    : INITIAL_SETTINGS.offlineStorageLimitMb,
+});
+
+const normalizeInspectionPhoto = (photo: InspectionPhoto): InspectionPhoto => ({
+  ...photo,
+  name: photo.name ?? 'Inspección sin nombre',
+  type: photo.type ?? '',
+  location: photo.location ?? '',
+  fieldNotes: photo.fieldNotes ?? '',
+  executionStatus: photo.executionStatus ?? 'En proceso',
+  status: photo.status ?? 'Synced',
+  requiresImmediateAction: Boolean(photo.requiresImmediateAction),
+  verified: Boolean(photo.verified),
+});
+
 export default function App() {
   // Session Authentication State
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
@@ -53,9 +76,9 @@ export default function App() {
     if (!saved) return INITIAL_PHOTOS;
     try {
       const parsed: InspectionPhoto[] = JSON.parse(saved);
-      return parsed.filter(
-        (p) => !['photo-1', 'photo-2', 'photo-3', 'photo-4', 'photo-5'].includes(p.id)
-      );
+      return parsed
+        .filter((p) => !['photo-1', 'photo-2', 'photo-3', 'photo-4', 'photo-5'].includes(p.id))
+        .map(normalizeInspectionPhoto);
     } catch {
       return INITIAL_PHOTOS;
     }
@@ -72,7 +95,11 @@ export default function App() {
 
   const [settings, setSettings] = useState<AppSettings>(() => {
     const saved = localStorage.getItem('photovault_settings');
-    return saved ? JSON.parse(saved) : INITIAL_SETTINGS;
+    try {
+      return normalizeSettings(saved ? JSON.parse(saved) : INITIAL_SETTINGS);
+    } catch {
+      return normalizeSettings(INITIAL_SETTINGS);
+    }
   });
 
   const [collections] = useState<InspectionCollection[]>(INITIAL_COLLECTIONS);
@@ -246,7 +273,7 @@ export default function App() {
   };
 
   const handleSaveSettings = (newSettings: AppSettings) => {
-    setSettings(newSettings);
+    setSettings(normalizeSettings(newSettings));
     showToast('Preferencias actualizadas');
   };
 
@@ -285,13 +312,13 @@ export default function App() {
     activities?: ActivityItem[];
   }) => {
     if (backupData.photos && Array.isArray(backupData.photos)) {
-      setPhotos(backupData.photos);
+      setPhotos(backupData.photos.map(normalizeInspectionPhoto));
     }
     if (backupData.inspector) {
       setInspector(backupData.inspector);
     }
     if (backupData.settings) {
-      setSettings(backupData.settings);
+      setSettings(normalizeSettings(backupData.settings));
     }
     if (backupData.activities && Array.isArray(backupData.activities)) {
       setActivities(backupData.activities);
