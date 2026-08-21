@@ -1420,7 +1420,7 @@ export const MapView: React.FC<MapViewProps> = ({
                 <label className="relative inline-flex items-center cursor-pointer">
                   <input
                     type="checkbox"
-                    checked={blueprint.visible}
+                    checked={Boolean(blueprint.visible)}
                     onChange={(e) =>
                       setBlueprint((prev) => ({ ...prev, visible: e.target.checked }))
                     }
@@ -1440,7 +1440,7 @@ export const MapView: React.FC<MapViewProps> = ({
                     Transparencia
                   </span>
                   <span className="font-mono font-bold text-[#1a73e8] bg-[#e8f0fe] px-2 py-0.5 rounded-full text-[11px]">
-                    {Math.round(blueprint.opacity * 100)}%
+                    {Math.round((blueprint.opacity ?? 0.7) * 100)}%
                   </span>
                 </div>
                 <input
@@ -1448,7 +1448,7 @@ export const MapView: React.FC<MapViewProps> = ({
                   min="0.05"
                   max="1.0"
                   step="0.05"
-                  value={blueprint.opacity}
+                  value={blueprint.opacity ?? 0.7}
                   onChange={(e) =>
                     setBlueprint((prev) => ({ ...prev, opacity: parseFloat(e.target.value) }))
                   }

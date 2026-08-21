@@ -20,18 +20,18 @@ export const EditPhotoModal: React.FC<EditPhotoModalProps> = ({
   onClose,
   onSave,
 }) => {
-  const [name, setName] = useState(photo.name);
-  const [type, setType] = useState(photo.type || photo.categoryLabel);
-  const [location, setLocation] = useState(photo.location);
+  const [name, setName] = useState(photo.name ?? '');
+  const [type, setType] = useState(photo.type ?? photo.categoryLabel ?? '');
+  const [location, setLocation] = useState(photo.location ?? '');
   const [cameraCode, setCameraCode] = useState<CameraCode>(photo.cameraCode || 'SB850');
   const [cameraType, setCameraType] = useState<CameraType>(photo.cameraType || 'MT');
   const [elementType, setElementType] = useState<ElementType>(() => getElementType(photo));
   const [tramo, setTramo] = useState<string>(photo.tramo || '3x4"');
   const [metraje, setMetraje] = useState<string>(photo.metraje !== undefined ? String(photo.metraje) : '');
-  const [fieldNotes, setFieldNotes] = useState(photo.fieldNotes);
+  const [fieldNotes, setFieldNotes] = useState(photo.fieldNotes ?? '');
   const [executionStatus, setExecutionStatus] = useState<ExecutionStatus>(photo.executionStatus || 'En proceso');
-  const [requiresImmediateAction, setRequiresImmediateAction] = useState(photo.requiresImmediateAction);
-  const [verified, setVerified] = useState(photo.verified);
+  const [requiresImmediateAction, setRequiresImmediateAction] = useState(photo.requiresImmediateAction ?? false);
+  const [verified, setVerified] = useState(photo.verified ?? false);
 
   if (!isOpen) return null;
 

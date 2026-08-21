@@ -283,7 +283,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               <div onClick={(e) => e.stopPropagation()}>
                 <input
                   type="text"
-                  value={photo.name}
+                  value={photo.name ?? ''}
                   onChange={(e) => onUpdatePhotoTitle(photo.id, e.target.value)}
                   className="w-full font-['Inter'] font-bold text-[14px] text-[#071e27] bg-transparent border-b border-[#c2c6d4] focus:border-[#004d99] focus:outline-none px-0 py-1 transition-colors"
                   placeholder="Nombre de la foto"
