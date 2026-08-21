@@ -535,6 +535,7 @@ export default function App() {
                 onUpdatePipelineMeasurements={handleUpdatePipelineMeasurements}
                 onCreatePhoto={handleCreatePhotoFromPlan}
                 onEditPhoto={(photo) => setEditingPhoto(photo)}
+                onDeletePhoto={handleDeletePhoto}
               />
             ) : currentTab === 'database' ? (
               <DatabaseTableView

@@ -7,3 +7,7 @@
 - Al seleccionar una tubería, su panel contextual muestra la longitud calibrada y abre el editor de propiedades.
 - El editor presenta una vista previa de evidencia y la acción **Reemplazar foto**, incluida antes de los campos operativos del elemento.
 - Se cargó una imagen WebP temporal; el editor la optimizó y actualizó su vista previa sin errores. La prueba se cerró sin guardar para no modificar el registro de inspección.
+- El plano de obra abrió con los elementos existentes y quedó listo para comprobar la acción contextual de eliminación.
+- Al seleccionar una tubería, el panel contextual muestra la nueva papelera junto a Propiedades y Detalle.
+- La papelera abre un diálogo de confirmación que identifica el elemento y exige una segunda acción antes de borrarlo.
+- Al cancelar el diálogo, el elemento continúa visible y seleccionado en el plano; no se ejecuta ningún borrado.

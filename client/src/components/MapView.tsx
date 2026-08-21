@@ -13,6 +13,7 @@ interface MapViewProps {
   inspector: InspectorProfile;
   onSelectPhoto: (photo: InspectionPhoto) => void;
   onEditPhoto: (photo: InspectionPhoto) => void;
+  onDeletePhoto: (photoId: string) => void;
   onNavigateToUpload: () => void;
   onCreatePhoto: (
     elementType: 'caja' | 'camara' | 'tuberia',
@@ -98,6 +99,7 @@ export const MapView: React.FC<MapViewProps> = ({
   inspector,
   onSelectPhoto,
   onEditPhoto,
+  onDeletePhoto,
   onNavigateToUpload,
   onCreatePhoto,
   onUpdatePhotoPosition,
@@ -132,6 +134,7 @@ export const MapView: React.FC<MapViewProps> = ({
   const [calibrationMeters, setCalibrationMeters] = useState('10');
   const [isCalibrationDialogOpen, setIsCalibrationDialogOpen] = useState(false);
   const [selectedPlanPhotoId, setSelectedPlanPhotoId] = useState<string | null>(null);
+  const [photoPendingDeletion, setPhotoPendingDeletion] = useState<InspectionPhoto | null>(null);
   const [dragTarget, setDragTarget] = useState<DragTarget | null>(null);
   const [isPanelOpen, setIsPanelOpen] = useState<boolean>(false);
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
@@ -884,7 +887,7 @@ export const MapView: React.FC<MapViewProps> = ({
               <span className="font-mono text-sm font-bold text-[#0b5d8c]">{Number.parseFloat(String(selectedPlanPhoto.metraje ?? 0)).toFixed(2)} m</span>
             </div>
           )}
-          <div className="mt-3 grid grid-cols-2 gap-2">
+          <div className="mt-3 grid grid-cols-[1fr_1fr_auto] gap-2">
             <button type="button" onClick={() => onEditPhoto(selectedPlanPhoto)} className="inline-flex h-9 items-center justify-center gap-1.5 bg-[#0566aa] px-3 text-xs font-bold text-white transition hover:bg-[#004d84]">
               <span className="material-symbols-outlined text-[16px]">edit</span>
               Propiedades
@@ -893,8 +896,54 @@ export const MapView: React.FC<MapViewProps> = ({
               <span className="material-symbols-outlined text-[16px]">open_in_new</span>
               Detalle
             </button>
+            <button
+              type="button"
+              onClick={() => setPhotoPendingDeletion(selectedPlanPhoto)}
+              className="inline-flex h-9 w-9 items-center justify-center border border-[#f0b4b0] bg-[#fff7f6] text-[#b42318] transition hover:bg-[#ffdad6]"
+              title="Eliminar elemento"
+              aria-label={`Eliminar ${elementLabel(selectedPlanPhoto)}`}
+            >
+              <span className="material-symbols-outlined text-[18px]">delete</span>
+            </button>
           </div>
         </aside>
+      )}
+
+      {photoPendingDeletion && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/45 p-4 backdrop-blur-sm">
+          <section role="alertdialog" aria-modal="true" aria-labelledby="delete-element-title" className="w-full max-w-md border border-[#e4aaa5] bg-white shadow-[0_20px_60px_rgba(105,35,29,0.32)]">
+            <div className="flex items-start gap-3 border-b border-[#f2d0cd] bg-[#fff5f4] px-5 py-4">
+              <span className="material-symbols-outlined mt-0.5 text-[24px] text-[#b42318]">warning</span>
+              <div>
+                <p className="font-mono text-[10px] font-bold tracking-[0.16em] text-[#8c2f27]">ELIMINAR DEL PLANO</p>
+                <h2 id="delete-element-title" className="mt-1 text-lg font-bold text-[#4a1714]">¿Eliminar este elemento?</h2>
+              </div>
+            </div>
+            <div className="space-y-3 p-5">
+              <p className="text-sm leading-6 text-[#5d3c39]">
+                Se eliminará <strong>{elementLabel(photoPendingDeletion)}</strong> del plano y de su registro de inspección. Esta acción no se puede deshacer.
+              </p>
+              <div className="rounded-lg border border-[#f0d2cf] bg-[#fff9f8] px-3 py-2 font-mono text-[10px] font-bold tracking-[0.1em] text-[#8c2f27]">
+                {getElementType(photoPendingDeletion).toUpperCase()} · REGISTRO {photoPendingDeletion.displayId || photoPendingDeletion.id}
+              </div>
+            </div>
+            <div className="flex justify-end gap-2 border-t border-[#f2d0cd] px-5 py-4">
+              <button type="button" onClick={() => setPhotoPendingDeletion(null)} className="h-9 border border-[#b4cbd8] bg-white px-3 text-xs font-bold text-[#315c70] transition hover:bg-[#eaf6fb]">Cancelar</button>
+              <button
+                type="button"
+                onClick={() => {
+                  onDeletePhoto(photoPendingDeletion.id);
+                  setPhotoPendingDeletion(null);
+                  setSelectedPlanPhotoId(null);
+                }}
+                className="inline-flex h-9 items-center gap-1.5 bg-[#b42318] px-3 text-xs font-bold text-white transition hover:bg-[#8d1b13]"
+              >
+                <span className="material-symbols-outlined text-[16px]">delete</span>
+                Eliminar elemento
+              </button>
+            </div>
+          </section>
+        </div>
       )}
 
       {isCalibrationDialogOpen && calibrationDraft && (
