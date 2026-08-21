@@ -4,12 +4,6 @@
  */
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import {
-  APIProvider,
-  Map,
-  AdvancedMarker,
-  useMap,
-} from '@vis.gl/react-google-maps';
-import {
   InspectionPhoto,
   InspectorProfile,
   BlueprintOverlay,
@@ -19,6 +13,7 @@ import { DEFAULT_BLUEPRINT_SVG, SAMPLE_BLUEPRINTS } from '../data/blueprintTempl
 import { ErrorBoundary } from './ErrorBoundary';
 import { compressImageForDevice } from '../services/deviceStorageService';
 import { isQuotaExceededError, loadBlueprintImage, saveBlueprintImage } from '../services/blueprintStorageService';
+import { MapView as GoogleMapsCanvas } from './Map';
 
 interface MapViewProps {
   photos: InspectionPhoto[];
@@ -42,6 +37,175 @@ function getOffsetLatLng(lat: number, lng: number, distanceMeters: number, beari
   };
 }
 
+// Google Maps oficial mediante el proxy integrado: conserva la cartografía, el plano y los elementos sin exponer claves de usuarios.
+function OfficialGoogleMapsCanvas({
+  center,
+  zoom,
+  blueprint,
+  photosWithCoords,
+  inspector,
+  inspectorLocation,
+  onSelectPhoto,
+  onCenterChange,
+  onZoomChange,
+}: {
+  center: { lat: number; lng: number };
+  zoom: number;
+  blueprint: BlueprintOverlay;
+  photosWithCoords: InspectionPhoto[];
+  inspector: InspectorProfile;
+  inspectorLocation: { lat: number; lng: number; isLive: boolean; accuracy?: number };
+  onSelectPhoto: (photo: InspectionPhoto) => void;
+  onCenterChange: (center: { lat: number; lng: number }) => void;
+  onZoomChange: (zoom: number) => void;
+}) {
+  const [mapInstance, setMapInstance] = useState<google.maps.Map | null>(null);
+  const blueprintOverlayRef = useRef<google.maps.GroundOverlay | null>(null);
+  const elementObjectsRef = useRef<Array<google.maps.Marker | google.maps.Polyline>>([]);
+
+  useEffect(() => {
+    if (!mapInstance) return;
+    const currentCenter = mapInstance.getCenter();
+    const needsCenterUpdate = !currentCenter
+      || Math.abs(currentCenter.lat() - center.lat) > 0.0000001
+      || Math.abs(currentCenter.lng() - center.lng) > 0.0000001;
+
+    if (needsCenterUpdate) mapInstance.setCenter(center);
+    if (mapInstance.getZoom() !== zoom) mapInstance.setZoom(zoom);
+    mapInstance.setMapTypeId('hybrid');
+  }, [mapInstance, center, zoom]);
+
+  useEffect(() => {
+    if (!mapInstance) return;
+    const idleListener = mapInstance.addListener('idle', () => {
+      const nextCenter = mapInstance.getCenter();
+      const nextZoom = mapInstance.getZoom();
+      if (
+        nextCenter
+        && (Math.abs(nextCenter.lat() - center.lat) > 0.0000001
+          || Math.abs(nextCenter.lng() - center.lng) > 0.0000001)
+      ) {
+        onCenterChange({ lat: nextCenter.lat(), lng: nextCenter.lng() });
+      }
+      if (typeof nextZoom === 'number' && nextZoom !== zoom) onZoomChange(nextZoom);
+    });
+
+    return () => idleListener.remove();
+  }, [mapInstance, center, zoom, onCenterChange, onZoomChange]);
+
+  useEffect(() => {
+    if (!mapInstance || !window.google?.maps) return;
+    blueprintOverlayRef.current?.setMap(null);
+    blueprintOverlayRef.current = null;
+
+    if (!blueprint.visible || !blueprint.imageUrl) return;
+    const bounds = new google.maps.LatLngBounds(
+      new google.maps.LatLng(blueprint.bounds.south, blueprint.bounds.west),
+      new google.maps.LatLng(blueprint.bounds.north, blueprint.bounds.east),
+    );
+    const overlay = new google.maps.GroundOverlay(blueprint.imageUrl, bounds, {
+      opacity: blueprint.opacity ?? 0.7,
+      clickable: false,
+    });
+    overlay.setMap(mapInstance);
+    blueprintOverlayRef.current = overlay;
+
+    return () => {
+      overlay.setMap(null);
+      if (blueprintOverlayRef.current === overlay) blueprintOverlayRef.current = null;
+    };
+  }, [mapInstance, blueprint]);
+
+  useEffect(() => {
+    if (!mapInstance || !window.google?.maps) return;
+    elementObjectsRef.current.forEach((element) => element.setMap(null));
+    const objects: Array<google.maps.Marker | google.maps.Polyline> = [];
+
+    const inspectorMarker = new google.maps.Marker({
+      map: mapInstance,
+      position: { lat: inspectorLocation.lat, lng: inspectorLocation.lng },
+      title: `Inspector: ${inspector.name}`,
+      zIndex: 1000,
+      icon: {
+        path: google.maps.SymbolPath.CIRCLE,
+        fillColor: '#1a73e8',
+        fillOpacity: 1,
+        strokeColor: '#ffffff',
+        strokeWeight: 3,
+        scale: 10,
+      },
+    });
+    objects.push(inspectorMarker);
+
+    photosWithCoords.forEach((photo) => {
+      if (typeof photo.latitude !== 'number' || typeof photo.longitude !== 'number') return;
+      const elementType = getElementType(photo);
+
+      if (elementType === 'tuberia') {
+        const metraje = typeof photo.metraje === 'number' ? photo.metraje : Number.parseFloat(String(photo.metraje ?? '0'));
+        if (!Number.isFinite(metraje) || metraje <= 0) return;
+        const end = typeof photo.endLatitude === 'number' && typeof photo.endLongitude === 'number'
+          ? { lat: photo.endLatitude, lng: photo.endLongitude }
+          : getOffsetLatLng(photo.latitude, photo.longitude, metraje, 90);
+        const isMT = photo.cameraType === 'MT';
+        const line = new google.maps.Polyline({
+          map: mapInstance,
+          path: [{ lat: photo.latitude, lng: photo.longitude }, end],
+          geodesic: true,
+          clickable: true,
+          strokeColor: isMT ? '#00a6c7' : '#d97706',
+          strokeOpacity: 0.95,
+          strokeWeight: isMT ? 5 : 4,
+        });
+        line.addListener('click', () => onSelectPhoto(photo));
+        objects.push(line);
+        return;
+      }
+
+      const isCamera = elementType === 'camara';
+      const isMT = isCamera && photo.cameraType === 'MT';
+      const isBT = isCamera && photo.cameraType === 'BT';
+      const color = isCamera ? (isMT ? '#1a73e8' : isBT ? '#ea4335' : '#00897b') : '#d97706';
+      const marker = new google.maps.Marker({
+        map: mapInstance,
+        position: { lat: photo.latitude, lng: photo.longitude },
+        title: `${isCamera ? 'Cámara' : 'Caja'}: ${isCamera ? photo.cameraCode || photo.name : photo.name}`,
+        label: {
+          text: isCamera ? (photo.cameraCode || 'C') : 'C',
+          color: '#ffffff',
+          fontWeight: '700',
+          fontSize: '11px',
+        },
+        icon: {
+          path: google.maps.SymbolPath.CIRCLE,
+          fillColor: color,
+          fillOpacity: 1,
+          strokeColor: '#ffffff',
+          strokeWeight: 2,
+          scale: 13,
+        },
+      });
+      marker.addListener('click', () => onSelectPhoto(photo));
+      objects.push(marker);
+    });
+
+    elementObjectsRef.current = objects;
+    return () => {
+      objects.forEach((element) => element.setMap(null));
+      if (elementObjectsRef.current === objects) elementObjectsRef.current = [];
+    };
+  }, [mapInstance, photosWithCoords, inspector, inspectorLocation, onSelectPhoto]);
+
+  return (
+    <GoogleMapsCanvas
+      className="h-full w-full"
+      initialCenter={center}
+      initialZoom={zoom}
+      onMapReady={setMapInstance}
+    />
+  );
+}
+
 // Web Mercator math for built-in satellite & topological map engine
 function latLngToPixel(lat: number, lng: number, zoom: number) {
   const scale = 256 * Math.pow(2, zoom);
@@ -57,108 +221,6 @@ function pixelToLatLng(x: number, y: number, zoom: number) {
   const n = Math.PI - (2 * Math.PI * y) / scale;
   const lat = (180 / Math.PI) * Math.atan(0.5 * (Math.exp(n) - Math.exp(-n)));
   return { lat, lng };
-}
-
-// Inner component for Google Maps GroundOverlay
-function GoogleMapsGroundOverlay({ blueprint }: { blueprint: BlueprintOverlay }) {
-  const map = useMap();
-  const overlayRef = useRef<google.maps.GroundOverlay | null>(null);
-
-  useEffect(() => {
-    if (!map || !window.google || !blueprint.visible || !blueprint.imageUrl) {
-      if (overlayRef.current) {
-        overlayRef.current.setMap(null);
-        overlayRef.current = null;
-      }
-      return;
-    }
-
-    try {
-      const bounds = new google.maps.LatLngBounds(
-        new google.maps.LatLng(blueprint.bounds.south, blueprint.bounds.west),
-        new google.maps.LatLng(blueprint.bounds.north, blueprint.bounds.east)
-      );
-
-      if (overlayRef.current) {
-        overlayRef.current.setMap(null);
-      }
-
-      const overlay = new google.maps.GroundOverlay(blueprint.imageUrl, bounds, {
-        opacity: blueprint.opacity,
-        clickable: false,
-      });
-
-      overlay.setMap(map);
-      overlayRef.current = overlay;
-
-      return () => {
-        if (overlayRef.current) {
-          overlayRef.current.setMap(null);
-          overlayRef.current = null;
-        }
-      };
-    } catch (e) {
-      console.warn('GroundOverlay initialization error:', e);
-    }
-  }, [map, blueprint.imageUrl, blueprint.opacity, blueprint.visible, blueprint.bounds]);
-
-  return null;
-}
-
-// Inner component for Google Maps Polylines
-function GoogleMapsTramosRenderer({
-  photosWithCoords,
-  onSelectPhoto,
-}: {
-  photosWithCoords: InspectionPhoto[];
-  onSelectPhoto: (photo: InspectionPhoto) => void;
-}) {
-  const map = useMap();
-  const polylinesRef = useRef<google.maps.Polyline[]>([]);
-
-  useEffect(() => {
-    if (!map || !window.google) return;
-
-    polylinesRef.current.forEach((p) => p.setMap(null));
-    polylinesRef.current = [];
-
-    photosWithCoords.forEach((p) => {
-      if (getElementType(p) !== 'tuberia' || !p.latitude || !p.longitude) return;
-
-      const metrajeNum = typeof p.metraje === 'number' ? p.metraje : parseFloat(String(p.metraje || '0'));
-      if (metrajeNum > 0) {
-        const start = { lat: p.latitude, lng: p.longitude };
-        const end = p.endLatitude && p.endLongitude
-          ? { lat: p.endLatitude, lng: p.endLongitude }
-          : getOffsetLatLng(p.latitude, p.longitude, metrajeNum, 90);
-
-        const isMT = p.cameraType === 'MT';
-        const color = isMT ? '#00e5ff' : '#f59e0b';
-
-        const poly = new google.maps.Polyline({
-          path: [start, end],
-          geodesic: true,
-          strokeColor: color,
-          strokeOpacity: 0.95,
-          strokeWeight: isMT ? 5 : 4,
-          map: map,
-        });
-
-        poly.addListener('click', () => {
-          onSelectPhoto(p);
-        });
-
-        polylinesRef.current.push(poly);
-      }
-    });
-
-    return () => {
-      polylinesRef.current.forEach((p) => p.setMap(null));
-      polylinesRef.current = [];
-    };
-  }, [map, photosWithCoords, onSelectPhoto]);
-
-  return null;
 }
 
 // Interactive Built-in Georeferenced Satellite & Map Engine
@@ -515,20 +577,10 @@ export const MapView: React.FC<MapViewProps> = ({
   onSelectPhoto,
   onNavigateToUpload,
 }) => {
-  // Google Maps API Key state (saved in localStorage or .env)
-  const envKey = ((import.meta as unknown as { env?: Record<string, string> }).env?.VITE_GOOGLE_MAPS_API_KEY as string) || '';
-  const [googleMapsApiKey, setGoogleMapsApiKey] = useState<string>(() => {
-    return localStorage.getItem('photovault_google_maps_key') || envKey;
-  });
-
-  // Map Provider Mode: 'builtin' (Zero error Satellite engine) vs 'google' (Official Google Maps if key provided)
-  const [activeEngine, setActiveEngine] = useState<'builtin' | 'google'>(() => {
-    return googleMapsApiKey.trim().length > 10 ? 'google' : 'builtin';
-  });
+  // El proxy de la plataforma autentica Google Maps; no se guardan ni solicitan claves en el navegador.
+  const [activeEngine, setActiveEngine] = useState<'builtin' | 'google'>('google');
 
   const [mapLayerType, setMapLayerType] = useState<'satellite' | 'streets' | 'topo'>('satellite');
-  const [showApiKeyModal, setShowApiKeyModal] = useState<boolean>(false);
-  const [inputApiKey, setInputApiKey] = useState<string>(googleMapsApiKey);
 
   // Inspector Live Geolocation state
   const [inspectorLocation, setInspectorLocation] = useState<{
@@ -753,17 +805,6 @@ export const MapView: React.FC<MapViewProps> = ({
     }, 0);
   }, [filteredPhotos]);
 
-  // Save API Key handler
-  const handleSaveApiKey = () => {
-    const trimmed = inputApiKey.trim();
-    localStorage.setItem('photovault_google_maps_key', trimmed);
-    setGoogleMapsApiKey(trimmed);
-    if (trimmed.length > 10) {
-      setActiveEngine('google');
-    }
-    setShowApiKeyModal(false);
-  };
-
   // Center on Inspector location
   const handleCenterOnInspector = () => {
     setMapCenter({
@@ -832,8 +873,6 @@ export const MapView: React.FC<MapViewProps> = ({
       };
     });
   };
-
-  const hasValidGoogleKey = googleMapsApiKey.trim().length > 10;
 
   return (
     <div
@@ -1085,19 +1124,9 @@ export const MapView: React.FC<MapViewProps> = ({
           {/* Map Engine Toggle Chip */}
           <button
             type="button"
-            onClick={() => {
-              if (activeEngine === 'builtin') {
-                if (hasValidGoogleKey) {
-                  setActiveEngine('google');
-                } else {
-                  setShowApiKeyModal(true);
-                }
-              } else {
-                setActiveEngine('builtin');
-              }
-            }}
+            onClick={() => setActiveEngine((engine) => engine === 'builtin' ? 'google' : 'builtin')}
             className="h-9 px-3 rounded-full shadow-[0_1px_2px_rgba(60,64,67,0.3),0_1px_3px_1px_rgba(60,64,67,0.15)] bg-white text-[#3c4043] hover:bg-[#f1f3f4] text-[12px] font-['Google_Sans',Roboto,sans-serif] font-medium flex items-center gap-1.5 transition-all whitespace-nowrap border border-transparent"
-            title="Alternar entre Satélite HD y Google Maps API"
+            title="Alternar entre el mapa integrado y Google Maps"
           >
             <span className="material-symbols-outlined text-[16px] text-[#5f6368]">
               settings
@@ -1109,7 +1138,7 @@ export const MapView: React.FC<MapViewProps> = ({
 
       {/* ----------------- MAIN FULLSCREEN MAP VIEW CANVAS ----------------- */}
       <div className="w-full h-full relative">
-        {activeEngine === 'google' && hasValidGoogleKey ? (
+        {activeEngine === 'google' ? (
           <ErrorBoundary
             fallback={
               <BuiltinGeoreferencedMap
@@ -1126,59 +1155,17 @@ export const MapView: React.FC<MapViewProps> = ({
               />
             }
           >
-            <APIProvider apiKey={googleMapsApiKey}>
-              <Map
-                defaultCenter={DEFAULT_CENTER}
+            <OfficialGoogleMapsCanvas
                 center={mapCenter}
-                defaultZoom={18}
                 zoom={mapZoom}
-                className="w-full h-full"
-                style={{ width: '100%', height: '100%' }}
-                gestureHandling="greedy"
-                mapTypeId="hybrid"
-              >
-                {blueprint.visible && <GoogleMapsGroundOverlay blueprint={blueprint} />}
-                <GoogleMapsTramosRenderer
-                  photosWithCoords={filteredPhotos}
-                  onSelectPhoto={(p) => onSelectPhoto(p)}
-                />
-                <AdvancedMarker position={{ lat: inspectorLocation.lat, lng: inspectorLocation.lng }}>
-                  <div className="relative flex flex-col items-center group cursor-pointer">
-                    <div className="absolute -inset-2 bg-blue-500/20 rounded-full animate-ping pointer-events-none" />
-                    <div className="w-10 h-10 rounded-full border-2 border-white bg-[#1a73e8] shadow-lg overflow-hidden flex items-center justify-center z-10 ring-2 ring-blue-400">
-                      <img src={inspector.avatarUrl} alt={inspector.name} className="w-full h-full object-cover" />
-                    </div>
-                    <div className="mt-1 px-2 py-0.5 bg-[#202124] text-white text-[10px] font-['Google_Sans',Roboto,sans-serif] font-bold rounded-full shadow-md whitespace-nowrap border border-white/40">
-                      Inspector: {inspector.name.split(' ')[0]}
-                    </div>
-                  </div>
-                </AdvancedMarker>
-                {filteredPhotos.map((photo) => {
-                  const elementType = getElementType(photo);
-                  if (elementType === 'tuberia' || !photo.latitude || !photo.longitude) return null;
-                  const isCamera = elementType === 'camara';
-                  const isMT = isCamera && photo.cameraType === 'MT';
-                  const isBT = isCamera && photo.cameraType === 'BT';
-                  const isTerminado = photo.executionStatus === 'Terminado';
-                  const badgeColor = isCamera ? (isMT ? 'bg-[#1a73e8] text-white' : isBT ? 'bg-[#ea4335] text-white' : 'bg-[#00897b] text-white') : 'bg-[#d97706] text-white';
-                  return (
-                    <AdvancedMarker
-                      key={photo.id}
-                      position={{ lat: photo.latitude, lng: photo.longitude }}
-                      onClick={() => onSelectPhoto(photo)}
-                    >
-                      <div className="relative flex flex-col items-center group cursor-pointer hover:scale-110 transition-transform">
-                        <div className={`absolute -top-1 -right-1 w-3 h-3 rounded-full border-2 border-white z-20 ${isTerminado ? 'bg-[#34a853]' : 'bg-[#fbbc04]'}`} />
-                        <div className={`px-2.5 py-1 rounded-full shadow-lg border border-white/80 font-bold text-[11px] font-['Google_Sans',Roboto,sans-serif] flex items-center gap-1 z-10 ${badgeColor}`}>
-                          <span className="material-symbols-outlined text-[14px]">{isCamera ? 'videocam' : 'inventory_2'}</span>
-                          <span>{isCamera ? photo.cameraCode || 'Cámara' : 'Caja'}</span>
-                        </div>
-                      </div>
-                    </AdvancedMarker>
-                  );
-                })}
-              </Map>
-            </APIProvider>
+                blueprint={blueprint}
+                photosWithCoords={filteredPhotos}
+                inspector={inspector}
+                inspectorLocation={inspectorLocation}
+                onSelectPhoto={onSelectPhoto}
+                onCenterChange={setMapCenter}
+                onZoomChange={setMapZoom}
+            />
           </ErrorBoundary>
         ) : (
           <BuiltinGeoreferencedMap
@@ -1608,60 +1595,6 @@ export const MapView: React.FC<MapViewProps> = ({
         </div>
       )}
 
-      {/* ----------------- GOOGLE MAPS API KEY MODAL ----------------- */}
-      {showApiKeyModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 font-['Google_Sans',Roboto,sans-serif]">
-          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-[#dadce0] animate-in fade-in zoom-in-95 duration-150">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 rounded-full bg-[#e8f0fe] text-[#1a73e8] flex items-center justify-center">
-                <span className="material-symbols-outlined text-[22px]">key</span>
-              </div>
-              <div>
-                <h3 className="font-bold text-[#202124] text-[17px]">
-                  Configurar Google Maps API
-                </h3>
-                <p className="text-[12px] text-[#5f6368]">
-                  Activa el motor oficial de Google Maps
-                </p>
-              </div>
-            </div>
-
-            <p className="text-[13px] text-[#3c4043] mb-4 leading-relaxed">
-              El motor integrado de <strong>Satélite HD</strong> funciona de forma continua sin costo ni configuración. Si deseas utilizar las capas oficiales de Google Maps, ingresa tu API Key a continuación:
-            </p>
-
-            <div className="space-y-2 mb-6">
-              <label className="block text-[12px] font-semibold text-[#202124]">
-                Google Maps API Key
-              </label>
-              <input
-                type="text"
-                value={inputApiKey}
-                onChange={(e) => setInputApiKey(e.target.value)}
-                placeholder="AIzaSy..."
-                className="w-full px-4 py-2.5 rounded-xl border border-[#dadce0] focus:border-[#1a73e8] focus:ring-2 focus:ring-[#1a73e8]/20 outline-none text-[13px] font-mono"
-              />
-            </div>
-
-            <div className="flex items-center justify-end gap-2">
-              <button
-                type="button"
-                onClick={() => setShowApiKeyModal(false)}
-                className="px-4 py-2 rounded-full text-[13px] font-medium text-[#5f6368] hover:bg-[#f1f3f4]"
-              >
-                Cancelar
-              </button>
-              <button
-                type="button"
-                onClick={handleSaveApiKey}
-                className="px-5 py-2 rounded-full text-[13px] font-medium bg-[#1a73e8] hover:bg-[#1557b0] text-white shadow-sm"
-              >
-                Guardar y Usar
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };

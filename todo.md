@@ -16,3 +16,4 @@
 - [x] Mostrar el estado de confirmación de correo de cada usuario en el panel administrativo.
 - [x] Eliminar valores indefinidos en campos controlados de los formularios.
 - [x] Auditar y normalizar la ruta restante que provoca controles indefinidos.
+- [x] Integrar y validar Google Maps en el plano de inspección.
