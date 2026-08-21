@@ -17,3 +17,4 @@
 - [x] Eliminar valores indefinidos en campos controlados de los formularios.
 - [x] Auditar y normalizar la ruta restante que provoca controles indefinidos.
 - [x] Integrar y validar Google Maps en el plano de inspección.
+- [x] Habilitar y validar la conexión operativa con Supabase.
