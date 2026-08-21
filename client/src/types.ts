@@ -92,6 +92,19 @@ export interface BlueprintOverlay {
   };
   rotation?: number; // degrees
   scale?: number;
+  calibration?: BlueprintCalibration;
+}
+
+/**
+ * Escala construida al marcar un tramo conocido del JPG. Las unidades del
+ * plano preservan la relación de aspecto, por lo que el zoom no afecta el
+ * cálculo final en metros.
+ */
+export interface BlueprintCalibration {
+  referenceDistanceMeters: number;
+  referenceDistancePlanUnits: number;
+  aspectRatio: number;
+  calibratedAt: string;
 }
 
 export interface InspectorProfile {

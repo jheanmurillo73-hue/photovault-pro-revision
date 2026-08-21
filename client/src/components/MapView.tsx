@@ -4,7 +4,7 @@
  * relativos al plano, nunca como coordenadas de un proveedor cartográfico.
  */
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { BlueprintOverlay, getElementType, InspectionPhoto, InspectorProfile } from '../types';
+import { BlueprintCalibration, BlueprintOverlay, getElementType, InspectionPhoto, InspectorProfile } from '../types';
 import { compressImageForDevice } from '../services/deviceStorageService';
 import { isQuotaExceededError, loadBlueprintImage, saveBlueprintImage } from '../services/blueprintStorageService';
 
@@ -17,11 +17,13 @@ interface MapViewProps {
   onCreatePhoto: (
     elementType: 'caja' | 'camara' | 'tuberia',
     position: Pick<InspectionPhoto, 'planX' | 'planY' | 'planEndX' | 'planEndY'>,
+    initialMetraje?: number,
   ) => InspectionPhoto;
   onUpdatePhotoPosition: (
     photoId: string,
-    position: Pick<InspectionPhoto, 'planX' | 'planY' | 'planEndX' | 'planEndY'>,
+    position: Pick<InspectionPhoto, 'planX' | 'planY' | 'planEndX' | 'planEndY'> & Partial<Pick<InspectionPhoto, 'metraje'>>,
   ) => void;
+  onUpdatePipelineMeasurements: (measurements: Array<Pick<InspectionPhoto, 'id' | 'metraje'>>) => void;
 }
 
 type PlacementStage = 'point' | 'pipe-start' | 'pipe-end';
@@ -41,6 +43,12 @@ interface PlanPoint {
   planY: number;
 }
 
+interface CalibrationDraft {
+  referenceDistancePlanUnits: number;
+  referenceDistancePercent: number;
+  aspectRatio: number;
+}
+
 const EMPTY_BLUEPRINT: BlueprintOverlay = {
   id: 'bp-user',
   name: 'Plano de obra sin cargar',
@@ -55,6 +63,20 @@ const EMPTY_BLUEPRINT: BlueprintOverlay = {
 const clampPercent = (value: number) => Math.min(100, Math.max(0, value));
 const clampScale = (value: number, minimum: number, maximum: number) =>
   Math.min(maximum, Math.max(minimum, value));
+const getPercentDistance = (start: PlanPoint, end: PlanPoint) =>
+  Math.hypot(end.planX - start.planX, end.planY - start.planY);
+const getPlanDistanceUnits = (start: PlanPoint, end: PlanPoint, aspectRatio: number) =>
+  Math.hypot(((end.planX - start.planX) / 100) * aspectRatio, (end.planY - start.planY) / 100);
+const getMetersFromPlanPoints = (
+  start: PlanPoint,
+  end: PlanPoint,
+  calibration?: BlueprintCalibration,
+) => {
+  if (!calibration || calibration.referenceDistancePlanUnits <= 0) return null;
+  const units = getPlanDistanceUnits(start, end, calibration.aspectRatio);
+  return units * (calibration.referenceDistanceMeters / calibration.referenceDistancePlanUnits);
+};
+const roundMeters = (value: number) => Math.round(value * 100) / 100;
 
 const isPlaced = (photo: InspectionPhoto) =>
   typeof photo.planX === 'number' && typeof photo.planY === 'number';
@@ -79,6 +101,7 @@ export const MapView: React.FC<MapViewProps> = ({
   onNavigateToUpload,
   onCreatePhoto,
   onUpdatePhotoPosition,
+  onUpdatePipelineMeasurements,
 }) => {
   const [blueprint, setBlueprint] = useState<BlueprintOverlay>(() => {
     const saved = localStorage.getItem('photovault_blueprint');
@@ -102,6 +125,12 @@ export const MapView: React.FC<MapViewProps> = ({
   const [creationMode, setCreationMode] = useState<'caja' | 'camara' | 'tuberia' | null>(null);
   const [pipeStart, setPipeStart] = useState<PlanPoint | null>(null);
   const [pipePreview, setPipePreview] = useState<PlanPoint | null>(null);
+  const [calibrationMode, setCalibrationMode] = useState(false);
+  const [calibrationStart, setCalibrationStart] = useState<PlanPoint | null>(null);
+  const [calibrationPreview, setCalibrationPreview] = useState<PlanPoint | null>(null);
+  const [calibrationDraft, setCalibrationDraft] = useState<CalibrationDraft | null>(null);
+  const [calibrationMeters, setCalibrationMeters] = useState('10');
+  const [isCalibrationDialogOpen, setIsCalibrationDialogOpen] = useState(false);
   const [selectedPlanPhotoId, setSelectedPlanPhotoId] = useState<string | null>(null);
   const [dragTarget, setDragTarget] = useState<DragTarget | null>(null);
   const [isPanelOpen, setIsPanelOpen] = useState<boolean>(false);
@@ -236,6 +265,82 @@ export const MapView: React.FC<MapViewProps> = ({
     setIsPanelOpen(false);
   };
 
+  const startCalibration = () => {
+    if (!blueprint.imageUrl) {
+      setBlueprintStorageNotice('Carga primero el plano JPG para poder calibrarlo.');
+      return;
+    }
+    setPlacement(null);
+    setCreationMode(null);
+    setPipeStart(null);
+    setPipePreview(null);
+    setSelectedPlanPhotoId(null);
+    setCalibrationDraft(null);
+    setCalibrationPreview(null);
+    setCalibrationStart(null);
+    setCalibrationMode(true);
+  };
+
+  const cancelCalibration = () => {
+    setCalibrationMode(false);
+    setCalibrationStart(null);
+    setCalibrationPreview(null);
+    setCalibrationDraft(null);
+    setIsCalibrationDialogOpen(false);
+  };
+
+  const getCalibratedMeters = (
+    position: Pick<InspectionPhoto, 'planX' | 'planY' | 'planEndX' | 'planEndY'>,
+    calibration = blueprint.calibration,
+  ) => {
+    if (
+      typeof position.planX !== 'number'
+      || typeof position.planY !== 'number'
+      || typeof position.planEndX !== 'number'
+      || typeof position.planEndY !== 'number'
+    ) return null;
+    return getMetersFromPlanPoints(
+      { planX: position.planX, planY: position.planY },
+      { planX: position.planEndX, planY: position.planEndY },
+      calibration,
+    );
+  };
+
+  const saveCalibration = (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!calibrationDraft) return;
+    const referenceDistanceMeters = Number.parseFloat(calibrationMeters.replace(',', '.'));
+    if (!Number.isFinite(referenceDistanceMeters) || referenceDistanceMeters <= 0) {
+      setBlueprintStorageNotice('Indica una distancia conocida mayor que cero en metros.');
+      return;
+    }
+
+    const calibration: BlueprintCalibration = {
+      referenceDistanceMeters,
+      referenceDistancePlanUnits: calibrationDraft.referenceDistancePlanUnits,
+      aspectRatio: calibrationDraft.aspectRatio,
+      calibratedAt: new Date().toISOString(),
+    };
+    setBlueprint((previous) => ({ ...previous, calibration }));
+
+    const measurements = photos
+      .filter((photo) => getElementType(photo) === 'tuberia' && hasCompletePipe(photo))
+      .map((photo) => {
+        const meters = getMetersFromPlanPoints(
+          { planX: photo.planX!, planY: photo.planY! },
+          { planX: photo.planEndX!, planY: photo.planEndY! },
+          calibration,
+        );
+        return { id: photo.id, metraje: roundMeters(meters ?? 0) };
+      });
+    if (measurements.length) onUpdatePipelineMeasurements(measurements);
+
+    setBlueprintStorageNotice(
+      `Plano calibrado: ${referenceDistanceMeters.toLocaleString('es-CO', { maximumFractionDigits: 2 })} m en el tramo de referencia.`,
+    );
+    cancelCalibration();
+  };
+
   const handleBlueprintUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
@@ -278,7 +383,13 @@ export const MapView: React.FC<MapViewProps> = ({
     }
 
     if (target.stage === 'pipe-end') {
-      onUpdatePhotoPosition(target.photo.id, { planEndX: planX, planEndY: planY });
+      const position = { planX: target.photo.planX, planY: target.photo.planY, planEndX: planX, planEndY: planY };
+      const metraje = getCalibratedMeters(position);
+      onUpdatePhotoPosition(target.photo.id, {
+        planEndX: planX,
+        planEndY: planY,
+        ...(metraje !== null ? { metraje: roundMeters(metraje) } : {}),
+      });
       setPlacement(null);
       return;
     }
@@ -291,6 +402,29 @@ export const MapView: React.FC<MapViewProps> = ({
     const bounds = event.currentTarget.getBoundingClientRect();
     if (!bounds.width || !bounds.height) return;
     const { planX, planY } = getPlanPosition(bounds, event.clientX, event.clientY);
+
+    if (calibrationMode) {
+      if (!calibrationStart) {
+        setCalibrationStart({ planX, planY });
+        return;
+      }
+      const referenceDistancePlanUnits = getPlanDistanceUnits(
+        calibrationStart,
+        { planX, planY },
+        bounds.width / bounds.height,
+      );
+      if (referenceDistancePlanUnits <= 0) return;
+      setCalibrationDraft({
+        referenceDistancePlanUnits,
+        referenceDistancePercent: getPercentDistance(calibrationStart, { planX, planY }),
+        aspectRatio: bounds.width / bounds.height,
+      });
+      setCalibrationMode(false);
+      setCalibrationStart(null);
+      setCalibrationPreview(null);
+      setIsCalibrationDialogOpen(true);
+      return;
+    }
 
     if (creationMode === 'camara' || creationMode === 'caja') {
       const created = onCreatePhoto(creationMode, { planX, planY });
@@ -310,7 +444,7 @@ export const MapView: React.FC<MapViewProps> = ({
         planY: pipeStart.planY,
         planEndX: planX,
         planEndY: planY,
-      });
+      }, roundMeters(getMetersFromPlanPoints(pipeStart, { planX, planY }, blueprint.calibration) ?? 0));
       setActiveFilter('all');
       setSelectedPlanPhotoId(created.id);
       setPipeStart(null);
@@ -324,14 +458,19 @@ export const MapView: React.FC<MapViewProps> = ({
   };
 
   const handleCanvasMouseMove = (event: React.MouseEvent<HTMLDivElement>) => {
-    if (creationMode !== 'tuberia' || !pipeStart) return;
     const bounds = event.currentTarget.getBoundingClientRect();
     if (!bounds.width || !bounds.height) return;
+    if (calibrationMode && calibrationStart) {
+      setCalibrationPreview(getPlanPosition(bounds, event.clientX, event.clientY));
+      return;
+    }
+    if (creationMode !== 'tuberia' || !pipeStart) return;
     setPipePreview(getPlanPosition(bounds, event.clientX, event.clientY));
   };
 
   const handleCanvasMouseLeave = () => {
     if (creationMode === 'tuberia') setPipePreview(null);
+    if (calibrationMode) setCalibrationPreview(null);
   };
 
   const handleCanvasDrop = (event: React.DragEvent<HTMLDivElement>) => {
@@ -355,11 +494,16 @@ export const MapView: React.FC<MapViewProps> = ({
       const midpointY = (photo.planY! + photo.planEndY!) / 2;
       const shiftX = Math.min(100 - Math.max(photo.planX!, photo.planEndX!), Math.max(-Math.min(photo.planX!, photo.planEndX!), planX - midpointX));
       const shiftY = Math.min(100 - Math.max(photo.planY!, photo.planEndY!), Math.max(-Math.min(photo.planY!, photo.planEndY!), planY - midpointY));
-      onUpdatePhotoPosition(photo.id, {
+      const position = {
         planX: photo.planX! + shiftX,
         planY: photo.planY! + shiftY,
         planEndX: photo.planEndX! + shiftX,
         planEndY: photo.planEndY! + shiftY,
+      };
+      const metraje = getCalibratedMeters(position);
+      onUpdatePhotoPosition(photo.id, {
+        ...position,
+        ...(metraje !== null ? { metraje: roundMeters(metraje) } : {}),
       });
     } else {
       onUpdatePhotoPosition(photo.id, { planX, planY });
@@ -390,20 +534,36 @@ export const MapView: React.FC<MapViewProps> = ({
 
   const pipePreviewDistance = useMemo(() => {
     if (!pipeStart || !pipePreview) return null;
-    return Math.hypot(pipePreview.planX - pipeStart.planX, pipePreview.planY - pipeStart.planY);
+    return getPercentDistance(pipeStart, pipePreview);
   }, [pipePreview, pipeStart]);
+
+  const pipePreviewMeters = useMemo(() => {
+    if (!pipeStart || !pipePreview) return null;
+    return getMetersFromPlanPoints(pipeStart, pipePreview, blueprint.calibration);
+  }, [blueprint.calibration, pipePreview, pipeStart]);
 
   const pipePreviewMidpoint = pipeStart && pipePreview
     ? { planX: (pipeStart.planX + pipePreview.planX) / 2, planY: (pipeStart.planY + pipePreview.planY) / 2 }
     : null;
 
-  const placementInstruction = creationMode === 'camara'
+  const calibrationPreviewDistance = calibrationStart && calibrationPreview
+    ? getPercentDistance(calibrationStart, calibrationPreview)
+    : null;
+  const calibrationPreviewMidpoint = calibrationStart && calibrationPreview
+    ? { planX: (calibrationStart.planX + calibrationPreview.planX) / 2, planY: (calibrationStart.planY + calibrationPreview.planY) / 2 }
+    : null;
+
+  const placementInstruction = calibrationMode
+    ? calibrationStart
+      ? 'Marca el final de un tramo cuya distancia real conozcas.'
+      : 'Marca el inicio de un tramo con distancia conocida para calibrar el plano.'
+    : creationMode === 'camara'
     ? 'Haz clic sobre el plano para agregar una nueva cámara.'
     : creationMode === 'caja'
       ? 'Haz clic sobre el plano para agregar una nueva caja.'
     : creationMode === 'tuberia'
       ? pipeStart
-        ? `Haz clic para definir el final del nuevo tramo. Guía actual: ${pipePreviewDistance?.toFixed(1) ?? '0.0'}% del plano.`
+        ? `Haz clic para definir el final del nuevo tramo. Guía actual: ${pipePreviewMeters !== null ? `${pipePreviewMeters.toFixed(2)} m` : `${pipePreviewDistance?.toFixed(1) ?? '0.0'}% del plano`}.`
         : 'Haz clic para definir el inicio del nuevo tramo de tubería.'
       : placement
     ? placement.stage === 'pipe-start'
@@ -592,6 +752,18 @@ export const MapView: React.FC<MapViewProps> = ({
                   <circle cx={pipeStart.planX} cy={pipeStart.planY} r="1.6" fill="#073f74" stroke="white" strokeWidth="0.7" />
                 </>
               )}
+              {calibrationMode && calibrationStart && (
+                <>
+                  {calibrationPreview && (
+                    <>
+                      <line x1={calibrationStart.planX} y1={calibrationStart.planY} x2={calibrationPreview.planX} y2={calibrationPreview.planY} stroke="rgba(255,255,255,0.95)" strokeWidth="3" strokeLinecap="round" />
+                      <line x1={calibrationStart.planX} y1={calibrationStart.planY} x2={calibrationPreview.planX} y2={calibrationPreview.planY} stroke="#eab308" strokeWidth="1.4" strokeDasharray="1.8 1.2" strokeLinecap="round" />
+                      <circle cx={calibrationPreview.planX} cy={calibrationPreview.planY} r="1.25" fill="#eab308" stroke="white" strokeWidth="0.65" />
+                    </>
+                  )}
+                  <circle cx={calibrationStart.planX} cy={calibrationStart.planY} r="1.6" fill="#eab308" stroke="white" strokeWidth="0.7" />
+                </>
+              )}
             </svg>
 
             {pipePreviewDistance !== null && pipePreviewMidpoint && (
@@ -600,6 +772,24 @@ export const MapView: React.FC<MapViewProps> = ({
                 style={{ left: `${pipePreviewMidpoint.planX}%`, top: `${pipePreviewMidpoint.planY}%` }}
               >
                 ↔ {pipePreviewDistance.toFixed(1)}% del plano
+              </div>
+            )}
+
+            {pipePreviewMeters !== null && pipePreviewMidpoint && (
+              <div
+                className="pointer-events-none absolute z-20 -translate-x-1/2 translate-y-4 rounded-full border border-cyan-300 bg-[#0566aa]/95 px-2.5 py-1 font-mono text-[10px] font-bold text-white shadow-lg"
+                style={{ left: `${pipePreviewMidpoint.planX}%`, top: `${pipePreviewMidpoint.planY}%` }}
+              >
+                ↔ {pipePreviewMeters.toFixed(2)} m
+              </div>
+            )}
+
+            {calibrationPreviewDistance !== null && calibrationPreviewMidpoint && (
+              <div
+                className="pointer-events-none absolute z-20 -translate-x-1/2 -translate-y-1/2 rounded-full border border-[#f8d878] bg-[#0b2940]/95 px-2.5 py-1 font-mono text-[10px] font-bold text-white shadow-lg"
+                style={{ left: `${calibrationPreviewMidpoint.planX}%`, top: `${calibrationPreviewMidpoint.planY}%` }}
+              >
+                REF. {calibrationPreviewDistance.toFixed(1)}% del plano
               </div>
             )}
 
@@ -688,6 +878,12 @@ export const MapView: React.FC<MapViewProps> = ({
               <span className="material-symbols-outlined text-[18px]">close</span>
             </button>
           </div>
+          {getElementType(selectedPlanPhoto) === 'tuberia' && (
+            <div className="mt-3 flex items-center justify-between rounded-lg border border-[#b7d5e4] bg-[#eaf6fb] px-2.5 py-2">
+              <span className="font-mono text-[9px] font-bold tracking-[0.12em] text-[#527284]">LONGITUD {blueprint.calibration ? 'CALIBRADA' : 'REGISTRADA'}</span>
+              <span className="font-mono text-sm font-bold text-[#0b5d8c]">{Number.parseFloat(String(selectedPlanPhoto.metraje ?? 0)).toFixed(2)} m</span>
+            </div>
+          )}
           <div className="mt-3 grid grid-cols-2 gap-2">
             <button type="button" onClick={() => onEditPhoto(selectedPlanPhoto)} className="inline-flex h-9 items-center justify-center gap-1.5 bg-[#0566aa] px-3 text-xs font-bold text-white transition hover:bg-[#004d84]">
               <span className="material-symbols-outlined text-[16px]">edit</span>
@@ -699,6 +895,53 @@ export const MapView: React.FC<MapViewProps> = ({
             </button>
           </div>
         </aside>
+      )}
+
+      {isCalibrationDialogOpen && calibrationDraft && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/45 p-4 backdrop-blur-sm">
+          <form onSubmit={saveCalibration} className="w-full max-w-md border border-[#9dbbc9] bg-white shadow-[0_20px_60px_rgba(7,63,116,0.32)]">
+            <div className="flex items-start justify-between border-b border-[#d3e1e8] bg-[#eaf6fb] px-5 py-4">
+              <div>
+                <p className="font-mono text-[10px] font-bold tracking-[0.16em] text-[#527284]">ESCALA DEL PLANO</p>
+                <h2 className="mt-1 text-lg font-bold text-[#0b2940]">Calibrar distancia real</h2>
+              </div>
+              <button type="button" onClick={cancelCalibration} aria-label="Cancelar calibración" className="text-[#527284] transition hover:text-[#0b2940]">
+                <span className="material-symbols-outlined text-[20px]">close</span>
+              </button>
+            </div>
+            <div className="space-y-4 p-5">
+              <div className="border-l-4 border-[#eab308] bg-[#fff9e8] px-3 py-2.5 text-xs leading-5 text-[#684e08]">
+                Marcaste una referencia de <strong>{calibrationDraft.referenceDistancePercent.toFixed(1)}% del plano</strong>. Indica cuántos metros reales representa ese tramo.
+              </div>
+              <div>
+                <label htmlFor="calibration-meters" className="mb-1.5 block text-xs font-bold text-[#0b2940]">Distancia real de referencia (metros)</label>
+                <div className="flex overflow-hidden border border-[#8bb5c9] bg-white focus-within:border-[#0566aa] focus-within:ring-2 focus-within:ring-[#0566aa]/15">
+                  <input
+                    id="calibration-meters"
+                    type="number"
+                    min="0.01"
+                    step="0.01"
+                    inputMode="decimal"
+                    value={calibrationMeters}
+                    onChange={(event) => setCalibrationMeters(event.target.value)}
+                    className="h-11 min-w-0 flex-1 px-3 text-sm font-semibold text-[#0b2940] outline-none"
+                    required
+                    autoFocus
+                  />
+                  <span className="flex items-center border-l border-[#c7d7df] bg-[#f4fafc] px-3 font-mono text-xs font-bold text-[#315c70]">m</span>
+                </div>
+              </div>
+              <p className="text-[11px] leading-5 text-[#607d8b]">Al guardar, los tramos existentes y los nuevos se medirán en metros reales con esta escala. El zoom visual no altera las medidas.</p>
+            </div>
+            <div className="flex justify-end gap-2 border-t border-[#d3e1e8] px-5 py-4">
+              <button type="button" onClick={cancelCalibration} className="h-9 border border-[#b4cbd8] bg-white px-3 text-xs font-bold text-[#315c70] transition hover:bg-[#eaf6fb]">Cancelar</button>
+              <button type="submit" className="inline-flex h-9 items-center gap-1.5 bg-[#0566aa] px-3 text-xs font-bold text-white transition hover:bg-[#004d84]">
+                <span className="material-symbols-outlined text-[16px]">straighten</span>
+                Guardar escala
+              </button>
+            </div>
+          </form>
+        </div>
       )}
 
       {blueprint.imageUrl && pendingPhotos.length > 0 && (
@@ -734,7 +977,7 @@ export const MapView: React.FC<MapViewProps> = ({
         <div className="absolute bottom-5 left-1/2 z-30 flex w-[min(92vw,560px)] -translate-x-1/2 items-center gap-3 rounded-xl border border-[#73b7d4] bg-[#073f74] px-4 py-3 text-sm text-white shadow-xl">
           <span className="material-symbols-outlined text-[21px] text-cyan-200">ads_click</span>
           <p className="flex-1 font-medium">{placementInstruction}</p>
-          <button type="button" onClick={() => { setPlacement(null); setCreationMode(null); setPipeStart(null); setPipePreview(null); }} className="rounded-md px-2 py-1 text-xs font-bold text-cyan-100 hover:bg-white/10">Cancelar</button>
+          <button type="button" onClick={() => { setPlacement(null); setCreationMode(null); setPipeStart(null); setPipePreview(null); if (calibrationMode) cancelCalibration(); }} className="rounded-md px-2 py-1 text-xs font-bold text-cyan-100 hover:bg-white/10">Cancelar</button>
         </div>
       )}
 
@@ -762,6 +1005,12 @@ export const MapView: React.FC<MapViewProps> = ({
               </button>
             </div>
           </div>
+        )}
+        {blueprint.imageUrl && (
+          <button type="button" onClick={startCalibration} className={`inline-flex h-10 items-center gap-1.5 rounded-xl border px-3 text-xs font-bold shadow-sm transition ${blueprint.calibration ? 'border-[#6ca9c5] bg-[#eaf6fb] text-[#075a91] hover:bg-[#dff2fa]' : 'border-[#e0bf78] bg-white text-[#8b5d05] hover:bg-[#fff6df]'}`} title="Calibrar el plano con una distancia conocida">
+            <span className="material-symbols-outlined text-[18px]">straighten</span>
+            <span className="hidden sm:inline">{blueprint.calibration ? 'Escala activa' : 'Calibrar'}</span>
+          </button>
         )}
         <div className="hidden rounded-xl border border-[#c7d7df] bg-white/95 px-3 py-2 text-[11px] text-[#426373] shadow-sm sm:block">
           <strong className="text-[#0b2940]">{photos.filter((photo) => isPlaced(photo)).length}</strong> ubicados · <strong className="text-[#0b2940]">{totalPipelineMeters.toFixed(1)} m</strong> de tubería

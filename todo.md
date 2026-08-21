@@ -28,3 +28,6 @@
 - [x] Crear cámaras y tramos de tubería directamente en el plano y editar sus propiedades desde la selección.
 - [x] Permitir crear cajas directamente desde el panel del plano.
 - [x] Mostrar una guía visual de distancia en tiempo real al trazar tuberías.
+- [x] Calibrar el plano para mostrar la longitud de tuberías en metros reales.
+- [x] Permitir adjuntar o reemplazar la foto desde las propiedades de un elemento.
+- [x] Reforzar la leyenda funcional, la marca modular y el lenguaje operativo de acceso.

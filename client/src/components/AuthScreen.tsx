@@ -373,11 +373,17 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
               </div>
               <div className="relative border-l-2 border-cyan-400 bg-white/5 px-3 py-2.5 shadow-[inset_0_0_0_1px_rgba(158,231,255,0.18)]">
                 <p className="font-mono text-[10px] font-semibold tracking-[0.22em] text-cyan-100/75">CONTROL DE OBRA</p>
-                <h1 className="mt-1 font-['Space_Grotesk'] text-3xl font-bold tracking-[-0.04em] text-white sm:text-4xl">
-                  <span className="text-cyan-100">TRACKING</span><span className="mx-1.5 text-white/35">/</span><span className="tracking-[0.08em]">LA NUBIA</span>
+                <h1 className="mt-1 flex items-center gap-1.5 font-['Space_Grotesk'] text-[26px] font-bold tracking-[-0.04em] text-white sm:text-[31px]">
+                  <span className="flex shrink-0 items-center gap-1" aria-hidden="true"><i className="h-2 w-2 rounded-full border-2 border-cyan-200" /><i className="h-2 w-2 border-2 border-amber-300" /><i className="h-0.5 w-3 bg-violet-200" /></span>
+                  <span className="relative whitespace-nowrap text-cyan-100 after:absolute after:-bottom-1 after:left-0 after:h-px after:w-4 after:bg-cyan-300">TRACKING</span><span className="mx-0.5 shrink-0 text-white/35">/</span><span className="whitespace-nowrap tracking-[0.06em]">LA NUBIA</span>
                 </h1>
                 <span className="mt-1 block font-mono text-[9px] tracking-[0.18em] text-cyan-100/70">NODO · CAJA · TRAZADO</span>
               </div>
+            </div>
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-cyan-100/20 pt-2 font-mono text-[8px] font-bold tracking-[0.12em] text-cyan-50/85">
+              <span className="inline-flex items-center gap-1"><i className="h-1.5 w-1.5 rounded-full bg-cyan-300" /> CIAN / CÁMARA</span>
+              <span className="inline-flex items-center gap-1"><i className="h-1.5 w-1.5 bg-amber-300" /> ÁMBAR / CAJA</span>
+              <span className="inline-flex items-center gap-1"><i className="h-0.5 w-2 bg-violet-200" /> VIOLETA / TUBERÍA</span>
             </div>
           </div>
         </div>
@@ -419,9 +425,10 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
         {/* Form Container */}
         <div className="relative max-h-[75vh] space-y-5 overflow-y-auto bg-[#f7fbfc] p-6 sm:p-8" style={{ backgroundImage: 'linear-gradient(rgba(23,131,184,0.035) 1px, transparent 1px), linear-gradient(90deg, rgba(23,131,184,0.035) 1px, transparent 1px)', backgroundSize: '18px 18px' }}>
           <div className="absolute bottom-0 left-0 top-0 flex w-1 flex-col" aria-hidden="true"><span className="h-1/3 bg-cyan-300" /><span className="h-1/3 bg-amber-300" /><span className="h-1/3 bg-violet-300" /></div>
-          <div className="flex items-center justify-between border-y border-[#9ebfcc] bg-white/80 px-3 py-2 font-mono text-[10px] font-semibold tracking-[0.14em] text-[#35566b]">
-            <span>ESTACIÓN DE ACCESO · CREDENCIALES</span>
-            <span className="text-[#004d99]">CONTROL 01</span>
+          <div className="relative flex items-center justify-between border-y border-[#9ebfcc] bg-white/80 px-3 py-2 font-mono text-[10px] font-semibold tracking-[0.14em] text-[#35566b]">
+            <span className="absolute -left-2 top-1/2 h-3 w-1 -translate-y-1/2 bg-cyan-400" aria-hidden="true" />
+            <span>{mode === 'signin' ? 'AUTORIZACIÓN ACTIVA · CREDENCIALES' : 'ALTA DE CREDENCIAL · INSPECCIÓN'}</span>
+            <span className="text-[#004d99]">PLANO 01</span>
           </div>
           {errorMsg && (
             <div className="p-3.5 bg-[#ffdad6] text-[#93000a] text-[13px] rounded-xl border border-[#ffb4ab] flex items-center gap-2.5 animate-in fade-in duration-150">
@@ -450,7 +457,8 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
           )}
 
           {mode === 'signin' ? (
-            <form onSubmit={handleSignIn} className="space-y-3 border border-[#b9d1dc] bg-white/90 p-3 shadow-[0_8px_18px_rgba(13,75,111,0.06)]">
+            <form onSubmit={handleSignIn} className="relative space-y-3 border border-[#b9d1dc] bg-white/90 p-3 shadow-[0_8px_18px_rgba(13,75,111,0.06)]">
+              <span className="absolute right-3 top-3 font-mono text-[8px] font-bold tracking-[0.14em] text-[#0566aa]">MODO ACTIVO</span>
               <div className="border-l-2 border-cyan-400 px-3 py-2">
                 <label className="mb-1.5 block font-mono text-[10px] font-bold tracking-[0.12em] text-[#315c70]">
                   IDENTIFICADOR DE ACCESO
@@ -743,8 +751,8 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
 
           {/* Quick Demo Access Divider & Button */}
           <div className="pt-4 border-t border-[#c2c6d4] text-center">
-            <p className="text-[12px] text-[#727783] mb-3">
-              ¿Necesitas revisar la configuración de ejemplo?
+            <p className="font-mono text-[10px] tracking-[0.08em] text-[#527284] mb-3">
+              SIMULACIÓN CONTROLADA · CARGA CONTEXTO DE PLANO
             </p>
             <button
               type="button"

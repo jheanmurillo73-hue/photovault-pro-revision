@@ -258,7 +258,7 @@ export default function App() {
 
   const handleUpdatePhotoPosition = (
     photoId: string,
-    position: Pick<InspectionPhoto, 'planX' | 'planY' | 'planEndX' | 'planEndY'>,
+    position: Pick<InspectionPhoto, 'planX' | 'planY' | 'planEndX' | 'planEndY'> & Partial<Pick<InspectionPhoto, 'metraje'>>,
   ) => {
     const currentPhoto = photos.find((photo) => photo.id === photoId);
     if (!currentPhoto) return;
@@ -270,9 +270,29 @@ export default function App() {
     showToast(`Ubicación guardada para "${updated.name}"`);
   };
 
+  const handleUpdatePipelineMeasurements = (
+    measurements: Array<Pick<InspectionPhoto, 'id' | 'metraje'>>,
+  ) => {
+    const valuesById = new Map(measurements.map((measurement) => [measurement.id, measurement.metraje]));
+    const recordsToSync: InspectionPhoto[] = [];
+    const updatedPhotos = photos.map((photo) => {
+      const metraje = valuesById.get(photo.id);
+      if (metraje === undefined) return photo;
+      const updated = normalizeInspectionPhoto({ ...photo, metraje });
+      recordsToSync.push(updated);
+      return updated;
+    });
+
+    setPhotos(updatedPhotos);
+    recordsToSync.forEach((photo) => {
+      void supabaseService.savePhoto(photo, inspector.id);
+    });
+  };
+
   const handleCreatePhotoFromPlan = (
     elementType: Extract<ElementType, 'caja' | 'camara' | 'tuberia'>,
     position: Pick<InspectionPhoto, 'planX' | 'planY' | 'planEndX' | 'planEndY'>,
+    initialMetraje?: number,
   ): InspectionPhoto => {
     const createdAt = new Date();
     const suffix = Math.floor(100 + Math.random() * 900);
@@ -296,7 +316,7 @@ export default function App() {
       cameraCode: isCamera ? 'SB850' : undefined,
       cameraType: isCamera ? 'MT' : undefined,
       tramo: isPipeline ? '' : undefined,
-      metraje: isPipeline ? 0 : undefined,
+      metraje: isPipeline ? initialMetraje ?? 0 : undefined,
       ...position,
       inspectorName: inspector.name,
       inspectorId: inspector.id,
@@ -512,6 +532,7 @@ export default function App() {
                 onSelectPhoto={handleSelectPhoto}
                 onNavigateToUpload={() => handleTabChange('upload')}
                 onUpdatePhotoPosition={handleUpdatePhotoPosition}
+                onUpdatePipelineMeasurements={handleUpdatePipelineMeasurements}
                 onCreatePhoto={handleCreatePhotoFromPlan}
                 onEditPhoto={(photo) => setEditingPhoto(photo)}
               />

@@ -2,9 +2,10 @@
  * Diseño: cartografía técnica sobria. Las propiedades se acotan al tipo del
  * objeto seleccionado; una tubería nunca guarda datos de cámara, y viceversa.
  */
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { InspectionPhoto, ExecutionStatus, CameraCode, CameraType, ElementType, getElementType } from '../types';
 import { WAREHOUSE_LOCATIONS, CAMERA_CODES, CAMERA_TYPES } from '../data/mockData';
+import { compressImageForDevice } from '../services/deviceStorageService';
 import { TramoSelector } from './TramoSelector';
 
 interface EditPhotoModalProps {
@@ -32,8 +33,38 @@ export const EditPhotoModal: React.FC<EditPhotoModalProps> = ({
   const [executionStatus, setExecutionStatus] = useState<ExecutionStatus>(photo.executionStatus || 'En proceso');
   const [requiresImmediateAction, setRequiresImmediateAction] = useState(photo.requiresImmediateAction ?? false);
   const [verified, setVerified] = useState(photo.verified ?? false);
+  const [imageUrl, setImageUrl] = useState(photo.imageUrl ?? '');
+  const [imageSize, setImageSize] = useState(photo.fileSize ?? '');
+  const [isProcessingImage, setIsProcessingImage] = useState(false);
+  const [imageError, setImageError] = useState<string | null>(null);
+  const photoInputRef = useRef<HTMLInputElement>(null);
 
   if (!isOpen) return null;
+
+  const handlePhotoChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      setImageError('Selecciona una imagen válida en formato JPG, PNG, WebP o HEIC.');
+      return;
+    }
+
+    setImageError(null);
+    setIsProcessingImage(true);
+    try {
+      const optimizedImage = await compressImageForDevice(file, 1280, 960, 0.76);
+      const originalSize = file.size > 1024 * 1024
+        ? `${(file.size / (1024 * 1024)).toFixed(1)} MB`
+        : `${Math.max(1, Math.round(file.size / 1024))} KB`;
+      setImageUrl(optimizedImage);
+      setImageSize(originalSize);
+    } catch {
+      setImageError('No se pudo optimizar la foto. Intenta con otro archivo.');
+    } finally {
+      setIsProcessingImage(false);
+      event.target.value = '';
+    }
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -42,6 +73,9 @@ export const EditPhotoModal: React.FC<EditPhotoModalProps> = ({
       name: name.trim() || photo.name,
       type: type.trim() || photo.type,
       location: location.trim() || photo.location,
+      imageUrl: imageUrl || photo.imageUrl,
+      fileSize: imageSize || photo.fileSize,
+      resolution: imageUrl !== photo.imageUrl ? 'Foto adjunta desde propiedades' : photo.resolution,
       elementType,
       cameraCode: elementType === 'camara' ? cameraCode : undefined,
       cameraType: elementType === 'camara' ? cameraType : undefined,
@@ -90,6 +124,41 @@ export const EditPhotoModal: React.FC<EditPhotoModalProps> = ({
               className="w-full bg-[#f3faff] border border-[#c2c6d4] rounded-lg p-2.5 text-[14px] text-[#071e27] focus:border-[#004d99] focus:outline-none"
               required
             />
+          </div>
+
+          <div className="rounded-xl border border-[#b7d5e4] bg-[#f8fbfd] p-3">
+            <div className="mb-2 flex items-center justify-between gap-3">
+              <div>
+                <p className="font-['Inter'] text-[13px] font-bold text-[#071e27]">Foto de evidencia</p>
+                <p className="mt-0.5 text-[11px] text-[#607d8b]">Adjunta o reemplaza la fotografía del elemento desde sus propiedades.</p>
+              </div>
+              <span className="material-symbols-outlined text-[21px] text-[#0566aa]">add_a_photo</span>
+            </div>
+            <div className="flex items-center gap-3">
+              <div className="h-16 w-20 shrink-0 overflow-hidden rounded-lg border border-[#c2c6d4] bg-[#e6f6ff]">
+                {imageUrl ? (
+                  <img src={imageUrl} alt="Vista previa de la foto del elemento" className="h-full w-full object-cover" />
+                ) : (
+                  <div className="flex h-full w-full items-center justify-center text-[#527284]">
+                    <span className="material-symbols-outlined text-[22px]">image</span>
+                  </div>
+                )}
+              </div>
+              <div className="min-w-0 flex-1">
+                <button
+                  type="button"
+                  onClick={() => photoInputRef.current?.click()}
+                  disabled={isProcessingImage}
+                  className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-[#0566aa] bg-white px-3 text-[12px] font-bold text-[#004d99] transition hover:bg-[#e6f6ff] disabled:cursor-wait disabled:opacity-60"
+                >
+                  <span className="material-symbols-outlined text-[16px]">{isProcessingImage ? 'progress_activity' : 'upload'}</span>
+                  {isProcessingImage ? 'Optimizando…' : imageUrl ? 'Reemplazar foto' : 'Adjuntar foto'}
+                </button>
+                <p className="mt-1.5 truncate text-[10px] text-[#607d8b]">{imageSize ? `Archivo original: ${imageSize}` : 'Se optimiza antes de guardarse.'}</p>
+              </div>
+            </div>
+            {imageError && <p className="mt-2 text-[11px] font-medium text-[#ba1a1a]">{imageError}</p>}
+            <input ref={photoInputRef} type="file" accept="image/*" capture="environment" onChange={handlePhotoChange} className="hidden" />
           </div>
 
           <div>

@@ -75,3 +75,6 @@ Un símbolo modular de tres nodos conectados por una retícula técnica: un lent
 - Los formularios de acceso se tratan como paneles de consola: grupos de campo encuadrados, líneas de referencia y acciones con lectura de estado, sin apariencia de formulario SaaS genérico.
 - La marca combina de forma inseparable el símbolo modular de tres nodos, el rótulo de control de obra y el wordmark técnico de TRACKING LA NUBIA.
 - Los acentos de categoría reaparecen como rieles y marcas de verificación operativa en el acceso, no solo como una leyenda decorativa.
+- La micro-leyenda de acceso nombra siempre el código funcional completo: cian/cámara, ámbar/caja y violeta grisáceo/tubería.
+- El wordmark integra cortes y módulos del símbolo de tres nodos; nunca se presenta como texto plano sin señal gráfica.
+- Toda microcopia secundaria del acceso describe autorización, credencial, inspección o carga de contexto de plano.
