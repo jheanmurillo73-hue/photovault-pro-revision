@@ -371,11 +371,12 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
                 <circle cx="46" cy="32" r="5" fill="#D9C8FF" />
               </svg>
               </div>
-              <div>
+              <div className="relative border-l-2 border-cyan-400 bg-white/5 px-3 py-2.5 shadow-[inset_0_0_0_1px_rgba(158,231,255,0.18)]">
                 <p className="font-mono text-[10px] font-semibold tracking-[0.22em] text-cyan-100/75">CONTROL DE OBRA</p>
                 <h1 className="mt-1 font-['Space_Grotesk'] text-3xl font-bold tracking-[-0.04em] text-white sm:text-4xl">
                   <span className="text-cyan-100">TRACKING</span><span className="mx-1.5 text-white/35">/</span><span className="tracking-[0.08em]">LA NUBIA</span>
                 </h1>
+                <span className="mt-1 block font-mono text-[9px] tracking-[0.18em] text-cyan-100/70">NODO · CAJA · TRAZADO</span>
               </div>
             </div>
             <p className="max-w-md border-l border-cyan-200/40 pl-3 text-[13px] leading-5 text-white/80 sm:text-[14px]">
@@ -411,7 +412,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
               setErrorMsg(null);
               setSuccessMsg(null);
             }}
-            className={`flex-1 py-3.5 font-['Inter'] font-bold text-[14px] text-center border-b-2 transition-all ${
+            className={`flex-1 py-3.5 font-['Space_Grotesk'] font-bold text-[12px] tracking-[0.05em] uppercase text-center border-b-2 transition-all ${
               mode === 'signin'
                 ? 'border-[#004d99] text-[#004d99] bg-white shadow-xs'
                 : 'border-transparent text-[#424752] hover:text-[#004d99]'
@@ -426,7 +427,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
               setErrorMsg(null);
               setSuccessMsg(null);
             }}
-            className={`flex-1 py-3.5 font-['Inter'] font-bold text-[14px] text-center border-b-2 transition-all ${
+            className={`flex-1 py-3.5 font-['Space_Grotesk'] font-bold text-[12px] tracking-[0.05em] uppercase text-center border-b-2 transition-all ${
               mode === 'signup'
                 ? 'border-[#004d99] text-[#004d99] bg-white shadow-xs'
                 : 'border-transparent text-[#424752] hover:text-[#004d99]'
@@ -437,9 +438,10 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
         </div>
 
         {/* Form Container */}
-        <div className="p-6 sm:p-8 space-y-5 max-h-[75vh] overflow-y-auto">
-          <div className="flex items-center justify-between border-y border-[#c2c6d4] bg-[#f3faff] px-3 py-2 font-mono text-[10px] font-semibold tracking-[0.14em] text-[#35566b]">
-            <span>ESTACIÓN DE ACCESO</span>
+        <div className="relative max-h-[75vh] space-y-5 overflow-y-auto bg-[#f7fbfc] p-6 sm:p-8" style={{ backgroundImage: 'linear-gradient(rgba(23,131,184,0.035) 1px, transparent 1px), linear-gradient(90deg, rgba(23,131,184,0.035) 1px, transparent 1px)', backgroundSize: '18px 18px' }}>
+          <div className="absolute bottom-0 left-0 top-0 flex w-1 flex-col" aria-hidden="true"><span className="h-1/3 bg-cyan-300" /><span className="h-1/3 bg-amber-300" /><span className="h-1/3 bg-violet-300" /></div>
+          <div className="flex items-center justify-between border-y border-[#9ebfcc] bg-white/80 px-3 py-2 font-mono text-[10px] font-semibold tracking-[0.14em] text-[#35566b]">
+            <span>ESTACIÓN DE ACCESO · CREDENCIALES</span>
             <span className="text-[#004d99]">CONTROL 01</span>
           </div>
           {errorMsg && (
@@ -469,10 +471,10 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
           )}
 
           {mode === 'signin' ? (
-            <form onSubmit={handleSignIn} className="space-y-4">
-              <div>
-                <label className="block text-[13px] font-bold text-[#071e27] mb-1.5">
-                  Correo Electrónico
+            <form onSubmit={handleSignIn} className="space-y-3 border border-[#b9d1dc] bg-white/90 p-3 shadow-[0_8px_18px_rgba(13,75,111,0.06)]">
+              <div className="border-l-2 border-cyan-400 px-3 py-2">
+                <label className="mb-1.5 block font-mono text-[10px] font-bold tracking-[0.12em] text-[#315c70]">
+                  IDENTIFICADOR DE ACCESO
                 </label>
                 <div className="relative">
                   <span className="material-symbols-outlined absolute left-3.5 top-1/2 -translate-y-1/2 text-[#727783] text-[20px]">
@@ -484,14 +486,14 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     placeholder="inspector@empresa.com"
-                    className="w-full bg-[#f3faff] border border-[#9ebfcc] rounded-md pl-11 pr-4 py-3 text-[14px] text-[#071e27] placeholder-[#727783] focus:border-[#004d99] focus:bg-white focus:outline-none transition-colors"
+                    className="w-full border border-[#9ebfcc] bg-[#f3faff] py-3 pl-11 pr-4 font-['IBM_Plex_Sans'] text-[14px] text-[#071e27] placeholder-[#727783] outline-none transition-colors focus:border-[#004d99] focus:bg-white"
                   />
                 </div>
               </div>
 
-              <div>
-                <label className="block text-[13px] font-bold text-[#071e27] mb-1.5">
-                  Contraseña
+              <div className="border-l-2 border-violet-300 px-3 py-2">
+                <label className="mb-1.5 block font-mono text-[10px] font-bold tracking-[0.12em] text-[#315c70]">
+                  CLAVE DE VERIFICACIÓN
                 </label>
                 <div className="relative">
                   <span className="material-symbols-outlined absolute left-3.5 top-1/2 -translate-y-1/2 text-[#727783] text-[20px]">
@@ -503,7 +505,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="••••••••"
-                    className="w-full bg-[#f3faff] border border-[#9ebfcc] rounded-md pl-11 pr-11 py-3 text-[14px] text-[#071e27] placeholder-[#727783] focus:border-[#004d99] focus:bg-white focus:outline-none transition-colors"
+                    className="w-full border border-[#9ebfcc] bg-[#f3faff] py-3 pl-11 pr-11 font-['IBM_Plex_Sans'] text-[14px] text-[#071e27] placeholder-[#727783] outline-none transition-colors focus:border-[#004d99] focus:bg-white"
                   />
                   <button
                     type="button"
@@ -521,7 +523,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full mt-2 py-3.5 px-4 bg-[#004d99] hover:bg-[#00468c] active:scale-[0.99] text-white font-['Space_Grotesk'] font-bold text-[14px] tracking-[0.02em] rounded-md transition-all shadow-sm flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60"
+                className="mt-2 flex w-full items-center justify-center gap-2 border border-[#003f74] bg-[#004d99] px-4 py-3.5 font-['Space_Grotesk'] text-[14px] font-bold tracking-[0.05em] text-white shadow-sm transition-all hover:bg-[#00468c] active:scale-[0.99] disabled:opacity-60"
               >
                 {loading ? (
                   <>
@@ -535,6 +537,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
                   </>
                 )}
               </button>
+              <p className="border-t border-dashed border-[#b9d1dc] pt-2 text-center font-mono text-[9px] tracking-[0.12em] text-[#527284]">VALIDA CREDENCIAL Y CARGA EL CONTEXTO DEL PLANO</p>
             </form>
           ) : (
             <form onSubmit={handleSignUp} className="space-y-4">

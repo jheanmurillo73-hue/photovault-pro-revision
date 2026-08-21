@@ -26,6 +26,11 @@ interface PlacementTarget {
   stage: PlacementStage;
 }
 
+interface DragTarget {
+  photo: InspectionPhoto;
+  source: 'palette' | 'plan';
+}
+
 const EMPTY_BLUEPRINT: BlueprintOverlay = {
   id: 'bp-user',
   name: 'Plano de obra sin cargar',
@@ -82,6 +87,7 @@ export const MapView: React.FC<MapViewProps> = ({
   const [activeFilter, setActiveFilter] = useState<'all' | 'camara' | 'caja' | 'tuberia' | 'pending'>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [placement, setPlacement] = useState<PlacementTarget | null>(null);
+  const [dragTarget, setDragTarget] = useState<DragTarget | null>(null);
   const [isPanelOpen, setIsPanelOpen] = useState<boolean>(false);
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
   const [iconScale, setIconScale] = useState<number>(() => {
@@ -91,6 +97,7 @@ export const MapView: React.FC<MapViewProps> = ({
   const [blueprintStorageNotice, setBlueprintStorageNotice] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const blueprintStorageReadyRef = useRef(false);
+  const dragTargetRef = useRef<DragTarget | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -224,32 +231,82 @@ export const MapView: React.FC<MapViewProps> = ({
     }
   };
 
-  const handleCanvasClick = (event: React.MouseEvent<HTMLDivElement>) => {
-    if (!placement) return;
-    const bounds = event.currentTarget.getBoundingClientRect();
-    if (!bounds.width || !bounds.height) return;
-    const planX = clampPercent(((event.clientX - bounds.left) / bounds.width) * 100);
-    const planY = clampPercent(((event.clientY - bounds.top) / bounds.height) * 100);
+  const getPlanPosition = (bounds: DOMRect, clientX: number, clientY: number) => ({
+    planX: clampPercent(((clientX - bounds.left) / bounds.width) * 100),
+    planY: clampPercent(((clientY - bounds.top) / bounds.height) * 100),
+  });
 
-    if (placement.stage === 'pipe-start') {
-      onUpdatePhotoPosition(placement.photo.id, {
+  const placeTargetAt = (target: PlacementTarget, planX: number, planY: number) => {
+    if (target.stage === 'pipe-start') {
+      onUpdatePhotoPosition(target.photo.id, {
         planX,
         planY,
         planEndX: undefined,
         planEndY: undefined,
       });
-      setPlacement({ photo: { ...placement.photo, planX, planY }, stage: 'pipe-end' });
+      setPlacement({ photo: { ...target.photo, planX, planY }, stage: 'pipe-end' });
       return;
     }
 
-    if (placement.stage === 'pipe-end') {
-      onUpdatePhotoPosition(placement.photo.id, { planEndX: planX, planEndY: planY });
+    if (target.stage === 'pipe-end') {
+      onUpdatePhotoPosition(target.photo.id, { planEndX: planX, planEndY: planY });
       setPlacement(null);
       return;
     }
 
-    onUpdatePhotoPosition(placement.photo.id, { planX, planY });
+    onUpdatePhotoPosition(target.photo.id, { planX, planY });
     setPlacement(null);
+  };
+
+  const handleCanvasClick = (event: React.MouseEvent<HTMLDivElement>) => {
+    if (!placement) return;
+    const bounds = event.currentTarget.getBoundingClientRect();
+    if (!bounds.width || !bounds.height) return;
+    const { planX, planY } = getPlanPosition(bounds, event.clientX, event.clientY);
+    placeTargetAt(placement, planX, planY);
+  };
+
+  const handleCanvasDrop = (event: React.DragEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    const activeDrag = dragTargetRef.current ?? dragTarget;
+    if (!activeDrag) return;
+    const bounds = event.currentTarget.getBoundingClientRect();
+    if (!bounds.width || !bounds.height) return;
+    const { planX, planY } = getPlanPosition(bounds, event.clientX, event.clientY);
+    const { photo, source } = activeDrag;
+    const type = getElementType(photo);
+
+    if (source === 'palette') {
+      placeTargetAt(
+        { photo, stage: type === 'tuberia' ? (isPlaced(photo) ? 'pipe-end' : 'pipe-start') : 'point' },
+        planX,
+        planY,
+      );
+    } else if (type === 'tuberia' && hasCompletePipe(photo)) {
+      const midpointX = (photo.planX! + photo.planEndX!) / 2;
+      const midpointY = (photo.planY! + photo.planEndY!) / 2;
+      const shiftX = Math.min(100 - Math.max(photo.planX!, photo.planEndX!), Math.max(-Math.min(photo.planX!, photo.planEndX!), planX - midpointX));
+      const shiftY = Math.min(100 - Math.max(photo.planY!, photo.planEndY!), Math.max(-Math.min(photo.planY!, photo.planEndY!), planY - midpointY));
+      onUpdatePhotoPosition(photo.id, {
+        planX: photo.planX! + shiftX,
+        planY: photo.planY! + shiftY,
+        planEndX: photo.planEndX! + shiftX,
+        planEndY: photo.planEndY! + shiftY,
+      });
+    } else {
+      onUpdatePhotoPosition(photo.id, { planX, planY });
+    }
+    dragTargetRef.current = null;
+    setDragTarget(null);
+  };
+
+  const startDragging = (event: React.DragEvent<HTMLElement>, photo: InspectionPhoto, source: DragTarget['source']) => {
+    event.stopPropagation();
+    event.dataTransfer.effectAllowed = 'move';
+    event.dataTransfer.setData('text/plain', photo.id);
+    const target = { photo, source } satisfies DragTarget;
+    dragTargetRef.current = target;
+    setDragTarget(target);
   };
 
   const planScale = clampScale(Number(blueprint.scale) || 1, 0.6, 1.8);
@@ -357,8 +414,13 @@ export const MapView: React.FC<MapViewProps> = ({
           <div className="flex min-h-full min-w-full items-center justify-center py-3">
             <div
               onClick={handleCanvasClick}
+              onDragOver={(event) => {
+                event.preventDefault();
+                event.dataTransfer.dropEffect = 'move';
+              }}
+              onDrop={handleCanvasDrop}
               className={`relative inline-flex max-h-[calc(100vh-10rem)] max-w-[calc(100vw-3rem)] overflow-hidden border border-[#9dbbc9] bg-white shadow-[0_18px_46px_rgba(7,63,116,0.22)] transition-transform duration-200 ${
-                placement ? 'cursor-crosshair' : 'cursor-default'
+                placement ? 'cursor-crosshair' : dragTarget ? 'ring-2 ring-[#18a9cf] ring-offset-2' : 'cursor-default'
               }`}
               style={{ transform: `scale(${planScale})` }}
               aria-label="Plano interactivo de inspección"
@@ -403,15 +465,22 @@ export const MapView: React.FC<MapViewProps> = ({
                   <button
                     key={photo.id}
                     type="button"
+                    draggable={!placement}
+                    onDragStart={(event) => startDragging(event, photo, 'plan')}
+                    onDragEnd={() => {
+                      dragTargetRef.current = null;
+                      setDragTarget(null);
+                    }}
                     onClick={(event) => {
                       event.stopPropagation();
                       onSelectPhoto(photo);
                     }}
                     style={{ left: `${midpointX}%`, top: `${midpointY}%`, transform: `translate(-50%, -50%) scale(${iconScale})` }}
-                    className={`absolute z-10 rounded-full border border-white bg-[#073f74] px-2.5 py-1 text-[10px] font-bold text-white shadow-lg transition hover:scale-105 ${placement ? 'pointer-events-none' : ''}`}
-                    title={`Abrir ${elementLabel(photo)}`}
+                    className={`absolute z-10 flex h-8 w-8 items-center justify-center rounded-full border-2 border-white bg-[#073f74] text-white shadow-lg transition hover:scale-110 active:cursor-grabbing ${placement ? 'pointer-events-none' : 'cursor-grab'}`}
+                    title={`Abrir o mover ${elementLabel(photo)}`}
+                    aria-label={`Abrir o mover ${elementLabel(photo)}`}
                   >
-                    {photo.metraje ? `${photo.metraje} m` : 'Tubería'}
+                    <span className="material-symbols-outlined text-[18px]">timeline</span>
                   </button>
                 );
               }
@@ -419,20 +488,26 @@ export const MapView: React.FC<MapViewProps> = ({
               const isCamera = type === 'camara';
               const markerColor = isCamera ? (photo.cameraType === 'BT' ? '#b94324' : '#0566aa') : '#b77812';
               return (
-                <button
-                  key={photo.id}
-                  type="button"
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    onSelectPhoto(photo);
-                  }}
-                  style={{ left: `${photo.planX}%`, top: `${photo.planY}%`, backgroundColor: markerColor, transform: `translate(-50%, -50%) scale(${iconScale})` }}
-                  className={`absolute z-10 flex items-center gap-1.5 rounded-full border-2 border-white px-2.5 py-1 text-[10px] font-bold text-white shadow-[0_3px_10px_rgba(6,36,58,0.35)] transition hover:scale-105 ${placement ? 'pointer-events-none' : ''}`}
-                  title={`Abrir ${elementLabel(photo)}`}
-                >
-                  <span className="material-symbols-outlined text-[14px]">{isCamera ? 'videocam' : 'inventory_2'}</span>
-                  <span>{elementLabel(photo)}</span>
-                </button>
+                  <button
+                    key={photo.id}
+                    type="button"
+                    draggable={!placement}
+                    onDragStart={(event) => startDragging(event, photo, 'plan')}
+                    onDragEnd={() => {
+                      dragTargetRef.current = null;
+                      setDragTarget(null);
+                    }}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      onSelectPhoto(photo);
+                    }}
+                    style={{ left: `${photo.planX}%`, top: `${photo.planY}%`, backgroundColor: markerColor, transform: `translate(-50%, -50%) scale(${iconScale})` }}
+                    className={`absolute z-10 flex h-9 w-9 items-center justify-center rounded-full border-2 border-white text-white shadow-[0_3px_10px_rgba(6,36,58,0.35)] transition hover:scale-110 active:cursor-grabbing ${placement ? 'pointer-events-none' : 'cursor-grab'}`}
+                    title={`Abrir o mover ${elementLabel(photo)}`}
+                    aria-label={`Abrir o mover ${elementLabel(photo)}`}
+                  >
+                    <span className="material-symbols-outlined text-[18px]">{isCamera ? 'videocam' : 'inventory_2'}</span>
+                  </button>
               );
             })}
             </div>
@@ -451,6 +526,35 @@ export const MapView: React.FC<MapViewProps> = ({
           </div>
         )}
       </main>
+
+      {blueprint.imageUrl && pendingPhotos.length > 0 && (
+        <div className="absolute bottom-4 left-4 z-20 flex items-center gap-1.5 rounded-xl border border-[#b6d0dd] bg-white/95 p-2 shadow-sm backdrop-blur">
+          <span className="hidden font-mono text-[9px] font-bold tracking-[0.12em] text-[#527284] sm:inline">ARRASTRA</span>
+          {pendingPhotos.map((photo) => {
+            const type = getElementType(photo);
+            const icon = type === 'camara' ? 'videocam' : type === 'tuberia' ? 'timeline' : 'inventory_2';
+            const color = type === 'camara' ? 'bg-[#0566aa]' : type === 'tuberia' ? 'bg-[#073f74]' : 'bg-[#b77812]';
+            return (
+              <button
+                key={`palette-${photo.id}`}
+                type="button"
+                draggable
+                onDragStart={(event) => startDragging(event, photo, 'palette')}
+                onDragEnd={() => {
+                  dragTargetRef.current = null;
+                  setDragTarget(null);
+                }}
+                onClick={() => selectForPlacement(photo)}
+                className={`flex h-9 w-9 cursor-grab items-center justify-center rounded-full border-2 border-white ${color} text-white shadow-sm transition hover:scale-110 active:cursor-grabbing`}
+                title={`Arrastra o selecciona ${elementLabel(photo)} para ubicarlo`}
+                aria-label={`Arrastra o selecciona ${elementLabel(photo)} para ubicarlo`}
+              >
+                <span className="material-symbols-outlined text-[18px]">{icon}</span>
+              </button>
+            );
+          })}
+        </div>
+      )}
 
       {placementInstruction && (
         <div className="absolute bottom-5 left-1/2 z-30 flex w-[min(92vw,560px)] -translate-x-1/2 items-center gap-3 rounded-xl border border-[#73b7d4] bg-[#073f74] px-4 py-3 text-sm text-white shadow-xl">

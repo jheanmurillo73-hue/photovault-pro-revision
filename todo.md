@@ -23,3 +23,4 @@
 - [x] Cancelar la configuración de la clave de Google Maps por reemplazo del flujo cartográfico.
 - [x] Reemplazar Google Maps por un plano JPG escalable con ubicación manual de cajas, cámaras y canalizaciones.
 - [x] Añadir controles de aumento y disminución para el plano JPG y los iconos de inspección.
+- [x] Permitir ubicar y mover elementos directamente mediante iconos compactos sin descripciones visibles.

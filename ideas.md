@@ -72,3 +72,6 @@ Un símbolo modular de tres nodos conectados por una retícula técnica: un lent
 - Las pantallas de acceso se componen como una estación de control sobre la retícula técnica: divisiones precisas, rótulos de estado y geometría contenida en vez de una tarjeta SaaS genérica.
 - El estado de acceso no nombra proveedores ni infraestructura; se expresa como autorización operativa para el plano.
 - Cian, ámbar y violeta grisáceo se mantienen visibles como códigos persistentes de cámara, caja y tubería.
+- Los formularios de acceso se tratan como paneles de consola: grupos de campo encuadrados, líneas de referencia y acciones con lectura de estado, sin apariencia de formulario SaaS genérico.
+- La marca combina de forma inseparable el símbolo modular de tres nodos, el rótulo de control de obra y el wordmark técnico de TRACKING LA NUBIA.
+- Los acentos de categoría reaparecen como rieles y marcas de verificación operativa en el acceso, no solo como una leyenda decorativa.
