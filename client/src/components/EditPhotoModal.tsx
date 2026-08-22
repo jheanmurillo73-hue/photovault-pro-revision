@@ -8,6 +8,22 @@ import { WAREHOUSE_LOCATIONS, CAMERA_CODES, CAMERA_TYPES } from '../data/mockDat
 import { compressImageForDevice } from '../services/deviceStorageService';
 import { TramoSelector } from './TramoSelector';
 
+const ACTAS_STORAGE_KEY = 'photovault_actas_catalog';
+const DEFAULT_ACTAS = Array.from({ length: 10 }, (_, index) => `Acta ${index + 1}`);
+
+const loadActas = (): string[] => {
+  try {
+    const saved = JSON.parse(localStorage.getItem(ACTAS_STORAGE_KEY) || '[]');
+    if (!Array.isArray(saved)) return DEFAULT_ACTAS;
+    const customActas = saved
+      .filter((acta): acta is string => typeof acta === 'string' && acta.trim().length > 0)
+      .map((acta) => acta.trim());
+    return Array.from(new Set([...DEFAULT_ACTAS, ...customActas]));
+  } catch {
+    return DEFAULT_ACTAS;
+  }
+};
+
 interface EditPhotoModalProps {
   photo: InspectionPhoto;
   isOpen: boolean;
@@ -26,6 +42,10 @@ export const EditPhotoModal: React.FC<EditPhotoModalProps> = ({
   const [location, setLocation] = useState(photo.location ?? '');
   const [cameraCode, setCameraCode] = useState<CameraCode>(photo.cameraCode || 'SB850');
   const [cameraType, setCameraType] = useState<CameraType>(photo.cameraType || 'MT');
+  const [acta, setActa] = useState(photo.acta ?? '');
+  const [actas, setActas] = useState<string[]>(loadActas);
+  const [newActa, setNewActa] = useState('');
+  const [actaMessage, setActaMessage] = useState<string | null>(null);
   const [elementType, setElementType] = useState<ElementType>(() => getElementType(photo));
   const [tramo, setTramo] = useState<string>(photo.tramo || '3x4"');
   const [metraje, setMetraje] = useState<string>(photo.metraje !== undefined ? String(photo.metraje) : '');
@@ -79,6 +99,7 @@ export const EditPhotoModal: React.FC<EditPhotoModalProps> = ({
       elementType,
       cameraCode: elementType === 'camara' ? cameraCode : undefined,
       cameraType: elementType === 'camara' ? cameraType : undefined,
+      acta: acta || undefined,
       tramo: elementType === 'tuberia' ? tramo.trim() || undefined : undefined,
       metraje: elementType === 'tuberia' ? metraje.trim() || undefined : undefined,
       fieldNotes: fieldNotes.trim(),
@@ -88,6 +109,29 @@ export const EditPhotoModal: React.FC<EditPhotoModalProps> = ({
       verified,
     });
     onClose();
+  };
+
+  const addActa = () => {
+    const value = newActa.trim();
+    if (!value) {
+      setActaMessage('Escribe el nombre o número del acta para agregarla.');
+      return;
+    }
+
+    const existing = actas.find((option) => option.toLocaleLowerCase('es-CO') === value.toLocaleLowerCase('es-CO'));
+    if (existing) {
+      setActa(existing);
+      setNewActa('');
+      setActaMessage(`"${existing}" ya estaba disponible y quedó asignada.`);
+      return;
+    }
+
+    const updatedActas = [...actas, value];
+    setActas(updatedActas);
+    setActa(value);
+    setNewActa('');
+    setActaMessage(`"${value}" fue agregada y asignada al elemento.`);
+    localStorage.setItem(ACTAS_STORAGE_KEY, JSON.stringify(updatedActas));
   };
 
   return (
@@ -247,6 +291,50 @@ export const EditPhotoModal: React.FC<EditPhotoModalProps> = ({
                 ))}
               </datalist>
             </div>
+          </div>
+
+          <div className="rounded-xl border border-[#b7d5e4] bg-[#f8fbfd] p-3">
+            <div className="mb-2 flex items-start justify-between gap-3">
+              <div>
+                <label htmlFor="inspection-acta" className="block font-['Inter'] text-[13px] font-bold text-[#071e27]">Acta asignada</label>
+                <p className="mt-0.5 text-[11px] text-[#607d8b]">Selecciona un acta del listado o incorpora una nueva para futuras asignaciones.</p>
+              </div>
+              <span className="material-symbols-outlined text-[21px] text-[#0566aa]">assignment</span>
+            </div>
+            <select
+              id="inspection-acta"
+              value={acta}
+              onChange={(event) => {
+                setActa(event.target.value);
+                setActaMessage(null);
+              }}
+              className="w-full rounded-lg border border-[#c2c6d4] bg-white p-2.5 text-[14px] text-[#071e27] outline-none focus:border-[#004d99]"
+            >
+              <option value="">Sin acta asignada</option>
+              {actas.map((option) => (
+                <option key={option} value={option}>{option}</option>
+              ))}
+            </select>
+            <div className="mt-2 flex gap-2">
+              <input
+                type="text"
+                value={newActa}
+                onChange={(event) => setNewActa(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter') {
+                    event.preventDefault();
+                    addActa();
+                  }
+                }}
+                placeholder="Ej. Acta 11 o Acta de entrega"
+                className="min-w-0 flex-1 rounded-lg border border-[#c2c6d4] bg-white px-3 py-2 text-[12px] text-[#071e27] outline-none focus:border-[#004d99]"
+              />
+              <button type="button" onClick={addActa} className="inline-flex shrink-0 items-center gap-1 rounded-lg border border-[#0566aa] bg-white px-3 py-2 text-[12px] font-bold text-[#004d99] transition hover:bg-[#e6f6ff]">
+                <span className="material-symbols-outlined text-[16px]">add</span>
+                Agregar
+              </button>
+            </div>
+            {actaMessage && <p className="mt-2 text-[11px] font-medium text-[#075a91]" role="status">{actaMessage}</p>}
           </div>
 
           <div className="rounded-xl border border-[#c2c6d4] bg-[#f8fbfd] p-3">

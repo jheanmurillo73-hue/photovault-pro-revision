@@ -16,3 +16,11 @@
 - Dos elementos pueden quedar seleccionados al mismo tiempo y la papelera refleja el total elegido.
 - La papelera por lote abre una confirmación que indica el número de registros afectados antes de ejecutar cualquier borrado.
 - Al cancelar la confirmación por lote, los elementos permanecen visibles y continúan seleccionados en el plano.
+- El plano cargó los elementos existentes, listo para comprobar la asignación de actas desde propiedades.
+- El editor de propiedades muestra **Acta asignada**, el selector de actas iniciales y el control para agregar nuevos valores.
+- Se asignó correctamente una acta existente del listbox y se preparó una nueva acta personalizada para probar la ampliación del catálogo.
+- La nueva **Acta 11** se agregó al catálogo local y quedó seleccionada automáticamente para el elemento de prueba, sin guardar cambios en el registro.
+- La verificación de almacenamiento confirmó que **Acta 11** permanece disponible en el catálogo local para futuras asignaciones.
+- Al reabrir el editor, **Acta 11** siguió disponible en el listbox y pudo seleccionarse para el elemento de prueba.
+- La asignación de **Acta 11** se guardó en la caja de prueba; la aplicación confirmó la actualización del registro.
+- La verificación tras reabrir propiedades confirmó que el elemento conserva la asignación **Acta 11**.

@@ -48,6 +48,7 @@ export interface InspectionPhoto {
   location: string;
   cameraCode?: CameraCode;
   cameraType?: CameraType;
+  acta?: string;
   tramo?: string;
   metraje?: number | string;
   latitude?: number;
