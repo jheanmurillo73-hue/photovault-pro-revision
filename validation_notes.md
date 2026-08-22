@@ -11,3 +11,8 @@
 - Al seleccionar una tubería, el panel contextual muestra la nueva papelera junto a Propiedades y Detalle.
 - La papelera abre un diálogo de confirmación que identifica el elemento y exige una segunda acción antes de borrarlo.
 - Al cancelar el diálogo, el elemento continúa visible y seleccionado en el plano; no se ejecuta ningún borrado.
+- El plano muestra el control **Selección** junto a las herramientas directas de caja, cámara y tubería.
+- Al activar el modo múltiple, los marcadores pasan a modo de selección y el contador se actualiza al incluir un elemento.
+- Dos elementos pueden quedar seleccionados al mismo tiempo y la papelera refleja el total elegido.
+- La papelera por lote abre una confirmación que indica el número de registros afectados antes de ejecutar cualquier borrado.
+- Al cancelar la confirmación por lote, los elementos permanecen visibles y continúan seleccionados en el plano.

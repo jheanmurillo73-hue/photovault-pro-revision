@@ -32,3 +32,4 @@
 - [x] Permitir adjuntar o reemplazar la foto desde las propiedades de un elemento.
 - [x] Reforzar la leyenda funcional, la marca modular y el lenguaje operativo de acceso.
 - [x] Añadir una acción de papelera con confirmación para eliminar elementos desde el plano.
+- [x] Permitir selección múltiple de elementos y eliminación por lote desde el plano.

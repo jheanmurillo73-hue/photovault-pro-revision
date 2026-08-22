@@ -336,20 +336,29 @@ export default function App() {
     return newPhoto;
   };
 
-  const handleDeletePhoto = (id: string) => {
-    const photo = photos.find((p) => p.id === id);
-    setPhotos((prev) => prev.filter((p) => p.id !== id));
-    if (selectedPhotoId === id) {
+  const handleDeletePhotos = (ids: string[]) => {
+    const idsToDelete = new Set(ids);
+    const recordsToDelete = photos.filter((photo) => idsToDelete.has(photo.id));
+    if (!recordsToDelete.length) return;
+
+    setPhotos((prev) => prev.filter((photo) => !idsToDelete.has(photo.id)));
+    if (selectedPhotoId && idsToDelete.has(selectedPhotoId)) {
       setSelectedPhotoId(null);
       setCurrentTab('dashboard');
     }
-    if (photo) {
+    recordsToDelete.forEach((photo) => {
       addActivity('Inspección eliminada', photo.name, photo.id, 'flag');
-      showToast(`"${photo.name}" ha sido eliminada`, 'info');
-      // Delete in Supabase
-      supabaseService.deletePhoto(id);
-    }
+      supabaseService.deletePhoto(photo.id);
+    });
+    showToast(
+      recordsToDelete.length === 1
+        ? `"${recordsToDelete[0].name}" ha sido eliminada`
+        : `${recordsToDelete.length} elementos han sido eliminados`,
+      'info',
+    );
   };
+
+  const handleDeletePhoto = (id: string) => handleDeletePhotos([id]);
 
   const handleUploadSuccess = (newPhoto: InspectionPhoto) => {
     setPhotos((prev) => [newPhoto, ...prev]);
@@ -535,7 +544,7 @@ export default function App() {
                 onUpdatePipelineMeasurements={handleUpdatePipelineMeasurements}
                 onCreatePhoto={handleCreatePhotoFromPlan}
                 onEditPhoto={(photo) => setEditingPhoto(photo)}
-                onDeletePhoto={handleDeletePhoto}
+                onDeletePhotos={handleDeletePhotos}
               />
             ) : currentTab === 'database' ? (
               <DatabaseTableView

@@ -13,7 +13,7 @@ interface MapViewProps {
   inspector: InspectorProfile;
   onSelectPhoto: (photo: InspectionPhoto) => void;
   onEditPhoto: (photo: InspectionPhoto) => void;
-  onDeletePhoto: (photoId: string) => void;
+  onDeletePhotos: (photoIds: string[]) => void;
   onNavigateToUpload: () => void;
   onCreatePhoto: (
     elementType: 'caja' | 'camara' | 'tuberia',
@@ -99,7 +99,7 @@ export const MapView: React.FC<MapViewProps> = ({
   inspector,
   onSelectPhoto,
   onEditPhoto,
-  onDeletePhoto,
+  onDeletePhotos,
   onNavigateToUpload,
   onCreatePhoto,
   onUpdatePhotoPosition,
@@ -134,7 +134,9 @@ export const MapView: React.FC<MapViewProps> = ({
   const [calibrationMeters, setCalibrationMeters] = useState('10');
   const [isCalibrationDialogOpen, setIsCalibrationDialogOpen] = useState(false);
   const [selectedPlanPhotoId, setSelectedPlanPhotoId] = useState<string | null>(null);
-  const [photoPendingDeletion, setPhotoPendingDeletion] = useState<InspectionPhoto | null>(null);
+  const [isMultipleSelectionMode, setIsMultipleSelectionMode] = useState(false);
+  const [selectedPlanPhotoIds, setSelectedPlanPhotoIds] = useState<string[]>([]);
+  const [photosPendingDeletion, setPhotosPendingDeletion] = useState<InspectionPhoto[]>([]);
   const [dragTarget, setDragTarget] = useState<DragTarget | null>(null);
   const [isPanelOpen, setIsPanelOpen] = useState<boolean>(false);
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
@@ -250,7 +252,39 @@ export const MapView: React.FC<MapViewProps> = ({
     [photos, selectedPlanPhotoId],
   );
 
+  const selectedMultiplePlanPhotos = useMemo(
+    () => photos.filter((photo) => selectedPlanPhotoIds.includes(photo.id)),
+    [photos, selectedPlanPhotoIds],
+  );
+
+  const exitMultipleSelection = () => {
+    setIsMultipleSelectionMode(false);
+    setSelectedPlanPhotoIds([]);
+  };
+
+  const toggleMultipleSelectionMode = () => {
+    if (isMultipleSelectionMode) {
+      exitMultipleSelection();
+      return;
+    }
+    setPlacement(null);
+    setCreationMode(null);
+    setPipeStart(null);
+    setPipePreview(null);
+    setSelectedPlanPhotoId(null);
+    setIsMultipleSelectionMode(true);
+  };
+
+  const togglePlanPhotoSelection = (photoId: string) => {
+    setSelectedPlanPhotoIds((previous) => (
+      previous.includes(photoId)
+        ? previous.filter((id) => id !== photoId)
+        : [...previous, photoId]
+    ));
+  };
+
   const activateCreation = (elementType: 'caja' | 'camara' | 'tuberia') => {
+    exitMultipleSelection();
     setPlacement(null);
     setSelectedPlanPhotoId(null);
     setPipeStart(null);
@@ -273,6 +307,7 @@ export const MapView: React.FC<MapViewProps> = ({
       setBlueprintStorageNotice('Carga primero el plano JPG para poder calibrarlo.');
       return;
     }
+    exitMultipleSelection();
     setPlacement(null);
     setCreationMode(null);
     setPipeStart(null);
@@ -405,6 +440,11 @@ export const MapView: React.FC<MapViewProps> = ({
     const bounds = event.currentTarget.getBoundingClientRect();
     if (!bounds.width || !bounds.height) return;
     const { planX, planY } = getPlanPosition(bounds, event.clientX, event.clientY);
+
+    if (isMultipleSelectionMode) {
+      setSelectedPlanPhotoIds([]);
+      return;
+    }
 
     if (calibrationMode) {
       if (!calibrationStart) {
@@ -695,6 +735,20 @@ export const MapView: React.FC<MapViewProps> = ({
           <span className="material-symbols-outlined text-[16px]">timeline</span>
           Tubería
         </button>
+        <button
+          type="button"
+          onClick={toggleMultipleSelectionMode}
+          className={`inline-flex h-8 items-center gap-1.5 rounded-full border px-3 text-[11px] font-bold shadow-sm transition ${
+            isMultipleSelectionMode
+              ? 'border-[#073f74] bg-[#073f74] text-white'
+              : 'border-[#9fb5c5] bg-white text-[#173f58] hover:bg-[#eaf3f8]'
+          }`}
+          title="Seleccionar varios elementos para eliminarlos juntos"
+          aria-pressed={isMultipleSelectionMode}
+        >
+          <span className="material-symbols-outlined text-[16px]">select_all</span>
+          Selección
+        </button>
       </div>
 
       <main className="absolute inset-x-0 bottom-0 top-[62px] overflow-auto p-5 pt-16">
@@ -806,7 +860,7 @@ export const MapView: React.FC<MapViewProps> = ({
                   <button
                     key={photo.id}
                     type="button"
-                    draggable={!placement}
+                    draggable={!placement && !isMultipleSelectionMode}
                     onDragStart={(event) => startDragging(event, photo, 'plan')}
                     onDragEnd={() => {
                       dragTargetRef.current = null;
@@ -815,12 +869,16 @@ export const MapView: React.FC<MapViewProps> = ({
                     onClick={(event) => {
                       event.stopPropagation();
                       if (placement || creationMode) return;
-                      setSelectedPlanPhotoId(photo.id);
+                      if (isMultipleSelectionMode) {
+                        togglePlanPhotoSelection(photo.id);
+                      } else {
+                        setSelectedPlanPhotoId(photo.id);
+                      }
                     }}
                     style={{ left: `${midpointX}%`, top: `${midpointY}%`, transform: `translate(-50%, -50%) scale(${iconScale})` }}
-                    className={`absolute z-10 flex h-8 w-8 items-center justify-center rounded-full border-2 border-white bg-[#073f74] text-white shadow-lg transition hover:scale-110 active:cursor-grabbing ${placement || creationMode ? 'pointer-events-none' : 'cursor-grab'} ${selectedPlanPhotoId === photo.id ? 'ring-4 ring-cyan-300 ring-offset-2' : ''}`}
-                    title={`Abrir o mover ${elementLabel(photo)}`}
-                    aria-label={`Abrir o mover ${elementLabel(photo)}`}
+                    className={`absolute z-10 flex h-8 w-8 items-center justify-center rounded-full border-2 border-white bg-[#073f74] text-white shadow-lg transition hover:scale-110 active:cursor-grabbing ${placement || creationMode ? 'pointer-events-none' : isMultipleSelectionMode ? 'cursor-pointer' : 'cursor-grab'} ${(isMultipleSelectionMode ? selectedPlanPhotoIds.includes(photo.id) : selectedPlanPhotoId === photo.id) ? 'ring-4 ring-cyan-300 ring-offset-2' : ''}`}
+                    title={isMultipleSelectionMode ? `Seleccionar ${elementLabel(photo)}` : `Abrir o mover ${elementLabel(photo)}`}
+                    aria-label={isMultipleSelectionMode ? `Seleccionar ${elementLabel(photo)}` : `Abrir o mover ${elementLabel(photo)}`}
                   >
                     <span className="material-symbols-outlined text-[18px]">timeline</span>
                   </button>
@@ -833,7 +891,7 @@ export const MapView: React.FC<MapViewProps> = ({
                   <button
                     key={photo.id}
                     type="button"
-                    draggable={!placement}
+                    draggable={!placement && !isMultipleSelectionMode}
                     onDragStart={(event) => startDragging(event, photo, 'plan')}
                     onDragEnd={() => {
                       dragTargetRef.current = null;
@@ -842,12 +900,16 @@ export const MapView: React.FC<MapViewProps> = ({
                     onClick={(event) => {
                       event.stopPropagation();
                       if (placement || creationMode) return;
-                      setSelectedPlanPhotoId(photo.id);
+                      if (isMultipleSelectionMode) {
+                        togglePlanPhotoSelection(photo.id);
+                      } else {
+                        setSelectedPlanPhotoId(photo.id);
+                      }
                     }}
                     style={{ left: `${photo.planX}%`, top: `${photo.planY}%`, backgroundColor: markerColor, transform: `translate(-50%, -50%) scale(${iconScale})` }}
-                    className={`absolute z-10 flex h-9 w-9 items-center justify-center rounded-full border-2 border-white text-white shadow-[0_3px_10px_rgba(6,36,58,0.35)] transition hover:scale-110 active:cursor-grabbing ${placement || creationMode ? 'pointer-events-none' : 'cursor-grab'} ${selectedPlanPhotoId === photo.id ? 'ring-4 ring-cyan-300 ring-offset-2' : ''}`}
-                    title={`Abrir o mover ${elementLabel(photo)}`}
-                    aria-label={`Abrir o mover ${elementLabel(photo)}`}
+                    className={`absolute z-10 flex h-9 w-9 items-center justify-center rounded-full border-2 border-white text-white shadow-[0_3px_10px_rgba(6,36,58,0.35)] transition hover:scale-110 active:cursor-grabbing ${placement || creationMode ? 'pointer-events-none' : isMultipleSelectionMode ? 'cursor-pointer' : 'cursor-grab'} ${(isMultipleSelectionMode ? selectedPlanPhotoIds.includes(photo.id) : selectedPlanPhotoId === photo.id) ? 'ring-4 ring-cyan-300 ring-offset-2' : ''}`}
+                    title={isMultipleSelectionMode ? `Seleccionar ${elementLabel(photo)}` : `Abrir o mover ${elementLabel(photo)}`}
+                    aria-label={isMultipleSelectionMode ? `Seleccionar ${elementLabel(photo)}` : `Abrir o mover ${elementLabel(photo)}`}
                   >
                     <span className="material-symbols-outlined text-[18px]">{isCamera ? 'videocam' : 'inventory_2'}</span>
                   </button>
@@ -870,7 +932,29 @@ export const MapView: React.FC<MapViewProps> = ({
         )}
       </main>
 
-      {selectedPlanPhoto && !placementInstruction && (
+      {isMultipleSelectionMode && !placementInstruction && (
+        <aside className="absolute right-4 top-[138px] z-30 w-[min(88vw,320px)] border border-[#729bad] bg-white/95 p-3 shadow-[0_14px_32px_rgba(7,63,116,0.2)] backdrop-blur">
+          <div className="flex items-start justify-between gap-3 border-b border-[#d3e1e8] pb-2">
+            <div>
+              <p className="font-mono text-[9px] font-bold tracking-[0.14em] text-[#0b5d8c]">SELECCIÓN MÚLTIPLE</p>
+              <p className="mt-0.5 text-sm font-bold text-[#0b2940]">{selectedMultiplePlanPhotos.length} elemento{selectedMultiplePlanPhotos.length === 1 ? '' : 's'} seleccionado{selectedMultiplePlanPhotos.length === 1 ? '' : 's'}</p>
+            </div>
+            <button type="button" onClick={exitMultipleSelection} className="text-[#527284] transition hover:text-[#0b2940]" aria-label="Salir de la selección múltiple">
+              <span className="material-symbols-outlined text-[18px]">close</span>
+            </button>
+          </div>
+          <p className="mt-3 text-xs leading-5 text-[#547181]">Haz clic en los iconos para incluirlos o quitarlos de la selección. Haz clic en una zona vacía para limpiar la selección.</p>
+          <div className="mt-3 flex gap-2">
+            <button type="button" onClick={() => setSelectedPlanPhotoIds([])} disabled={!selectedMultiplePlanPhotos.length} className="inline-flex h-9 flex-1 items-center justify-center gap-1.5 border border-[#b4cbd8] bg-white px-3 text-xs font-bold text-[#315c70] transition hover:bg-[#eaf6fb] disabled:cursor-not-allowed disabled:opacity-40">Limpiar</button>
+            <button type="button" onClick={() => setPhotosPendingDeletion(selectedMultiplePlanPhotos)} disabled={!selectedMultiplePlanPhotos.length} className="inline-flex h-9 flex-1 items-center justify-center gap-1.5 bg-[#b42318] px-3 text-xs font-bold text-white transition hover:bg-[#8d1b13] disabled:cursor-not-allowed disabled:opacity-40">
+              <span className="material-symbols-outlined text-[16px]">delete</span>
+              Eliminar ({selectedMultiplePlanPhotos.length})
+            </button>
+          </div>
+        </aside>
+      )}
+
+      {selectedPlanPhoto && !placementInstruction && !isMultipleSelectionMode && (
         <aside className="absolute right-4 top-[138px] z-30 w-[min(88vw,300px)] border border-[#9dbbc9] bg-white/95 p-3 shadow-[0_14px_32px_rgba(7,63,116,0.2)] backdrop-blur">
           <div className="flex items-start justify-between gap-3 border-b border-[#d3e1e8] pb-2">
             <div className="min-w-0">
@@ -898,7 +982,7 @@ export const MapView: React.FC<MapViewProps> = ({
             </button>
             <button
               type="button"
-              onClick={() => setPhotoPendingDeletion(selectedPlanPhoto)}
+              onClick={() => setPhotosPendingDeletion([selectedPlanPhoto])}
               className="inline-flex h-9 w-9 items-center justify-center border border-[#f0b4b0] bg-[#fff7f6] text-[#b42318] transition hover:bg-[#ffdad6]"
               title="Eliminar elemento"
               aria-label={`Eliminar ${elementLabel(selectedPlanPhoto)}`}
@@ -909,37 +993,44 @@ export const MapView: React.FC<MapViewProps> = ({
         </aside>
       )}
 
-      {photoPendingDeletion && (
+      {photosPendingDeletion.length > 0 && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/45 p-4 backdrop-blur-sm">
           <section role="alertdialog" aria-modal="true" aria-labelledby="delete-element-title" className="w-full max-w-md border border-[#e4aaa5] bg-white shadow-[0_20px_60px_rgba(105,35,29,0.32)]">
             <div className="flex items-start gap-3 border-b border-[#f2d0cd] bg-[#fff5f4] px-5 py-4">
               <span className="material-symbols-outlined mt-0.5 text-[24px] text-[#b42318]">warning</span>
               <div>
                 <p className="font-mono text-[10px] font-bold tracking-[0.16em] text-[#8c2f27]">ELIMINAR DEL PLANO</p>
-                <h2 id="delete-element-title" className="mt-1 text-lg font-bold text-[#4a1714]">¿Eliminar este elemento?</h2>
+                <h2 id="delete-element-title" className="mt-1 text-lg font-bold text-[#4a1714]">¿Eliminar {photosPendingDeletion.length === 1 ? 'este elemento' : 'estos elementos'}?</h2>
               </div>
             </div>
             <div className="space-y-3 p-5">
               <p className="text-sm leading-6 text-[#5d3c39]">
-                Se eliminará <strong>{elementLabel(photoPendingDeletion)}</strong> del plano y de su registro de inspección. Esta acción no se puede deshacer.
+                {photosPendingDeletion.length === 1 ? (
+                  <>Se eliminará <strong>{elementLabel(photosPendingDeletion[0])}</strong> del plano y de su registro de inspección.</>
+                ) : (
+                  <>Se eliminarán <strong>{photosPendingDeletion.length} elementos</strong> del plano y de sus registros de inspección.</>
+                )} Esta acción no se puede deshacer.
               </p>
               <div className="rounded-lg border border-[#f0d2cf] bg-[#fff9f8] px-3 py-2 font-mono text-[10px] font-bold tracking-[0.1em] text-[#8c2f27]">
-                {getElementType(photoPendingDeletion).toUpperCase()} · REGISTRO {photoPendingDeletion.displayId || photoPendingDeletion.id}
+                {photosPendingDeletion.length === 1
+                  ? `${getElementType(photosPendingDeletion[0]).toUpperCase()} · REGISTRO ${photosPendingDeletion[0].displayId || photosPendingDeletion[0].id}`
+                  : `${photosPendingDeletion.map((photo) => elementLabel(photo)).slice(0, 3).join(' · ')}${photosPendingDeletion.length > 3 ? ` · +${photosPendingDeletion.length - 3}` : ''}`}
               </div>
             </div>
             <div className="flex justify-end gap-2 border-t border-[#f2d0cd] px-5 py-4">
-              <button type="button" onClick={() => setPhotoPendingDeletion(null)} className="h-9 border border-[#b4cbd8] bg-white px-3 text-xs font-bold text-[#315c70] transition hover:bg-[#eaf6fb]">Cancelar</button>
+              <button type="button" onClick={() => setPhotosPendingDeletion([])} className="h-9 border border-[#b4cbd8] bg-white px-3 text-xs font-bold text-[#315c70] transition hover:bg-[#eaf6fb]">Cancelar</button>
               <button
                 type="button"
                 onClick={() => {
-                  onDeletePhoto(photoPendingDeletion.id);
-                  setPhotoPendingDeletion(null);
+                  onDeletePhotos(photosPendingDeletion.map((photo) => photo.id));
+                  setPhotosPendingDeletion([]);
                   setSelectedPlanPhotoId(null);
+                  exitMultipleSelection();
                 }}
                 className="inline-flex h-9 items-center gap-1.5 bg-[#b42318] px-3 text-xs font-bold text-white transition hover:bg-[#8d1b13]"
               >
                 <span className="material-symbols-outlined text-[16px]">delete</span>
-                Eliminar elemento
+                Eliminar {photosPendingDeletion.length === 1 ? 'elemento' : `(${photosPendingDeletion.length})`}
               </button>
             </div>
           </section>
