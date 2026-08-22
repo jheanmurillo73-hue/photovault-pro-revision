@@ -49,3 +49,5 @@
 - [x] Permitir asignar y visualizar un color personalizado en cada tramo de tubería.
 - [x] Convertir el cuadro de propiedades de elementos del plano en un modal centrado.
 - [x] Retirar el fondo atenuado del modal para mantener visible el plano y el elemento seleccionado.
+- [x] Promover los últimos cambios publicados hacia desarrollo en GitHub.
+- [x] Implementar un restablecimiento administrativo de datos operativos sin eliminar perfiles, cuentas, roles ni permisos.
