@@ -892,11 +892,12 @@ export const MapView: React.FC<MapViewProps> = ({
               {positionedPhotos.map((photo) => {
                 if (getElementType(photo) !== 'tuberia' || !hasCompletePipe(photo)) return null;
                 const isMT = photo.cameraType === 'MT';
+                const pipeStroke = photo.pipeColor || (isMT ? 'url(#plan-mt)' : 'url(#plan-bt)');
                 const isSelected = !isMultipleSelectionMode && selectedPlanPhotoId === photo.id;
                 return (
                   <g key={`line-${photo.id}`}>
                     <line x1={photo.planX} y1={photo.planY} x2={photo.planEndX} y2={photo.planEndY} stroke="rgba(255,255,255,0.82)" strokeWidth="2.2" strokeLinecap="round" />
-                    <line x1={photo.planX} y1={photo.planY} x2={photo.planEndX} y2={photo.planEndY} stroke={isMT ? 'url(#plan-mt)' : 'url(#plan-bt)'} strokeWidth="1.1" strokeLinecap="round" />
+                    <line x1={photo.planX} y1={photo.planY} x2={photo.planEndX} y2={photo.planEndY} stroke={pipeStroke} strokeWidth="1.1" strokeLinecap="round" />
                     {isSelected && (
                       <>
                         <circle cx={photo.planX} cy={photo.planY} r="1.55" fill="#ffffff" stroke="#073f74" strokeWidth="0.7" />
@@ -1103,6 +1104,36 @@ export const MapView: React.FC<MapViewProps> = ({
               <div className="mt-3 flex items-center justify-between rounded-lg border border-[#b7d5e4] bg-[#eaf6fb] px-2.5 py-2">
                 <span className="font-mono text-[9px] font-bold tracking-[0.12em] text-[#527284]">LONGITUD {blueprint.calibration ? 'CALIBRADA' : 'REGISTRADA'}</span>
                 <span className="font-mono text-sm font-bold text-[#0b5d8c]">{Number.parseFloat(String(selectedPlanPhoto.metraje ?? 0)).toFixed(2)} m</span>
+              </div>
+              <div className="mt-3 border border-[#b7d5e4] bg-white p-2.5">
+                <div className="flex items-center justify-between gap-2">
+                  <div>
+                    <p className="font-mono text-[9px] font-bold tracking-[0.12em] text-[#0b5d8c]">COLOR DEL TRAMO</p>
+                    <p className="mt-0.5 text-[10px] text-[#547181]">Elige un color para diferenciar este tramo en el plano.</p>
+                  </div>
+                  <label className="relative flex h-9 w-12 shrink-0 cursor-pointer overflow-hidden border-2 border-white shadow-[0_0_0_1px_#8bb5c9]" title="Elegir color personalizado">
+                    <input
+                      type="color"
+                      value={selectedPlanPhoto.pipeColor || '#0d9fc6'}
+                      onChange={(event) => onUpdatePhoto({ ...selectedPlanPhoto, pipeColor: event.currentTarget.value.toUpperCase() })}
+                      className="absolute -inset-2 h-16 w-16 cursor-pointer border-0 bg-transparent p-0"
+                      aria-label="Elegir color del tramo"
+                    />
+                  </label>
+                </div>
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  {['#0D9FC6', '#0566AA', '#16A34A', '#EAB308', '#EA580C', '#DC2626', '#7C3AED', '#1F2937'].map((color) => (
+                    <button
+                      key={color}
+                      type="button"
+                      onClick={() => onUpdatePhoto({ ...selectedPlanPhoto, pipeColor: color })}
+                      className={`h-6 w-6 border-2 transition hover:scale-110 ${selectedPlanPhoto.pipeColor?.toUpperCase() === color ? 'border-[#073f74] ring-2 ring-cyan-300 ring-offset-1' : 'border-white shadow-[0_0_0_1px_#b4cbd8]'}`}
+                      style={{ backgroundColor: color }}
+                      title={`Asignar color ${color}`}
+                      aria-label={`Asignar color ${color}`}
+                    />
+                  ))}
+                </div>
               </div>
               <div className="mt-3 border border-[#b7d5e4] bg-[#f7fcfe] p-2.5">
                 <div className="flex items-center justify-between gap-2">

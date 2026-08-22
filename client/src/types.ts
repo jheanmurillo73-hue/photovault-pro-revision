@@ -55,6 +55,7 @@ export interface InspectionPhoto {
   actaLabelPosition?: ActaLabelPosition;
   tramo?: string;
   metraje?: number | string;
+  pipeColor?: string;
   latitude?: number;
   longitude?: number;
   endLatitude?: number;

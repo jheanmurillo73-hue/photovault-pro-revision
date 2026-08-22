@@ -317,6 +317,7 @@ export default function App() {
       cameraType: isCamera ? 'MT' : undefined,
       tramo: isPipeline ? '' : undefined,
       metraje: isPipeline ? initialMetraje ?? 0 : undefined,
+      pipeColor: isPipeline ? '#0d9fc6' : undefined,
       ...position,
       inspectorName: inspector.name,
       inspectorId: inspector.id,
