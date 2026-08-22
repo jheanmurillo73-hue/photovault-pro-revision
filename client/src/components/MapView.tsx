@@ -1089,16 +1089,29 @@ export const MapView: React.FC<MapViewProps> = ({
       )}
 
       {selectedPlanPhoto && !placementInstruction && !isMultipleSelectionMode && (
-        <aside className="absolute right-4 top-[138px] z-30 w-[min(88vw,300px)] border border-[#9dbbc9] bg-white/95 p-3 shadow-[0_14px_32px_rgba(7,63,116,0.2)] backdrop-blur">
-          <div className="flex items-start justify-between gap-3 border-b border-[#d3e1e8] pb-2">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" role="presentation">
+          <button
+            type="button"
+            className="absolute inset-0 cursor-default bg-slate-950/45 backdrop-blur-sm"
+            onClick={() => setSelectedPlanPhotoId(null)}
+            aria-label="Cerrar propiedades del elemento"
+          />
+          <aside
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="selected-element-title"
+            className="relative z-10 flex max-h-[min(86vh,720px)] w-full max-w-lg flex-col overflow-hidden border border-[#8eb4c7] bg-white shadow-[0_24px_72px_rgba(7,63,116,0.34)]"
+          >
+          <div className="flex items-start justify-between gap-3 border-b border-[#d3e1e8] bg-[#f4fbfe] px-5 py-4">
             <div className="min-w-0">
               <p className="font-mono text-[9px] font-bold tracking-[0.14em] text-[#527284]">ELEMENTO SELECCIONADO</p>
-              <p className="mt-0.5 truncate text-sm font-bold text-[#0b2940]">{elementLabel(selectedPlanPhoto)}</p>
+              <h2 id="selected-element-title" className="mt-0.5 truncate text-lg font-bold text-[#0b2940]">{elementLabel(selectedPlanPhoto)}</h2>
             </div>
-            <button type="button" onClick={() => setSelectedPlanPhotoId(null)} className="text-[#527284] transition hover:text-[#0b2940]" aria-label="Cerrar propiedades del elemento">
-              <span className="material-symbols-outlined text-[18px]">close</span>
+            <button type="button" onClick={() => setSelectedPlanPhotoId(null)} className="flex h-9 w-9 shrink-0 items-center justify-center border border-[#b4cbd8] bg-white text-[#315c70] transition hover:bg-[#eaf6fb]" aria-label="Cerrar propiedades del elemento">
+              <span className="material-symbols-outlined text-[20px]">close</span>
             </button>
           </div>
+          <div className="min-h-0 overflow-y-auto px-5 py-4">
           {getElementType(selectedPlanPhoto) === 'tuberia' && (
             <>
               <div className="mt-3 flex items-center justify-between rounded-lg border border-[#b7d5e4] bg-[#eaf6fb] px-2.5 py-2">
@@ -1199,7 +1212,7 @@ export const MapView: React.FC<MapViewProps> = ({
               </button>
             </div>
           )}
-          <div className="mt-3 grid grid-cols-[1fr_1fr_auto] gap-2">
+          <div className="mt-4 grid grid-cols-[1fr_1fr_auto] gap-2 border-t border-[#d3e1e8] pt-4">
             <button type="button" onClick={() => onEditPhoto(selectedPlanPhoto)} className="inline-flex h-9 items-center justify-center gap-1.5 bg-[#0566aa] px-3 text-xs font-bold text-white transition hover:bg-[#004d84]">
               <span className="material-symbols-outlined text-[16px]">edit</span>
               Propiedades
@@ -1218,7 +1231,9 @@ export const MapView: React.FC<MapViewProps> = ({
               <span className="material-symbols-outlined text-[18px]">delete</span>
             </button>
           </div>
+          </div>
         </aside>
+        </div>
       )}
 
       {photosPendingDeletion.length > 0 && (

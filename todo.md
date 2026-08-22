@@ -47,3 +47,4 @@
 - [x] Reconciliar la copia local con main de GitHub conservando las mejoras verificadas.
 - [x] Promover los últimos cambios validados hacia la rama desarrollo en GitHub.
 - [x] Permitir asignar y visualizar un color personalizado en cada tramo de tubería.
+- [x] Convertir el cuadro de propiedades de elementos del plano en un modal centrado.
