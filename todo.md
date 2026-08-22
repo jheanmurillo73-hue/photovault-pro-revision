@@ -37,3 +37,4 @@
 - [x] Mostrar el nombre del acta asignada junto al elemento correspondiente en el plano.
 - [x] Añadir controles porcentuales independientes para reducir o ampliar iconos y textos del plano.
 - [x] Reforzar la marca modular, los estados por categoría y los módulos de autorización en el acceso.
+- [x] Acercar los rótulos de acta a iconos y tramos del plano.

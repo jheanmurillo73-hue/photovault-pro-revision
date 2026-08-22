@@ -901,7 +901,7 @@ export const MapView: React.FC<MapViewProps> = ({
                     {actaName && (
                       <span
                         className="pointer-events-none absolute z-20 flex max-w-[150px] items-center gap-1 whitespace-nowrap rounded-md border border-[#0b5d8c]/35 bg-white/95 px-1.5 py-1 font-mono text-[9px] font-bold text-[#0b4770] shadow-[0_3px_10px_rgba(7,63,116,0.24)]"
-                        style={{ left: `${midpointX}%`, top: `${midpointY}%`, transform: `translate(${16 + iconScale * 10}px, -50%) scale(${textScale})`, transformOrigin: 'left center' }}
+                        style={{ left: `${midpointX}%`, top: `${midpointY}%`, transform: `translate(${4 + iconScale * 16}px, -50%) scale(${textScale})`, transformOrigin: 'left center' }}
                         title={actaName}
                       >
                         <span className="material-symbols-outlined text-[13px]">assignment</span>
@@ -944,7 +944,7 @@ export const MapView: React.FC<MapViewProps> = ({
                   {actaName && (
                     <span
                       className="pointer-events-none absolute z-20 flex max-w-[150px] items-center gap-1 whitespace-nowrap rounded-md border border-[#0b5d8c]/35 bg-white/95 px-1.5 py-1 font-mono text-[9px] font-bold text-[#0b4770] shadow-[0_3px_10px_rgba(7,63,116,0.24)]"
-                      style={{ left: `${photo.planX}%`, top: `${photo.planY}%`, transform: `translate(${18 + iconScale * 11}px, -50%) scale(${textScale})`, transformOrigin: 'left center' }}
+                      style={{ left: `${photo.planX}%`, top: `${photo.planY}%`, transform: `translate(${4 + iconScale * 18}px, -50%) scale(${textScale})`, transformOrigin: 'left center' }}
                       title={actaName}
                     >
                       <span className="material-symbols-outlined text-[13px]">assignment</span>

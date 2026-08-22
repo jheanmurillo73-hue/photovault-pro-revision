@@ -28,3 +28,4 @@
 - El plano muestra controles independientes para reducir y ampliar los iconos y los textos visibles, con sus porcentajes por separado.
 - Al reducir los iconos, el control actualizó la lectura a **80%**; el control de textos mantuvo su escala independiente en **50%**.
 - La estación de acceso incorpora el identificador modular TRK-01, la lectura NODOS-03, canales funcionales de categoría y una cabecera de lectura de credencial.
+- El rótulo de **Acta 11** se muestra más próximo a su marcador, manteniendo un margen proporcional al tamaño del icono.
