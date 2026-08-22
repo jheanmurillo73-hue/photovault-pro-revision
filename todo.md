@@ -45,3 +45,7 @@
 - [x] Eliminar los bloques de canales y pasos operativos del formulario de ingreso.
 - [x] Mejorar el trazado y el posicionamiento detallado de los tramos de tubería en el plano.
 - [x] Reconciliar la copia local con main de GitHub conservando las mejoras verificadas.
+- [x] Promover los últimos cambios validados hacia la rama desarrollo en GitHub.
+- [x] Permitir asignar y visualizar un color personalizado en cada tramo de tubería.
+- [x] Convertir el cuadro de propiedades de elementos del plano en un modal centrado.
+- [x] Retirar el fondo atenuado del modal para mantener visible el plano y el elemento seleccionado.

@@ -892,11 +892,12 @@ export const MapView: React.FC<MapViewProps> = ({
               {positionedPhotos.map((photo) => {
                 if (getElementType(photo) !== 'tuberia' || !hasCompletePipe(photo)) return null;
                 const isMT = photo.cameraType === 'MT';
+                const pipeStroke = photo.pipeColor || (isMT ? 'url(#plan-mt)' : 'url(#plan-bt)');
                 const isSelected = !isMultipleSelectionMode && selectedPlanPhotoId === photo.id;
                 return (
                   <g key={`line-${photo.id}`}>
                     <line x1={photo.planX} y1={photo.planY} x2={photo.planEndX} y2={photo.planEndY} stroke="rgba(255,255,255,0.82)" strokeWidth="2.2" strokeLinecap="round" />
-                    <line x1={photo.planX} y1={photo.planY} x2={photo.planEndX} y2={photo.planEndY} stroke={isMT ? 'url(#plan-mt)' : 'url(#plan-bt)'} strokeWidth="1.1" strokeLinecap="round" />
+                    <line x1={photo.planX} y1={photo.planY} x2={photo.planEndX} y2={photo.planEndY} stroke={pipeStroke} strokeWidth="1.1" strokeLinecap="round" />
                     {isSelected && (
                       <>
                         <circle cx={photo.planX} cy={photo.planY} r="1.55" fill="#ffffff" stroke="#073f74" strokeWidth="0.7" />
@@ -1088,21 +1089,64 @@ export const MapView: React.FC<MapViewProps> = ({
       )}
 
       {selectedPlanPhoto && !placementInstruction && !isMultipleSelectionMode && (
-        <aside className="absolute right-4 top-[138px] z-30 w-[min(88vw,300px)] border border-[#9dbbc9] bg-white/95 p-3 shadow-[0_14px_32px_rgba(7,63,116,0.2)] backdrop-blur">
-          <div className="flex items-start justify-between gap-3 border-b border-[#d3e1e8] pb-2">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" role="presentation">
+          <button
+            type="button"
+            className="absolute inset-0 cursor-default bg-transparent"
+            onClick={() => setSelectedPlanPhotoId(null)}
+            aria-label="Cerrar propiedades del elemento"
+          />
+          <aside
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="selected-element-title"
+            className="relative z-10 flex max-h-[min(86vh,720px)] w-full max-w-lg flex-col overflow-hidden border border-[#8eb4c7] bg-white shadow-[0_24px_72px_rgba(7,63,116,0.34)]"
+          >
+          <div className="flex items-start justify-between gap-3 border-b border-[#d3e1e8] bg-[#f4fbfe] px-5 py-4">
             <div className="min-w-0">
               <p className="font-mono text-[9px] font-bold tracking-[0.14em] text-[#527284]">ELEMENTO SELECCIONADO</p>
-              <p className="mt-0.5 truncate text-sm font-bold text-[#0b2940]">{elementLabel(selectedPlanPhoto)}</p>
+              <h2 id="selected-element-title" className="mt-0.5 truncate text-lg font-bold text-[#0b2940]">{elementLabel(selectedPlanPhoto)}</h2>
             </div>
-            <button type="button" onClick={() => setSelectedPlanPhotoId(null)} className="text-[#527284] transition hover:text-[#0b2940]" aria-label="Cerrar propiedades del elemento">
-              <span className="material-symbols-outlined text-[18px]">close</span>
+            <button type="button" onClick={() => setSelectedPlanPhotoId(null)} className="flex h-9 w-9 shrink-0 items-center justify-center border border-[#b4cbd8] bg-white text-[#315c70] transition hover:bg-[#eaf6fb]" aria-label="Cerrar propiedades del elemento">
+              <span className="material-symbols-outlined text-[20px]">close</span>
             </button>
           </div>
+          <div className="min-h-0 overflow-y-auto px-5 py-4">
           {getElementType(selectedPlanPhoto) === 'tuberia' && (
             <>
               <div className="mt-3 flex items-center justify-between rounded-lg border border-[#b7d5e4] bg-[#eaf6fb] px-2.5 py-2">
                 <span className="font-mono text-[9px] font-bold tracking-[0.12em] text-[#527284]">LONGITUD {blueprint.calibration ? 'CALIBRADA' : 'REGISTRADA'}</span>
                 <span className="font-mono text-sm font-bold text-[#0b5d8c]">{Number.parseFloat(String(selectedPlanPhoto.metraje ?? 0)).toFixed(2)} m</span>
+              </div>
+              <div className="mt-3 border border-[#b7d5e4] bg-white p-2.5">
+                <div className="flex items-center justify-between gap-2">
+                  <div>
+                    <p className="font-mono text-[9px] font-bold tracking-[0.12em] text-[#0b5d8c]">COLOR DEL TRAMO</p>
+                    <p className="mt-0.5 text-[10px] text-[#547181]">Elige un color para diferenciar este tramo en el plano.</p>
+                  </div>
+                  <label className="relative flex h-9 w-12 shrink-0 cursor-pointer overflow-hidden border-2 border-white shadow-[0_0_0_1px_#8bb5c9]" title="Elegir color personalizado">
+                    <input
+                      type="color"
+                      value={selectedPlanPhoto.pipeColor || '#0d9fc6'}
+                      onChange={(event) => onUpdatePhoto({ ...selectedPlanPhoto, pipeColor: event.currentTarget.value.toUpperCase() })}
+                      className="absolute -inset-2 h-16 w-16 cursor-pointer border-0 bg-transparent p-0"
+                      aria-label="Elegir color del tramo"
+                    />
+                  </label>
+                </div>
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  {['#0D9FC6', '#0566AA', '#16A34A', '#EAB308', '#EA580C', '#DC2626', '#7C3AED', '#1F2937'].map((color) => (
+                    <button
+                      key={color}
+                      type="button"
+                      onClick={() => onUpdatePhoto({ ...selectedPlanPhoto, pipeColor: color })}
+                      className={`h-6 w-6 border-2 transition hover:scale-110 ${selectedPlanPhoto.pipeColor?.toUpperCase() === color ? 'border-[#073f74] ring-2 ring-cyan-300 ring-offset-1' : 'border-white shadow-[0_0_0_1px_#b4cbd8]'}`}
+                      style={{ backgroundColor: color }}
+                      title={`Asignar color ${color}`}
+                      aria-label={`Asignar color ${color}`}
+                    />
+                  ))}
+                </div>
               </div>
               <div className="mt-3 border border-[#b7d5e4] bg-[#f7fcfe] p-2.5">
                 <div className="flex items-center justify-between gap-2">
@@ -1168,7 +1212,7 @@ export const MapView: React.FC<MapViewProps> = ({
               </button>
             </div>
           )}
-          <div className="mt-3 grid grid-cols-[1fr_1fr_auto] gap-2">
+          <div className="mt-4 grid grid-cols-[1fr_1fr_auto] gap-2 border-t border-[#d3e1e8] pt-4">
             <button type="button" onClick={() => onEditPhoto(selectedPlanPhoto)} className="inline-flex h-9 items-center justify-center gap-1.5 bg-[#0566aa] px-3 text-xs font-bold text-white transition hover:bg-[#004d84]">
               <span className="material-symbols-outlined text-[16px]">edit</span>
               Propiedades
@@ -1187,7 +1231,9 @@ export const MapView: React.FC<MapViewProps> = ({
               <span className="material-symbols-outlined text-[18px]">delete</span>
             </button>
           </div>
+          </div>
         </aside>
+        </div>
       )}
 
       {photosPendingDeletion.length > 0 && (
