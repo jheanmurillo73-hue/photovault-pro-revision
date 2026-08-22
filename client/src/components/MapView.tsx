@@ -1092,7 +1092,7 @@ export const MapView: React.FC<MapViewProps> = ({
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4" role="presentation">
           <button
             type="button"
-            className="absolute inset-0 cursor-default bg-slate-950/45 backdrop-blur-sm"
+            className="absolute inset-0 cursor-default bg-transparent"
             onClick={() => setSelectedPlanPhotoId(null)}
             aria-label="Cerrar propiedades del elemento"
           />
