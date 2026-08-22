@@ -856,40 +856,53 @@ export const MapView: React.FC<MapViewProps> = ({
                 if (!hasCompletePipe(photo)) return null;
                 const midpointX = (photo.planX! + photo.planEndX!) / 2;
                 const midpointY = (photo.planY! + photo.planEndY!) / 2;
+                const actaName = photo.acta?.trim();
                 return (
-                  <button
-                    key={photo.id}
-                    type="button"
-                    draggable={!placement && !isMultipleSelectionMode}
-                    onDragStart={(event) => startDragging(event, photo, 'plan')}
-                    onDragEnd={() => {
-                      dragTargetRef.current = null;
-                      setDragTarget(null);
-                    }}
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      if (placement || creationMode) return;
-                      if (isMultipleSelectionMode) {
-                        togglePlanPhotoSelection(photo.id);
-                      } else {
-                        setSelectedPlanPhotoId(photo.id);
-                      }
-                    }}
-                    style={{ left: `${midpointX}%`, top: `${midpointY}%`, transform: `translate(-50%, -50%) scale(${iconScale})` }}
-                    className={`absolute z-10 flex h-8 w-8 items-center justify-center rounded-full border-2 border-white bg-[#073f74] text-white shadow-lg transition hover:scale-110 active:cursor-grabbing ${placement || creationMode ? 'pointer-events-none' : isMultipleSelectionMode ? 'cursor-pointer' : 'cursor-grab'} ${(isMultipleSelectionMode ? selectedPlanPhotoIds.includes(photo.id) : selectedPlanPhotoId === photo.id) ? 'ring-4 ring-cyan-300 ring-offset-2' : ''}`}
-                    title={isMultipleSelectionMode ? `Seleccionar ${elementLabel(photo)}` : `Abrir o mover ${elementLabel(photo)}`}
-                    aria-label={isMultipleSelectionMode ? `Seleccionar ${elementLabel(photo)}` : `Abrir o mover ${elementLabel(photo)}`}
-                  >
-                    <span className="material-symbols-outlined text-[18px]">timeline</span>
-                  </button>
+                  <React.Fragment key={photo.id}>
+                    <button
+                      type="button"
+                      draggable={!placement && !isMultipleSelectionMode}
+                      onDragStart={(event) => startDragging(event, photo, 'plan')}
+                      onDragEnd={() => {
+                        dragTargetRef.current = null;
+                        setDragTarget(null);
+                      }}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        if (placement || creationMode) return;
+                        if (isMultipleSelectionMode) {
+                          togglePlanPhotoSelection(photo.id);
+                        } else {
+                          setSelectedPlanPhotoId(photo.id);
+                        }
+                      }}
+                      style={{ left: `${midpointX}%`, top: `${midpointY}%`, transform: `translate(-50%, -50%) scale(${iconScale})` }}
+                      className={`absolute z-10 flex h-8 w-8 items-center justify-center rounded-full border-2 border-white bg-[#073f74] text-white shadow-lg transition hover:scale-110 active:cursor-grabbing ${placement || creationMode ? 'pointer-events-none' : isMultipleSelectionMode ? 'cursor-pointer' : 'cursor-grab'} ${(isMultipleSelectionMode ? selectedPlanPhotoIds.includes(photo.id) : selectedPlanPhotoId === photo.id) ? 'ring-4 ring-cyan-300 ring-offset-2' : ''}`}
+                      title={isMultipleSelectionMode ? `Seleccionar ${elementLabel(photo)}` : `Abrir o mover ${elementLabel(photo)}`}
+                      aria-label={isMultipleSelectionMode ? `Seleccionar ${elementLabel(photo)}` : `Abrir o mover ${elementLabel(photo)}`}
+                    >
+                      <span className="material-symbols-outlined text-[18px]">timeline</span>
+                    </button>
+                    {actaName && (
+                      <span
+                        className="pointer-events-none absolute z-20 flex max-w-[150px] items-center gap-1 whitespace-nowrap rounded-md border border-[#0b5d8c]/35 bg-white/95 px-1.5 py-1 font-mono text-[9px] font-bold text-[#0b4770] shadow-[0_3px_10px_rgba(7,63,116,0.24)]"
+                        style={{ left: `${midpointX}%`, top: `${midpointY}%`, transform: `translate(${16 + iconScale * 10}px, -50%) scale(${Math.min(iconScale, 1.15)})`, transformOrigin: 'left center' }}
+                        title={actaName}
+                      >
+                        <span className="material-symbols-outlined text-[13px]">assignment</span>
+                        <span className="truncate">{actaName}</span>
+                      </span>
+                    )}
+                  </React.Fragment>
                 );
               }
 
               const isCamera = type === 'camara';
               const markerColor = isCamera ? (photo.cameraType === 'BT' ? '#b94324' : '#0566aa') : '#b77812';
+              const actaName = photo.acta?.trim();
               return (
+                <React.Fragment key={photo.id}>
                   <button
-                    key={photo.id}
                     type="button"
                     draggable={!placement && !isMultipleSelectionMode}
                     onDragStart={(event) => startDragging(event, photo, 'plan')}
@@ -913,6 +926,17 @@ export const MapView: React.FC<MapViewProps> = ({
                   >
                     <span className="material-symbols-outlined text-[18px]">{isCamera ? 'videocam' : 'inventory_2'}</span>
                   </button>
+                  {actaName && (
+                    <span
+                      className="pointer-events-none absolute z-20 flex max-w-[150px] items-center gap-1 whitespace-nowrap rounded-md border border-[#0b5d8c]/35 bg-white/95 px-1.5 py-1 font-mono text-[9px] font-bold text-[#0b4770] shadow-[0_3px_10px_rgba(7,63,116,0.24)]"
+                      style={{ left: `${photo.planX}%`, top: `${photo.planY}%`, transform: `translate(${18 + iconScale * 11}px, -50%) scale(${Math.min(iconScale, 1.15)})`, transformOrigin: 'left center' }}
+                      title={actaName}
+                    >
+                      <span className="material-symbols-outlined text-[13px]">assignment</span>
+                      <span className="truncate">{actaName}</span>
+                    </span>
+                  )}
+                </React.Fragment>
               );
             })}
             </div>

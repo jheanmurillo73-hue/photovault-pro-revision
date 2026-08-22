@@ -24,3 +24,4 @@
 - Al reabrir el editor, **Acta 11** siguió disponible en el listbox y pudo seleccionarse para el elemento de prueba.
 - La asignación de **Acta 11** se guardó en la caja de prueba; la aplicación confirmó la actualización del registro.
 - La verificación tras reabrir propiedades confirmó que el elemento conserva la asignación **Acta 11**.
+- El plano muestra **Acta 11** junto al marcador de la caja asignada, con un rótulo compacto que no bloquea la selección.
