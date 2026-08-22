@@ -78,3 +78,6 @@ Un símbolo modular de tres nodos conectados por una retícula técnica: un lent
 - La micro-leyenda de acceso nombra siempre el código funcional completo: cian/cámara, ámbar/caja y violeta grisáceo/tubería.
 - El wordmark integra cortes y módulos del símbolo de tres nodos; nunca se presenta como texto plano sin señal gráfica.
 - Toda microcopia secundaria del acceso describe autorización, credencial, inspección o carga de contexto de plano.
+- El wordmark incorpora una lectura de nodo técnico identificable (TRK-01 / NODOS-03) y conectores cian, ámbar y violeta derivados del símbolo modular.
+- Los canales cian, ámbar y violeta se presentan como módulos funcionales de datos, control y validación antes del formulario de acceso.
+- El ingreso se estructura como una lectura de credencial con canal, sello y estado operativo, en lugar de campos web aislados.

@@ -142,7 +142,11 @@ export const MapView: React.FC<MapViewProps> = ({
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
   const [iconScale, setIconScale] = useState<number>(() => {
     const saved = Number(localStorage.getItem('photovault_plan_icon_scale'));
-    return Number.isFinite(saved) ? clampScale(saved, 0.7, 1.8) : 1;
+    return Number.isFinite(saved) ? clampScale(saved, 0.4, 1.8) : 1;
+  });
+  const [textScale, setTextScale] = useState<number>(() => {
+    const saved = Number(localStorage.getItem('photovault_plan_text_scale'));
+    return Number.isFinite(saved) ? clampScale(saved, 0.5, 1.8) : 1;
   });
   const [blueprintStorageNotice, setBlueprintStorageNotice] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -204,6 +208,14 @@ export const MapView: React.FC<MapViewProps> = ({
       // La escala permanece disponible durante la sesión aunque el navegador no permita persistirla.
     }
   }, [iconScale]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('photovault_plan_text_scale', String(textScale));
+    } catch {
+      // La escala de textos queda disponible en la sesión aunque no pueda persistirse.
+    }
+  }, [textScale]);
 
   useEffect(() => {
     if (!isPanelOpen) return;
@@ -572,7 +584,10 @@ export const MapView: React.FC<MapViewProps> = ({
     }));
   };
   const adjustIconScale = (difference: number) => {
-    setIconScale((previous) => clampScale(previous + difference, 0.7, 1.8));
+    setIconScale((previous) => clampScale(previous + difference, 0.4, 1.8));
+  };
+  const adjustTextScale = (difference: number) => {
+    setTextScale((previous) => clampScale(previous + difference, 0.5, 1.8));
   };
 
   const pipePreviewDistance = useMemo(() => {
@@ -825,8 +840,8 @@ export const MapView: React.FC<MapViewProps> = ({
 
             {pipePreviewDistance !== null && pipePreviewMidpoint && (
               <div
-                className="pointer-events-none absolute z-20 -translate-x-1/2 -translate-y-1/2 rounded-full border border-[#f8d878] bg-[#0b2940]/95 px-2.5 py-1 font-mono text-[10px] font-bold text-white shadow-lg"
-                style={{ left: `${pipePreviewMidpoint.planX}%`, top: `${pipePreviewMidpoint.planY}%` }}
+                className="pointer-events-none absolute z-20 rounded-full border border-[#f8d878] bg-[#0b2940]/95 px-2.5 py-1 font-mono text-[10px] font-bold text-white shadow-lg"
+                style={{ left: `${pipePreviewMidpoint.planX}%`, top: `${pipePreviewMidpoint.planY}%`, transform: `translate(-50%, -50%) scale(${textScale})`, transformOrigin: 'center' }}
               >
                 ↔ {pipePreviewDistance.toFixed(1)}% del plano
               </div>
@@ -834,8 +849,8 @@ export const MapView: React.FC<MapViewProps> = ({
 
             {pipePreviewMeters !== null && pipePreviewMidpoint && (
               <div
-                className="pointer-events-none absolute z-20 -translate-x-1/2 translate-y-4 rounded-full border border-cyan-300 bg-[#0566aa]/95 px-2.5 py-1 font-mono text-[10px] font-bold text-white shadow-lg"
-                style={{ left: `${pipePreviewMidpoint.planX}%`, top: `${pipePreviewMidpoint.planY}%` }}
+                className="pointer-events-none absolute z-20 rounded-full border border-cyan-300 bg-[#0566aa]/95 px-2.5 py-1 font-mono text-[10px] font-bold text-white shadow-lg"
+                style={{ left: `${pipePreviewMidpoint.planX}%`, top: `${pipePreviewMidpoint.planY}%`, transform: `translate(-50%, calc(-50% + 16px)) scale(${textScale})`, transformOrigin: 'center' }}
               >
                 ↔ {pipePreviewMeters.toFixed(2)} m
               </div>
@@ -843,8 +858,8 @@ export const MapView: React.FC<MapViewProps> = ({
 
             {calibrationPreviewDistance !== null && calibrationPreviewMidpoint && (
               <div
-                className="pointer-events-none absolute z-20 -translate-x-1/2 -translate-y-1/2 rounded-full border border-[#f8d878] bg-[#0b2940]/95 px-2.5 py-1 font-mono text-[10px] font-bold text-white shadow-lg"
-                style={{ left: `${calibrationPreviewMidpoint.planX}%`, top: `${calibrationPreviewMidpoint.planY}%` }}
+                className="pointer-events-none absolute z-20 rounded-full border border-[#f8d878] bg-[#0b2940]/95 px-2.5 py-1 font-mono text-[10px] font-bold text-white shadow-lg"
+                style={{ left: `${calibrationPreviewMidpoint.planX}%`, top: `${calibrationPreviewMidpoint.planY}%`, transform: `translate(-50%, -50%) scale(${textScale})`, transformOrigin: 'center' }}
               >
                 REF. {calibrationPreviewDistance.toFixed(1)}% del plano
               </div>
@@ -886,7 +901,7 @@ export const MapView: React.FC<MapViewProps> = ({
                     {actaName && (
                       <span
                         className="pointer-events-none absolute z-20 flex max-w-[150px] items-center gap-1 whitespace-nowrap rounded-md border border-[#0b5d8c]/35 bg-white/95 px-1.5 py-1 font-mono text-[9px] font-bold text-[#0b4770] shadow-[0_3px_10px_rgba(7,63,116,0.24)]"
-                        style={{ left: `${midpointX}%`, top: `${midpointY}%`, transform: `translate(${16 + iconScale * 10}px, -50%) scale(${Math.min(iconScale, 1.15)})`, transformOrigin: 'left center' }}
+                        style={{ left: `${midpointX}%`, top: `${midpointY}%`, transform: `translate(${16 + iconScale * 10}px, -50%) scale(${textScale})`, transformOrigin: 'left center' }}
                         title={actaName}
                       >
                         <span className="material-symbols-outlined text-[13px]">assignment</span>
@@ -929,7 +944,7 @@ export const MapView: React.FC<MapViewProps> = ({
                   {actaName && (
                     <span
                       className="pointer-events-none absolute z-20 flex max-w-[150px] items-center gap-1 whitespace-nowrap rounded-md border border-[#0b5d8c]/35 bg-white/95 px-1.5 py-1 font-mono text-[9px] font-bold text-[#0b4770] shadow-[0_3px_10px_rgba(7,63,116,0.24)]"
-                      style={{ left: `${photo.planX}%`, top: `${photo.planY}%`, transform: `translate(${18 + iconScale * 11}px, -50%) scale(${Math.min(iconScale, 1.15)})`, transformOrigin: 'left center' }}
+                      style={{ left: `${photo.planX}%`, top: `${photo.planY}%`, transform: `translate(${18 + iconScale * 11}px, -50%) scale(${textScale})`, transformOrigin: 'left center' }}
                       title={actaName}
                     >
                       <span className="material-symbols-outlined text-[13px]">assignment</span>
@@ -1147,7 +1162,7 @@ export const MapView: React.FC<MapViewProps> = ({
 
       <div className="absolute bottom-4 right-4 z-20 flex items-center gap-2">
         {blueprint.imageUrl && (
-          <div className="flex items-center divide-x divide-[#c7d7df] overflow-hidden rounded-xl border border-[#c7d7df] bg-white/95 shadow-sm">
+          <div className="flex max-w-[calc(100vw-2rem)] flex-wrap items-center divide-x divide-[#c7d7df] overflow-hidden rounded-xl border border-[#c7d7df] bg-white/95 shadow-sm">
             <div className="flex items-center gap-1.5 px-2 py-1.5">
               <span className="material-symbols-outlined text-[16px] text-[#0566aa]">zoom_in</span>
               <span className="font-mono text-[10px] font-bold text-[#355c70]">PLANO {Math.round(planScale * 100)}%</span>
@@ -1161,10 +1176,20 @@ export const MapView: React.FC<MapViewProps> = ({
             <div className="flex items-center gap-1.5 px-2 py-1.5">
               <span className="material-symbols-outlined text-[16px] text-[#b77812]">ads_click</span>
               <span className="font-mono text-[10px] font-bold text-[#355c70]">ICONOS {Math.round(iconScale * 100)}%</span>
-              <button type="button" onClick={() => adjustIconScale(-0.1)} disabled={iconScale <= 0.7} className="flex h-6 w-6 items-center justify-center rounded text-[#285b72] transition hover:bg-[#eaf6fb] disabled:cursor-not-allowed disabled:opacity-35" aria-label="Reducir tamaño de los iconos" title="Reducir iconos">
+              <button type="button" onClick={() => adjustIconScale(-0.1)} disabled={iconScale <= 0.4} className="flex h-6 w-6 items-center justify-center rounded text-[#285b72] transition hover:bg-[#eaf6fb] disabled:cursor-not-allowed disabled:opacity-35" aria-label="Reducir tamaño de los iconos" title="Reducir iconos">
                 <span className="material-symbols-outlined text-[16px]">remove</span>
               </button>
               <button type="button" onClick={() => adjustIconScale(0.1)} disabled={iconScale >= 1.8} className="flex h-6 w-6 items-center justify-center rounded text-[#285b72] transition hover:bg-[#eaf6fb] disabled:cursor-not-allowed disabled:opacity-35" aria-label="Aumentar tamaño de los iconos" title="Aumentar iconos">
+                <span className="material-symbols-outlined text-[16px]">add</span>
+              </button>
+            </div>
+            <div className="flex items-center gap-1.5 px-2 py-1.5">
+              <span className="material-symbols-outlined text-[16px] text-[#0b5d8c]">text_fields</span>
+              <span className="font-mono text-[10px] font-bold text-[#355c70]">TEXTOS {Math.round(textScale * 100)}%</span>
+              <button type="button" onClick={() => adjustTextScale(-0.1)} disabled={textScale <= 0.5} className="flex h-6 w-6 items-center justify-center rounded text-[#285b72] transition hover:bg-[#eaf6fb] disabled:cursor-not-allowed disabled:opacity-35" aria-label="Reducir tamaño de los textos del plano" title="Reducir textos">
+                <span className="material-symbols-outlined text-[16px]">remove</span>
+              </button>
+              <button type="button" onClick={() => adjustTextScale(0.1)} disabled={textScale >= 1.8} className="flex h-6 w-6 items-center justify-center rounded text-[#285b72] transition hover:bg-[#eaf6fb] disabled:cursor-not-allowed disabled:opacity-35" aria-label="Aumentar tamaño de los textos del plano" title="Aumentar textos">
                 <span className="material-symbols-outlined text-[16px]">add</span>
               </button>
             </div>

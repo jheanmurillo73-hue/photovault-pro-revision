@@ -35,3 +35,5 @@
 - [x] Permitir selección múltiple de elementos y eliminación por lote desde el plano.
 - [x] Añadir un listbox de actas al editor de propiedades, con Acta 1 a Acta 10 y creación de nuevas actas.
 - [x] Mostrar el nombre del acta asignada junto al elemento correspondiente en el plano.
+- [x] Añadir controles porcentuales independientes para reducir o ampliar iconos y textos del plano.
+- [x] Reforzar la marca modular, los estados por categoría y los módulos de autorización en el acceso.

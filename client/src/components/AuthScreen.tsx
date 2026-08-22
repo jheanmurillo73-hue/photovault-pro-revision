@@ -377,7 +377,9 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
                   <span className="flex shrink-0 items-center gap-1" aria-hidden="true"><i className="h-2 w-2 rounded-full border-2 border-cyan-200" /><i className="h-2 w-2 border-2 border-amber-300" /><i className="h-0.5 w-3 bg-violet-200" /></span>
                   <span className="relative whitespace-nowrap text-cyan-100 after:absolute after:-bottom-1 after:left-0 after:h-px after:w-4 after:bg-cyan-300">TRACKING</span><span className="mx-0.5 shrink-0 text-white/35">/</span><span className="whitespace-nowrap tracking-[0.06em]">LA NUBIA</span>
                 </h1>
-                <span className="mt-1 block font-mono text-[9px] tracking-[0.18em] text-cyan-100/70">NODO · CAJA · TRAZADO</span>
+                <div className="mt-2 flex items-center gap-2 font-mono text-[8px] font-bold tracking-[0.18em] text-cyan-100/75">
+                  <span>TRK-01</span><span className="h-px w-5 bg-cyan-300/80" /><span className="text-amber-200">NODOS / 03</span><span className="h-px w-4 bg-violet-200/80" /><span>NODO · CAJA · TRAZADO</span>
+                </div>
               </div>
             </div>
             <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-cyan-100/20 pt-2 font-mono text-[8px] font-bold tracking-[0.12em] text-cyan-50/85">
@@ -430,6 +432,17 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
             <span>{mode === 'signin' ? 'AUTORIZACIÓN ACTIVA · CREDENCIALES' : 'ALTA DE CREDENCIAL · INSPECCIÓN'}</span>
             <span className="text-[#004d99]">PLANO 01</span>
           </div>
+          <div className="grid grid-cols-3 overflow-hidden border border-[#b9d1dc] bg-white shadow-[0_4px_12px_rgba(13,75,111,0.05)]">
+            <div className="border-t-2 border-cyan-400 px-2.5 py-2 font-mono text-[8px] font-bold tracking-[0.1em] text-[#315c70]">
+              <span className="block text-cyan-700">CANAL CIAN</span><span className="text-[#6a7f8c]">CÁMARA / DATOS</span>
+            </div>
+            <div className="border-x border-[#d3e1e8] border-t-2 border-amber-400 px-2.5 py-2 font-mono text-[8px] font-bold tracking-[0.1em] text-[#315c70]">
+              <span className="block text-[#9a6507]">CANAL ÁMBAR</span><span className="text-[#6a7f8c]">CAJA / CONTROL</span>
+            </div>
+            <div className="border-t-2 border-violet-300 px-2.5 py-2 font-mono text-[8px] font-bold tracking-[0.1em] text-[#315c70]">
+              <span className="block text-[#684b9b]">CANAL VIOLETA</span><span className="text-[#6a7f8c]">TRAZADO / VALIDACIÓN</span>
+            </div>
+          </div>
           {errorMsg && (
             <div className="p-3.5 bg-[#ffdad6] text-[#93000a] text-[13px] rounded-xl border border-[#ffb4ab] flex items-center gap-2.5 animate-in fade-in duration-150">
               <span className="material-symbols-outlined text-[20px] shrink-0">error</span>
@@ -459,9 +472,13 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
           {mode === 'signin' ? (
             <form onSubmit={handleSignIn} className="relative space-y-3 border border-[#b9d1dc] bg-white/90 p-3 shadow-[0_8px_18px_rgba(13,75,111,0.06)]">
               <span className="absolute right-3 top-3 font-mono text-[8px] font-bold tracking-[0.14em] text-[#0566aa]">MODO ACTIVO</span>
+              <div className="mr-24 flex items-center gap-2 border-b border-dashed border-[#b9d1dc] pb-2 font-mono text-[8px] font-bold tracking-[0.12em] text-[#527284]">
+                <span className="flex h-4 w-4 items-center justify-center border border-cyan-400 text-[10px] text-cyan-700">01</span>
+                <span>LECTURA DE CREDENCIAL</span><span className="h-px flex-1 bg-[#9ebfcc]" /><span className="text-[#0b5d8c]">EN ESPERA</span>
+              </div>
               <div className="border-l-2 border-cyan-400 px-3 py-2">
-                <label className="mb-1.5 block font-mono text-[10px] font-bold tracking-[0.12em] text-[#315c70]">
-                  IDENTIFICADOR DE ACCESO
+                <label className="mb-1.5 flex items-center justify-between font-mono text-[10px] font-bold tracking-[0.12em] text-[#315c70]">
+                  <span>IDENTIFICADOR DE ACCESO</span><span className="text-[8px] text-cyan-700">CANAL / CIAN</span>
                 </label>
                 <div className="relative">
                   <span className="material-symbols-outlined absolute left-3.5 top-1/2 -translate-y-1/2 text-[#727783] text-[20px]">
@@ -479,8 +496,8 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
               </div>
 
               <div className="border-l-2 border-violet-300 px-3 py-2">
-                <label className="mb-1.5 block font-mono text-[10px] font-bold tracking-[0.12em] text-[#315c70]">
-                  CLAVE DE VERIFICACIÓN
+                <label className="mb-1.5 flex items-center justify-between font-mono text-[10px] font-bold tracking-[0.12em] text-[#315c70]">
+                  <span>CLAVE DE VERIFICACIÓN</span><span className="text-[8px] text-[#684b9b]">SELLO / VIOLETA</span>
                 </label>
                 <div className="relative">
                   <span className="material-symbols-outlined absolute left-3.5 top-1/2 -translate-y-1/2 text-[#727783] text-[20px]">
