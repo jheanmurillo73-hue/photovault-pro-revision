@@ -4,7 +4,7 @@
  * relativos al plano, nunca como coordenadas de un proveedor cartográfico.
  */
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { BlueprintCalibration, BlueprintOverlay, getElementType, InspectionPhoto, InspectorProfile } from '../types';
+import { ActaLabelPosition, BlueprintCalibration, BlueprintOverlay, getElementType, InspectionPhoto, InspectorProfile } from '../types';
 import { compressImageForDevice } from '../services/deviceStorageService';
 import { isQuotaExceededError, loadBlueprintImage, saveBlueprintImage } from '../services/blueprintStorageService';
 
@@ -80,6 +80,26 @@ const getMetersFromPlanPoints = (
 };
 const roundMeters = (value: number) => Math.round(value * 100) / 100;
 
+const getActaLabelStyle = (
+  planX: number,
+  planY: number,
+  position: ActaLabelPosition | undefined,
+  offset: number,
+  textScale: number,
+): React.CSSProperties => {
+  const base = { left: `${planX}%`, top: `${planY}%` };
+  switch (position || 'derecha') {
+    case 'izquierda':
+      return { ...base, transform: `translate(calc(-100% - ${offset}px), -50%) scale(${textScale})`, transformOrigin: 'right center' };
+    case 'arriba':
+      return { ...base, transform: `translate(-50%, calc(-100% - ${offset}px)) scale(${textScale})`, transformOrigin: 'center bottom' };
+    case 'abajo':
+      return { ...base, transform: `translate(-50%, ${offset}px) scale(${textScale})`, transformOrigin: 'center top' };
+    default:
+      return { ...base, transform: `translate(${offset}px, -50%) scale(${textScale})`, transformOrigin: 'left center' };
+  }
+};
+
 const isPlaced = (photo: InspectionPhoto) =>
   typeof photo.planX === 'number' && typeof photo.planY === 'number';
 
@@ -150,6 +170,9 @@ export const MapView: React.FC<MapViewProps> = ({
     const saved = Number(localStorage.getItem('photovault_plan_text_scale'));
     return Number.isFinite(saved) ? clampScale(saved, 0.5, 1.8) : 1;
   });
+  const [areActaLabelsVisible, setAreActaLabelsVisible] = useState<boolean>(() =>
+    localStorage.getItem('photovault_plan_acta_labels_visible') !== 'false',
+  );
   const [blueprintStorageNotice, setBlueprintStorageNotice] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const blueprintStorageReadyRef = useRef(false);
@@ -218,6 +241,14 @@ export const MapView: React.FC<MapViewProps> = ({
       // La escala de textos queda disponible en la sesión aunque no pueda persistirse.
     }
   }, [textScale]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('photovault_plan_acta_labels_visible', String(areActaLabelsVisible));
+    } catch {
+      // El estado se conserva durante la sesión aunque el navegador no permita persistirlo.
+    }
+  }, [areActaLabelsVisible]);
 
   useEffect(() => {
     if (!isPanelOpen) return;
@@ -766,6 +797,20 @@ export const MapView: React.FC<MapViewProps> = ({
           <span className="material-symbols-outlined text-[16px]">select_all</span>
           Selección
         </button>
+        <button
+          type="button"
+          onClick={() => setAreActaLabelsVisible((visible) => !visible)}
+          className={`inline-flex h-8 items-center gap-1.5 rounded-full border px-3 text-[11px] font-bold shadow-sm transition ${
+            areActaLabelsVisible
+              ? 'border-[#0b5d8c] bg-white text-[#075a91] hover:bg-[#e5f4fb]'
+              : 'border-[#afc0c9] bg-[#eef3f5] text-[#58717d] hover:bg-white'
+          }`}
+          title={areActaLabelsVisible ? 'Ocultar todos los rótulos de acta' : 'Mostrar todos los rótulos de acta'}
+          aria-pressed={areActaLabelsVisible}
+        >
+          <span className="material-symbols-outlined text-[16px]">{areActaLabelsVisible ? 'visibility' : 'visibility_off'}</span>
+          Actas
+        </button>
       </div>
 
       <main className="absolute inset-x-0 bottom-0 top-[62px] overflow-auto p-5 pt-16">
@@ -900,10 +945,10 @@ export const MapView: React.FC<MapViewProps> = ({
                     >
                       <span className="material-symbols-outlined text-[18px]">timeline</span>
                     </button>
-                    {actaName && photo.showActaLabel !== false && (
+                    {actaName && areActaLabelsVisible && photo.showActaLabel !== false && (
                       <span
                         className="pointer-events-none absolute z-20 flex max-w-[150px] items-center gap-1 whitespace-nowrap rounded-md border border-[#0b5d8c]/35 bg-white/95 px-1.5 py-1 font-mono text-[9px] font-bold text-[#0b4770] shadow-[0_3px_10px_rgba(7,63,116,0.24)]"
-                        style={{ left: `${midpointX}%`, top: `${midpointY}%`, transform: `translate(${4 + iconScale * 16}px, -50%) scale(${textScale})`, transformOrigin: 'left center' }}
+                        style={getActaLabelStyle(midpointX, midpointY, photo.actaLabelPosition, 4 + iconScale * 16, textScale)}
                         title={actaName}
                       >
                         <span className="material-symbols-outlined text-[13px]">assignment</span>
@@ -943,10 +988,10 @@ export const MapView: React.FC<MapViewProps> = ({
                   >
                     <span className="material-symbols-outlined text-[18px]">{isCamera ? 'videocam' : 'inventory_2'}</span>
                   </button>
-                  {actaName && photo.showActaLabel !== false && (
+                  {actaName && areActaLabelsVisible && photo.showActaLabel !== false && (
                     <span
-                      className="pointer-events-none absolute z-20 flex max-w-[150px] items-center gap-1 whitespace-nowrap rounded-md border border-[#0b5d8c]/35 bg-white/95 px-1.5 py-1 font-mono text-[9px] font-bold text-[#0b4770] shadow-[0_3px_10px_rgba(7,63,116,0.24)]"
-                      style={{ left: `${photo.planX}%`, top: `${photo.planY}%`, transform: `translate(${4 + iconScale * 18}px, -50%) scale(${textScale})`, transformOrigin: 'left center' }}
+                      className="pointer-events-none absolute z-20 flex max-w-[150px] items-center gap-1 whitespace-nowrap rounded-md border border-[#0b5d8c]/35 bg-white/95 px-1.5 py-1 font-mono text-[9px] font-bold text-[#0b4770] shadow-[0_3px_10px_rgba(6,36,58,0.24)]"
+                      style={getActaLabelStyle(photo.planX!, photo.planY!, photo.actaLabelPosition, 4 + iconScale * 18, textScale)}
                       title={actaName}
                     >
                       <span className="material-symbols-outlined text-[13px]">assignment</span>

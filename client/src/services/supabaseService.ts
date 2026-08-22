@@ -214,6 +214,7 @@ export const supabaseService = {
         camera_type: photo.cameraType || 'MT',
         acta: photo.acta || null,
         show_acta_label: photo.showActaLabel ?? true,
+        acta_label_position: photo.actaLabelPosition || 'derecha',
         tramo: photo.tramo || null,
         metraje: photo.metraje ? String(photo.metraje) : null,
         inspector_name: photo.inspectorName,
@@ -267,6 +268,7 @@ export const supabaseService = {
       camera_type: photo.cameraType || 'MT',
       acta: photo.acta || null,
       show_acta_label: photo.showActaLabel ?? true,
+      acta_label_position: photo.actaLabelPosition || 'derecha',
       tramo: photo.tramo || null,
       metraje: photo.metraje ? String(photo.metraje) : null,
       inspector_name: photo.inspectorName,
@@ -335,6 +337,9 @@ export const supabaseService = {
         cameraType: item.camera_type || 'MT',
         acta: item.acta || undefined,
         showActaLabel: item.show_acta_label !== false,
+        actaLabelPosition: ['arriba', 'abajo', 'izquierda', 'derecha'].includes(item.acta_label_position)
+          ? item.acta_label_position
+          : 'derecha',
         tramo: item.tramo || undefined,
         metraje: item.metraje || undefined,
         inspectorName: item.inspector_name || 'Inspector',
@@ -562,6 +567,7 @@ CREATE TABLE IF NOT EXISTS public.inspection_photos (
   camera_type TEXT DEFAULT 'MT',
   acta TEXT,
   show_acta_label BOOLEAN NOT NULL DEFAULT true,
+  acta_label_position TEXT NOT NULL DEFAULT 'derecha' CHECK (acta_label_position IN ('arriba', 'abajo', 'izquierda', 'derecha')),
   tramo TEXT,
   metraje TEXT,
   inspector_name TEXT NOT NULL,
@@ -588,6 +594,7 @@ ALTER TABLE public.inspection_photos ADD COLUMN IF NOT EXISTS plan_end_x NUMERIC
 ALTER TABLE public.inspection_photos ADD COLUMN IF NOT EXISTS plan_end_y NUMERIC CHECK (plan_end_y >= 0 AND plan_end_y <= 100);
 ALTER TABLE public.inspection_photos ADD COLUMN IF NOT EXISTS acta TEXT;
 ALTER TABLE public.inspection_photos ADD COLUMN IF NOT EXISTS show_acta_label BOOLEAN NOT NULL DEFAULT true;
+ALTER TABLE public.inspection_photos ADD COLUMN IF NOT EXISTS acta_label_position TEXT NOT NULL DEFAULT 'derecha' CHECK (acta_label_position IN ('arriba', 'abajo', 'izquierda', 'derecha'));
 
 -- 3. TABLA DE REGISTRO DE ACTIVIDADES Y AUDITORÍA (inspection_activities)
 CREATE TABLE IF NOT EXISTS public.inspection_activities (

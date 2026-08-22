@@ -81,3 +81,6 @@ Un símbolo modular de tres nodos conectados por una retícula técnica: un lent
 - El wordmark incorpora una lectura de nodo técnico identificable (TRK-01 / NODOS-03) y conectores cian, ámbar y violeta derivados del símbolo modular.
 - Los canales cian, ámbar y violeta se presentan como módulos funcionales de datos, control y validación antes del formulario de acceso.
 - El ingreso se estructura como una lectura de credencial con canal, sello y estado operativo, en lugar de campos web aislados.
+- El wordmark usa una banda de nodos, trazas de conexión y un corte ámbar entre TRACKING y LA NUBIA; la lectura tipográfica nunca aparece separada de la lógica modular.
+- La autorización se presenta como una secuencia visible de cuatro pasos: autorizar, leer canal, sellar/validar y cargar el plano.
+- Cian gobierna datos y autorización, ámbar la lectura de control y violeta el sello de validación; los tres colores se repiten como funciones dentro del panel, no como ornamento.

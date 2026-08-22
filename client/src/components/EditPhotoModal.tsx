@@ -3,7 +3,7 @@
  * objeto seleccionado; una tubería nunca guarda datos de cámara, y viceversa.
  */
 import React, { useRef, useState } from 'react';
-import { InspectionPhoto, ExecutionStatus, CameraCode, CameraType, ElementType, getElementType } from '../types';
+import { InspectionPhoto, ExecutionStatus, CameraCode, CameraType, ElementType, ActaLabelPosition, getElementType } from '../types';
 import { WAREHOUSE_LOCATIONS, CAMERA_CODES, CAMERA_TYPES } from '../data/mockData';
 import { compressImageForDevice } from '../services/deviceStorageService';
 import { TramoSelector } from './TramoSelector';
@@ -43,6 +43,7 @@ export const EditPhotoModal: React.FC<EditPhotoModalProps> = ({
   const [cameraCode, setCameraCode] = useState<CameraCode>(photo.cameraCode || 'SB850');
   const [cameraType, setCameraType] = useState<CameraType>(photo.cameraType || 'MT');
   const [acta, setActa] = useState(photo.acta ?? '');
+  const [actaLabelPosition, setActaLabelPosition] = useState<ActaLabelPosition>(photo.actaLabelPosition || 'derecha');
   const [actas, setActas] = useState<string[]>(loadActas);
   const [newActa, setNewActa] = useState('');
   const [actaMessage, setActaMessage] = useState<string | null>(null);
@@ -100,6 +101,7 @@ export const EditPhotoModal: React.FC<EditPhotoModalProps> = ({
       cameraCode: elementType === 'camara' ? cameraCode : undefined,
       cameraType: elementType === 'camara' ? cameraType : undefined,
       acta: acta || undefined,
+      actaLabelPosition: acta ? actaLabelPosition : undefined,
       tramo: elementType === 'tuberia' ? tramo.trim() || undefined : undefined,
       metraje: elementType === 'tuberia' ? metraje.trim() || undefined : undefined,
       fieldNotes: fieldNotes.trim(),
@@ -335,6 +337,23 @@ export const EditPhotoModal: React.FC<EditPhotoModalProps> = ({
               </button>
             </div>
             {actaMessage && <p className="mt-2 text-[11px] font-medium text-[#075a91]" role="status">{actaMessage}</p>}
+            {acta && (
+              <div className="mt-3 border-t border-[#d6e4ea] pt-3">
+                <label htmlFor="inspection-acta-label-position" className="block font-['Inter'] text-[12px] font-bold text-[#173f58]">Posición del texto en el plano</label>
+                <p className="mt-0.5 text-[11px] text-[#607d8b]">Define dónde se verá el rótulo respecto al icono o tramo.</p>
+                <select
+                  id="inspection-acta-label-position"
+                  value={actaLabelPosition}
+                  onChange={(event) => setActaLabelPosition(event.target.value as ActaLabelPosition)}
+                  className="mt-2 w-full rounded-lg border border-[#c2c6d4] bg-white p-2.5 text-[13px] text-[#071e27] outline-none focus:border-[#004d99]"
+                >
+                  <option value="arriba">Arriba del elemento</option>
+                  <option value="abajo">Abajo del elemento</option>
+                  <option value="izquierda">A la izquierda del elemento</option>
+                  <option value="derecha">A la derecha del elemento</option>
+                </select>
+              </div>
+            )}
           </div>
 
           <div className="rounded-xl border border-[#c2c6d4] bg-[#f8fbfd] p-3">

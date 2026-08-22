@@ -32,3 +32,7 @@
 - El plano conserva disponible el elemento con **Acta 11** para validar el control individual de visibilidad desde su panel contextual.
 - El interruptor del panel pasó de **Visible** a **Oculto** y retiró el rótulo de **Acta 11** del plano sin afectar el marcador.
 - Al activar de nuevo el interruptor, el rótulo de **Acta 11** reapareció y el control volvió al estado **Visible**.
+- La barra del plano muestra el botón global **Actas** y conserva visible el rótulo de prueba **Acta 11** para validar los controles agregados.
+- El botón global **Actas** ocultó el rótulo de prueba y, al reactivarlo, restauró su visualización en el plano.
+- Las propiedades de **Acta 11** exponen el selector de posición con las opciones arriba, abajo, izquierda y derecha.
+- Se seleccionó y guardó **Arriba del elemento** para Acta 11; el rótulo se reposicionó sobre el marcador y la actualización quedó confirmada en el plano.

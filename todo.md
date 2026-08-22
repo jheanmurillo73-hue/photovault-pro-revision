@@ -39,3 +39,6 @@
 - [x] Reforzar la marca modular, los estados por categoría y los módulos de autorización en el acceso.
 - [x] Acercar los rótulos de acta a iconos y tramos del plano.
 - [x] Permitir mostrar u ocultar el rótulo de acta desde el elemento seleccionado.
+- [x] Añadir un botón global para mostrar u ocultar todos los rótulos de acta del plano.
+- [x] Permitir seleccionar arriba, abajo, izquierda o derecha como posición del rótulo de acta por elemento.
+- [x] Reforzar la marca modular, los canales funcionales y la secuencia operativa de acceso.

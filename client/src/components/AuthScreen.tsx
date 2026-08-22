@@ -373,12 +373,15 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
               </div>
               <div className="relative border-l-2 border-cyan-400 bg-white/5 px-3 py-2.5 shadow-[inset_0_0_0_1px_rgba(158,231,255,0.18)]">
                 <p className="font-mono text-[10px] font-semibold tracking-[0.22em] text-cyan-100/75">CONTROL DE OBRA</p>
-                <h1 className="mt-1 flex items-center gap-1.5 font-['Space_Grotesk'] text-[26px] font-bold tracking-[-0.04em] text-white sm:text-[31px]">
-                  <span className="flex shrink-0 items-center gap-1" aria-hidden="true"><i className="h-2 w-2 rounded-full border-2 border-cyan-200" /><i className="h-2 w-2 border-2 border-amber-300" /><i className="h-0.5 w-3 bg-violet-200" /></span>
-                  <span className="relative whitespace-nowrap text-cyan-100 after:absolute after:-bottom-1 after:left-0 after:h-px after:w-4 after:bg-cyan-300">TRACKING</span><span className="mx-0.5 shrink-0 text-white/35">/</span><span className="whitespace-nowrap tracking-[0.06em]">LA NUBIA</span>
+                <h1 className="mt-1 flex items-center gap-2 font-['Space_Grotesk'] text-[26px] font-bold tracking-[-0.04em] text-white sm:text-[31px]">
+                  <span className="relative inline-flex shrink-0 items-center gap-1.5" aria-hidden="true">
+                    <span className="flex h-5 items-center gap-1 border-y border-cyan-200/55 px-1"><i className="h-2 w-2 rounded-full border-2 border-cyan-200" /><i className="h-2 w-2 border-2 border-amber-300" /><i className="h-0.5 w-3 bg-violet-200" /></span>
+                    <i className="h-px w-2 bg-cyan-300" />
+                  </span>
+                  <span className="relative inline-flex items-center whitespace-nowrap border-y border-cyan-200/25 px-1.5 py-0.5 text-cyan-100 after:absolute after:-bottom-1 after:left-1.5 after:h-px after:w-6 after:bg-cyan-300">TRACKING<span className="mx-1.5 h-4 w-px bg-amber-300/80" aria-hidden="true" /><span className="tracking-[0.08em] text-white">LA NUBIA</span></span>
                 </h1>
                 <div className="mt-2 flex items-center gap-2 font-mono text-[8px] font-bold tracking-[0.18em] text-cyan-100/75">
-                  <span>TRK-01</span><span className="h-px w-5 bg-cyan-300/80" /><span className="text-amber-200">NODOS / 03</span><span className="h-px w-4 bg-violet-200/80" /><span>NODO · CAJA · TRAZADO</span>
+                  <span>TRK-01</span><span className="h-px w-5 bg-cyan-300/80" /><span className="text-amber-200">NODOS / 03</span><span className="h-px w-4 bg-violet-200/80" /><span>CAM · CAJA · TRAZADO</span>
                 </div>
               </div>
             </div>
@@ -442,6 +445,12 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
             <div className="border-t-2 border-violet-300 px-2.5 py-2 font-mono text-[8px] font-bold tracking-[0.1em] text-[#315c70]">
               <span className="block text-[#684b9b]">CANAL VIOLETA</span><span className="text-[#6a7f8c]">TRAZADO / VALIDACIÓN</span>
             </div>
+          </div>
+          <div className="grid grid-cols-4 overflow-hidden border border-[#b9d1dc] bg-[#fafdff] font-mono text-[8px] font-bold tracking-[0.1em] text-[#496878]">
+            <div className="border-l-2 border-cyan-400 px-2 py-2"><span className="block text-cyan-700">01 / AUTORIZAR</span><span className="text-[#718995]">ESTADO</span></div>
+            <div className="border-l border-[#d3e1e8] border-t-2 border-amber-400 px-2 py-2"><span className="block text-[#9a6507]">02 / LEER</span><span className="text-[#718995]">CANAL</span></div>
+            <div className="border-l border-[#d3e1e8] border-t-2 border-violet-300 px-2 py-2"><span className="block text-[#684b9b]">03 / SELLAR</span><span className="text-[#718995]">VALIDAR</span></div>
+            <div className="border-l border-[#d3e1e8] border-t-2 border-[#075a91] px-2 py-2"><span className="block text-[#075a91]">04 / CARGAR</span><span className="text-[#718995]">PLANO</span></div>
           </div>
           {errorMsg && (
             <div className="p-3.5 bg-[#ffdad6] text-[#93000a] text-[13px] rounded-xl border border-[#ffb4ab] flex items-center gap-2.5 animate-in fade-in duration-150">

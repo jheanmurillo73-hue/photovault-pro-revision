@@ -12,6 +12,8 @@ export type CameraType = 'MT' | 'BT' | 'Datos' | string;
 
 export type ElementType = 'caja' | 'camara' | 'tuberia';
 
+export type ActaLabelPosition = 'arriba' | 'abajo' | 'izquierda' | 'derecha';
+
 export type AppRole = 'admin' | 'inspector';
 
 export type AppModule =
@@ -50,6 +52,7 @@ export interface InspectionPhoto {
   cameraType?: CameraType;
   acta?: string;
   showActaLabel?: boolean;
+  actaLabelPosition?: ActaLabelPosition;
   tramo?: string;
   metraje?: number | string;
   latitude?: number;
