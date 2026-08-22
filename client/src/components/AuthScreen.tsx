@@ -435,23 +435,6 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
             <span>{mode === 'signin' ? 'AUTORIZACIÓN ACTIVA · CREDENCIALES' : 'ALTA DE CREDENCIAL · INSPECCIÓN'}</span>
             <span className="text-[#004d99]">PLANO 01</span>
           </div>
-          <div className="grid grid-cols-3 overflow-hidden border border-[#b9d1dc] bg-white shadow-[0_4px_12px_rgba(13,75,111,0.05)]">
-            <div className="border-t-2 border-cyan-400 px-2.5 py-2 font-mono text-[8px] font-bold tracking-[0.1em] text-[#315c70]">
-              <span className="block text-cyan-700">CANAL CIAN</span><span className="text-[#6a7f8c]">CÁMARA / DATOS</span>
-            </div>
-            <div className="border-x border-[#d3e1e8] border-t-2 border-amber-400 px-2.5 py-2 font-mono text-[8px] font-bold tracking-[0.1em] text-[#315c70]">
-              <span className="block text-[#9a6507]">CANAL ÁMBAR</span><span className="text-[#6a7f8c]">CAJA / CONTROL</span>
-            </div>
-            <div className="border-t-2 border-violet-300 px-2.5 py-2 font-mono text-[8px] font-bold tracking-[0.1em] text-[#315c70]">
-              <span className="block text-[#684b9b]">CANAL VIOLETA</span><span className="text-[#6a7f8c]">TRAZADO / VALIDACIÓN</span>
-            </div>
-          </div>
-          <div className="grid grid-cols-4 overflow-hidden border border-[#b9d1dc] bg-[#fafdff] font-mono text-[8px] font-bold tracking-[0.1em] text-[#496878]">
-            <div className="border-l-2 border-cyan-400 px-2 py-2"><span className="block text-cyan-700">01 / AUTORIZAR</span><span className="text-[#718995]">ESTADO</span></div>
-            <div className="border-l border-[#d3e1e8] border-t-2 border-amber-400 px-2 py-2"><span className="block text-[#9a6507]">02 / LEER</span><span className="text-[#718995]">CANAL</span></div>
-            <div className="border-l border-[#d3e1e8] border-t-2 border-violet-300 px-2 py-2"><span className="block text-[#684b9b]">03 / SELLAR</span><span className="text-[#718995]">VALIDAR</span></div>
-            <div className="border-l border-[#d3e1e8] border-t-2 border-[#075a91] px-2 py-2"><span className="block text-[#075a91]">04 / CARGAR</span><span className="text-[#718995]">PLANO</span></div>
-          </div>
           {errorMsg && (
             <div className="p-3.5 bg-[#ffdad6] text-[#93000a] text-[13px] rounded-xl border border-[#ffb4ab] flex items-center gap-2.5 animate-in fade-in duration-150">
               <span className="material-symbols-outlined text-[20px] shrink-0">error</span>

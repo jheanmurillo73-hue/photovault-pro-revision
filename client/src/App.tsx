@@ -38,6 +38,7 @@ import { AuthScreen } from './components/AuthScreen';
 import { SupabaseTablesModal } from './components/SupabaseTablesModal';
 import { UserManagementView } from './components/UserManagementView';
 import { supabaseService } from './services/supabaseService';
+import { clearBlueprintImage } from './services/blueprintStorageService';
 import { canAccessModule, createFallbackAccess, MODULE_DEFINITIONS } from './lib/accessControl';
 import { Footer } from './components/Footer';
 import { Toast } from './components/Toast';
@@ -123,7 +124,7 @@ export default function App() {
     }
   });
 
-  const [collections] = useState<InspectionCollection[]>(INITIAL_COLLECTIONS);
+  const [collections, setCollections] = useState<InspectionCollection[]>(INITIAL_COLLECTIONS);
 
   const [activities, setActivities] = useState<ActivityItem[]>(() => {
     const saved = localStorage.getItem('photovault_activities');
@@ -317,6 +318,7 @@ export default function App() {
       cameraType: isCamera ? 'MT' : undefined,
       tramo: isPipeline ? '' : undefined,
       metraje: isPipeline ? initialMetraje ?? 0 : undefined,
+      pipeColor: isPipeline ? '#0d9fc6' : undefined,
       ...position,
       inspectorName: inspector.name,
       inspectorId: inspector.id,
@@ -385,6 +387,47 @@ export default function App() {
   const handleSaveSettings = (newSettings: AppSettings) => {
     setSettings(normalizeSettings(newSettings));
     showToast('Preferencias actualizadas');
+  };
+
+  const handleResetOperationalData = async () => {
+    if (userAccess.role !== 'admin') {
+      throw new Error('Solo el administrador puede restablecer los datos de inspección.');
+    }
+
+    const result = await supabaseService.resetOperationalData();
+    if (!result.success) {
+      throw new Error(result.error || 'No se pudo restablecer la base de datos de inspección.');
+    }
+
+    setPhotos([]);
+    setActivities([]);
+    setCollections([]);
+    setSettings(normalizeSettings(INITIAL_SETTINGS));
+    setSelectedPhotoId(null);
+    setEditingPhoto(null);
+    setCurrentTab('dashboard');
+
+    [
+      'photovault_photos',
+      'photovault_activities',
+      'photovault_blueprint',
+      'photovault_plan_icon_scale',
+      'photovault_plan_text_scale',
+      'photovault_plan_acta_labels_visible',
+    ].forEach((key) => localStorage.removeItem(key));
+
+    try {
+      await clearBlueprintImage();
+    } catch {
+      // El estado de la aplicación ya se limpió; la próxima carga no conservará metadatos del plano.
+    }
+
+    showToast(
+      result.remote
+        ? 'Datos operativos y memoria local restablecidos. Los perfiles y permisos se conservaron.'
+        : 'Memoria local restablecida. No había conexión configurada con Supabase.',
+      'success',
+    );
   };
 
   const handleSaveProfile = (updatedProfile: InspectorProfile) => {
@@ -581,6 +624,8 @@ export default function App() {
                 photos={photos}
                 activities={activities}
                 onRestoreBackup={handleRestoreBackup}
+                canResetOperationalData={userAccess.role === 'admin'}
+                onResetOperationalData={handleResetOperationalData}
               />
             ) : currentTab === 'history' || currentTab === 'collections' ? (
               <HistoryView

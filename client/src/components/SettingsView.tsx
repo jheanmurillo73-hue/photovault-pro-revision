@@ -18,7 +18,8 @@ interface SettingsViewProps {
     settings?: AppSettings;
     activities?: ActivityItem[];
   }) => void;
-  onResetLocalData?: () => void;
+  canResetOperationalData?: boolean;
+  onResetOperationalData?: () => Promise<void>;
 }
 
 export const SettingsView: React.FC<SettingsViewProps> = ({
@@ -31,7 +32,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   photos = [],
   activities = [],
   onRestoreBackup,
-  onResetLocalData,
+  canResetOperationalData = false,
+  onResetOperationalData,
 }) => {
   const [localSettings, setLocalSettings] = useState<AppSettings>({ ...settings });
   const [showSecurityModal, setShowSecurityModal] = useState<boolean>(false);
@@ -39,6 +41,9 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const [currentPassword, setCurrentPassword] = useState<string>('');
   const [newPassword, setNewPassword] = useState<string>('');
   const [isImporting, setIsImporting] = useState<boolean>(false);
+  const [isResetModalOpen, setIsResetModalOpen] = useState<boolean>(false);
+  const [resetPhrase, setResetPhrase] = useState<string>('');
+  const [isResetting, setIsResetting] = useState<boolean>(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const hasSupabase = isSupabaseConfigured();
@@ -98,6 +103,20 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     onShowToast('Credenciales de seguridad actualizadas.', 'success');
     setCurrentPassword('');
     setNewPassword('');
+  };
+
+  const handleOperationalReset = async () => {
+    if (!onResetOperationalData || resetPhrase.trim().toUpperCase() !== 'RESTABLECER') return;
+    setIsResetting(true);
+    try {
+      await onResetOperationalData();
+      setIsResetModalOpen(false);
+      setResetPhrase('');
+    } catch (error) {
+      onShowToast(error instanceof Error ? error.message : 'No se pudo completar el restablecimiento.', 'error');
+    } finally {
+      setIsResetting(false);
+    }
   };
 
   return (
@@ -468,6 +487,29 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
           </div>
         </section>
 
+        {canResetOperationalData && onResetOperationalData && (
+          <section className="overflow-hidden border border-[#f0b4b0] bg-white shadow-2xs">
+            <div className="flex items-center gap-2 border-b border-[#f2d0cd] bg-[#fff5f4] px-4 py-3">
+              <span className="material-symbols-outlined text-[#b42318]">warning</span>
+              <div>
+                <h2 className="font-['Hanken_Grotesk'] text-base font-bold text-[#7a1c16]">Zona de restablecimiento administrativo</h2>
+                <p className="text-[12px] text-[#8c2f27]">Esta acción elimina información operativa de forma irreversible.</p>
+              </div>
+            </div>
+            <div className="flex flex-col items-start justify-between gap-4 p-4 sm:flex-row sm:items-center">
+              <p className="max-w-2xl text-[13px] leading-5 text-[#5d3c39]">Limpia inspecciones, tramos, fotos, colecciones, bitácora, plano JPG y caché local. Conserva perfiles, cuentas, roles, permisos y acceso administrativo.</p>
+              <button
+                type="button"
+                onClick={() => setIsResetModalOpen(true)}
+                className="inline-flex shrink-0 items-center gap-2 bg-[#b42318] px-4 py-2.5 text-[13px] font-bold text-white transition hover:bg-[#8d1b13]"
+              >
+                <span className="material-symbols-outlined text-[18px]">restart_alt</span>
+                Restablecer datos
+              </button>
+            </div>
+          </section>
+        )}
+
         {/* Action Buttons */}
         <div className="pt-4 flex justify-end gap-4">
           <button
@@ -561,6 +603,41 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               </div>
             </form>
           </div>
+        </div>
+      )}
+
+      {isResetModalOpen && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-950/55 p-4 backdrop-blur-sm">
+          <section role="alertdialog" aria-modal="true" aria-labelledby="reset-operational-data-title" className="w-full max-w-lg border border-[#e4aaa5] bg-white shadow-[0_24px_72px_rgba(105,35,29,0.36)]">
+            <div className="flex items-start gap-3 border-b border-[#f2d0cd] bg-[#fff5f4] px-5 py-4">
+              <span className="material-symbols-outlined mt-0.5 text-[25px] text-[#b42318]">delete_forever</span>
+              <div>
+                <p className="font-mono text-[10px] font-bold tracking-[0.16em] text-[#8c2f27]">ACCIÓN IRREVERSIBLE</p>
+                <h2 id="reset-operational-data-title" className="mt-1 text-lg font-bold text-[#4a1714]">¿Restablecer los datos de inspección?</h2>
+              </div>
+            </div>
+            <div className="space-y-4 p-5">
+              <p className="text-sm leading-6 text-[#5d3c39]">Se eliminarán los registros de inspección, fotos, tramos, colecciones, bitácora y datos locales del plano. Los perfiles, usuarios, roles, permisos y la configuración de acceso se conservarán.</p>
+              <div>
+                <label htmlFor="reset-confirmation" className="mb-1.5 block text-xs font-bold text-[#4a1714]">Escribe <strong>RESTABLECER</strong> para habilitar la acción.</label>
+                <input
+                  id="reset-confirmation"
+                  value={resetPhrase}
+                  onChange={(event) => setResetPhrase(event.target.value)}
+                  placeholder="RESTABLECER"
+                  autoComplete="off"
+                  className="h-11 w-full border border-[#e2aaa5] bg-[#fffafa] px-3 font-mono text-sm font-bold text-[#4a1714] outline-none transition focus:border-[#b42318] focus:ring-2 focus:ring-[#b42318]/15"
+                />
+              </div>
+            </div>
+            <div className="flex justify-end gap-2 border-t border-[#f2d0cd] px-5 py-4">
+              <button type="button" disabled={isResetting} onClick={() => { setIsResetModalOpen(false); setResetPhrase(''); }} className="h-9 border border-[#b4cbd8] bg-white px-3 text-xs font-bold text-[#315c70] transition hover:bg-[#eaf6fb] disabled:opacity-50">Cancelar</button>
+              <button type="button" disabled={isResetting || resetPhrase.trim().toUpperCase() !== 'RESTABLECER'} onClick={handleOperationalReset} className="inline-flex h-9 items-center gap-1.5 bg-[#b42318] px-3 text-xs font-bold text-white transition hover:bg-[#8d1b13] disabled:cursor-not-allowed disabled:opacity-40">
+                <span className="material-symbols-outlined text-[16px]">delete_forever</span>
+                {isResetting ? 'Restableciendo…' : 'Eliminar datos operativos'}
+              </button>
+            </div>
+          </section>
         </div>
       )}
     </div>

@@ -217,6 +217,7 @@ export const supabaseService = {
         acta_label_position: photo.actaLabelPosition || 'derecha',
         tramo: photo.tramo || null,
         metraje: photo.metraje ? String(photo.metraje) : null,
+        pipe_color: photo.pipeColor || null,
         inspector_name: photo.inspectorName,
         inspector_id: photo.inspectorId,
         inspector_avatar: photo.inspectorAvatar,
@@ -271,6 +272,7 @@ export const supabaseService = {
       acta_label_position: photo.actaLabelPosition || 'derecha',
       tramo: photo.tramo || null,
       metraje: photo.metraje ? String(photo.metraje) : null,
+      pipe_color: photo.pipeColor || null,
       inspector_name: photo.inspectorName,
       inspector_id: photo.inspectorId,
       inspector_avatar: photo.inspectorAvatar,
@@ -342,6 +344,9 @@ export const supabaseService = {
           : 'derecha',
         tramo: item.tramo || undefined,
         metraje: item.metraje || undefined,
+        pipeColor: typeof item.pipe_color === 'string' && /^#[0-9a-fA-F]{6}$/.test(item.pipe_color)
+          ? item.pipe_color
+          : undefined,
         inspectorName: item.inspector_name || 'Inspector',
         inspectorId: item.inspector_id || '8842',
         inspectorAvatar: item.inspector_avatar || '',
@@ -379,6 +384,27 @@ export const supabaseService = {
     } catch (err) {
       console.warn('Error in deletePhoto:', err);
       return false;
+    }
+  },
+
+  // Administrative reset: clears operational inspection data only. Profiles, roles and app access are intentionally excluded.
+  resetOperationalData: async (): Promise<{ success: boolean; remote: boolean; error?: string }> => {
+    const client = getSupabaseClient();
+    if (!client || !isSupabaseConfigured()) {
+      return { success: true, remote: false };
+    }
+
+    try {
+      const { error } = await client.rpc('reset_inspection_data');
+      if (error) {
+        console.warn('Error resetting operational data in Supabase:', error.message);
+        return { success: false, remote: true, error: error.message };
+      }
+      return { success: true, remote: true };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'No se pudo restablecer la base de datos.';
+      console.warn('Operational reset error:', message);
+      return { success: false, remote: true, error: message };
     }
   },
 
@@ -570,6 +596,7 @@ CREATE TABLE IF NOT EXISTS public.inspection_photos (
   acta_label_position TEXT NOT NULL DEFAULT 'derecha' CHECK (acta_label_position IN ('arriba', 'abajo', 'izquierda', 'derecha')),
   tramo TEXT,
   metraje TEXT,
+  pipe_color TEXT CHECK (pipe_color IS NULL OR pipe_color ~ '^#[0-9A-Fa-f]{6}$'),
   inspector_name TEXT NOT NULL,
   inspector_id TEXT NOT NULL,
   inspector_avatar TEXT DEFAULT '',
@@ -595,6 +622,7 @@ ALTER TABLE public.inspection_photos ADD COLUMN IF NOT EXISTS plan_end_y NUMERIC
 ALTER TABLE public.inspection_photos ADD COLUMN IF NOT EXISTS acta TEXT;
 ALTER TABLE public.inspection_photos ADD COLUMN IF NOT EXISTS show_acta_label BOOLEAN NOT NULL DEFAULT true;
 ALTER TABLE public.inspection_photos ADD COLUMN IF NOT EXISTS acta_label_position TEXT NOT NULL DEFAULT 'derecha' CHECK (acta_label_position IN ('arriba', 'abajo', 'izquierda', 'derecha'));
+ALTER TABLE public.inspection_photos ADD COLUMN IF NOT EXISTS pipe_color TEXT CHECK (pipe_color IS NULL OR pipe_color ~ '^#[0-9A-Fa-f]{6}$');
 
 -- 3. TABLA DE REGISTRO DE ACTIVIDADES Y AUDITORÍA (inspection_activities)
 CREATE TABLE IF NOT EXISTS public.inspection_activities (
@@ -772,6 +800,27 @@ DROP POLICY IF EXISTS "Acceso a configuracion por modulo" ON public.app_settings
 CREATE POLICY "Acceso a configuracion por modulo" ON public.app_settings FOR ALL
 USING (public.photovault_can_access_module('settings'))
 WITH CHECK (public.photovault_can_access_module('settings'));
+
+-- Restablecimiento administrativo: conserva perfiles, roles, permisos y configuración.
+CREATE OR REPLACE FUNCTION public.reset_inspection_data()
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  IF NOT public.photovault_is_admin() THEN
+    RAISE EXCEPTION 'Solo un administrador puede restablecer los datos de inspección.';
+  END IF;
+
+  DELETE FROM public.inspection_collections;
+  DELETE FROM public.inspection_activities;
+  DELETE FROM public.inspection_photos;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.reset_inspection_data() FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.reset_inspection_data() TO authenticated;
 
 -- Notificar recarga de caché
 NOTIFY pgrst, 'reload schema';

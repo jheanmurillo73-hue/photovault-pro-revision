@@ -42,3 +42,12 @@
 - [x] Añadir un botón global para mostrar u ocultar todos los rótulos de acta del plano.
 - [x] Permitir seleccionar arriba, abajo, izquierda o derecha como posición del rótulo de acta por elemento.
 - [x] Reforzar la marca modular, los canales funcionales y la secuencia operativa de acceso.
+- [x] Eliminar los bloques de canales y pasos operativos del formulario de ingreso.
+- [x] Mejorar el trazado y el posicionamiento detallado de los tramos de tubería en el plano.
+- [x] Reconciliar la copia local con main de GitHub conservando las mejoras verificadas.
+- [x] Promover los últimos cambios validados hacia la rama desarrollo en GitHub.
+- [x] Permitir asignar y visualizar un color personalizado en cada tramo de tubería.
+- [x] Convertir el cuadro de propiedades de elementos del plano en un modal centrado.
+- [x] Retirar el fondo atenuado del modal para mantener visible el plano y el elemento seleccionado.
+- [x] Promover los últimos cambios publicados hacia desarrollo en GitHub.
+- [x] Implementar un restablecimiento administrativo de datos operativos sin eliminar perfiles, cuentas, roles ni permisos.
