@@ -42,3 +42,6 @@
 - [x] Añadir un botón global para mostrar u ocultar todos los rótulos de acta del plano.
 - [x] Permitir seleccionar arriba, abajo, izquierda o derecha como posición del rótulo de acta por elemento.
 - [x] Reforzar la marca modular, los canales funcionales y la secuencia operativa de acceso.
+- [x] Eliminar los bloques de canales y pasos operativos del formulario de ingreso.
+- [x] Mejorar el trazado y el posicionamiento detallado de los tramos de tubería en el plano.
+- [x] Reconciliar la copia local con main de GitHub conservando las mejoras verificadas.

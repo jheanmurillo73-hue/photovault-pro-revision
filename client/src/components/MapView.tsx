@@ -29,6 +29,7 @@ interface MapViewProps {
 }
 
 type PlacementStage = 'point' | 'pipe-start' | 'pipe-end';
+type PipeAlignment = 'libre' | 'horizontal' | 'vertical' | 'diagonal';
 
 interface PlacementTarget {
   photo: InspectionPhoto;
@@ -79,6 +80,18 @@ const getMetersFromPlanPoints = (
   return units * (calibration.referenceDistanceMeters / calibration.referenceDistancePlanUnits);
 };
 const roundMeters = (value: number) => Math.round(value * 100) / 100;
+const alignPipeEnd = (start: PlanPoint, end: PlanPoint, alignment: PipeAlignment): PlanPoint => {
+  if (alignment === 'horizontal') return { planX: end.planX, planY: start.planY };
+  if (alignment === 'vertical') return { planX: start.planX, planY: end.planY };
+  if (alignment === 'diagonal') {
+    const distance = Math.max(Math.abs(end.planX - start.planX), Math.abs(end.planY - start.planY));
+    return {
+      planX: clampPercent(start.planX + Math.sign(end.planX - start.planX || 1) * distance),
+      planY: clampPercent(start.planY + Math.sign(end.planY - start.planY || 1) * distance),
+    };
+  }
+  return end;
+};
 
 const getActaLabelStyle = (
   planX: number,
@@ -149,6 +162,7 @@ export const MapView: React.FC<MapViewProps> = ({
   const [creationMode, setCreationMode] = useState<'caja' | 'camara' | 'tuberia' | null>(null);
   const [pipeStart, setPipeStart] = useState<PlanPoint | null>(null);
   const [pipePreview, setPipePreview] = useState<PlanPoint | null>(null);
+  const [pipeAlignment, setPipeAlignment] = useState<PipeAlignment>('libre');
   const [calibrationMode, setCalibrationMode] = useState(false);
   const [calibrationStart, setCalibrationStart] = useState<PlanPoint | null>(null);
   const [calibrationPreview, setCalibrationPreview] = useState<PlanPoint | null>(null);
@@ -334,6 +348,7 @@ export const MapView: React.FC<MapViewProps> = ({
     setSelectedPlanPhotoId(null);
     setPipeStart(null);
     setPipePreview(null);
+    if (elementType !== 'tuberia') setPipeAlignment('libre');
     setCreationMode((previous) => (previous === elementType ? null : elementType));
   };
 
@@ -387,6 +402,24 @@ export const MapView: React.FC<MapViewProps> = ({
       { planX: position.planEndX, planY: position.planEndY },
       calibration,
     );
+  };
+
+  const updatePipeGeometry = (
+    photo: InspectionPhoto,
+    changes: Partial<Pick<InspectionPhoto, 'planX' | 'planY' | 'planEndX' | 'planEndY'>>,
+  ) => {
+    if (getElementType(photo) !== 'tuberia' || !hasCompletePipe(photo)) return;
+    const position = {
+      planX: clampPercent(changes.planX ?? photo.planX!),
+      planY: clampPercent(changes.planY ?? photo.planY!),
+      planEndX: clampPercent(changes.planEndX ?? photo.planEndX!),
+      planEndY: clampPercent(changes.planEndY ?? photo.planEndY!),
+    };
+    const metraje = getCalibratedMeters(position);
+    onUpdatePhotoPosition(photo.id, {
+      ...position,
+      ...(metraje !== null ? { metraje: roundMeters(metraje) } : {}),
+    });
   };
 
   const saveCalibration = (event: React.FormEvent) => {
@@ -466,11 +499,16 @@ export const MapView: React.FC<MapViewProps> = ({
     }
 
     if (target.stage === 'pipe-end') {
-      const position = { planX: target.photo.planX, planY: target.photo.planY, planEndX: planX, planEndY: planY };
+      const alignedEnd = alignPipeEnd(
+        { planX: target.photo.planX!, planY: target.photo.planY! },
+        { planX, planY },
+        pipeAlignment,
+      );
+      const position = { planX: target.photo.planX, planY: target.photo.planY, planEndX: alignedEnd.planX, planEndY: alignedEnd.planY };
       const metraje = getCalibratedMeters(position);
       onUpdatePhotoPosition(target.photo.id, {
-        planEndX: planX,
-        planEndY: planY,
+        planEndX: alignedEnd.planX,
+        planEndY: alignedEnd.planY,
         ...(metraje !== null ? { metraje: roundMeters(metraje) } : {}),
       });
       setPlacement(null);
@@ -527,16 +565,18 @@ export const MapView: React.FC<MapViewProps> = ({
         setPipeStart({ planX, planY });
         return;
       }
+      const alignedEnd = alignPipeEnd(pipeStart, { planX, planY }, pipeAlignment);
       const created = onCreatePhoto('tuberia', {
         planX: pipeStart.planX,
         planY: pipeStart.planY,
-        planEndX: planX,
-        planEndY: planY,
-      }, roundMeters(getMetersFromPlanPoints(pipeStart, { planX, planY }, blueprint.calibration) ?? 0));
+        planEndX: alignedEnd.planX,
+        planEndY: alignedEnd.planY,
+      }, roundMeters(getMetersFromPlanPoints(pipeStart, alignedEnd, blueprint.calibration) ?? 0));
       setActiveFilter('all');
       setSelectedPlanPhotoId(created.id);
       setPipeStart(null);
       setPipePreview(null);
+      setPipeAlignment('libre');
       setCreationMode(null);
       return;
     }
@@ -553,7 +593,7 @@ export const MapView: React.FC<MapViewProps> = ({
       return;
     }
     if (creationMode !== 'tuberia' || !pipeStart) return;
-    setPipePreview(getPlanPosition(bounds, event.clientX, event.clientY));
+    setPipePreview(alignPipeEnd(pipeStart, getPlanPosition(bounds, event.clientX, event.clientY), pipeAlignment));
   };
 
   const handleCanvasMouseLeave = () => {
@@ -852,10 +892,17 @@ export const MapView: React.FC<MapViewProps> = ({
               {positionedPhotos.map((photo) => {
                 if (getElementType(photo) !== 'tuberia' || !hasCompletePipe(photo)) return null;
                 const isMT = photo.cameraType === 'MT';
+                const isSelected = !isMultipleSelectionMode && selectedPlanPhotoId === photo.id;
                 return (
                   <g key={`line-${photo.id}`}>
                     <line x1={photo.planX} y1={photo.planY} x2={photo.planEndX} y2={photo.planEndY} stroke="rgba(255,255,255,0.82)" strokeWidth="2.2" strokeLinecap="round" />
                     <line x1={photo.planX} y1={photo.planY} x2={photo.planEndX} y2={photo.planEndY} stroke={isMT ? 'url(#plan-mt)' : 'url(#plan-bt)'} strokeWidth="1.1" strokeLinecap="round" />
+                    {isSelected && (
+                      <>
+                        <circle cx={photo.planX} cy={photo.planY} r="1.55" fill="#ffffff" stroke="#073f74" strokeWidth="0.7" />
+                        <circle cx={photo.planEndX} cy={photo.planEndY} r="1.55" fill="#ffffff" stroke="#073f74" strokeWidth="0.7" />
+                      </>
+                    )}
                   </g>
                 );
               })}
@@ -1052,10 +1099,55 @@ export const MapView: React.FC<MapViewProps> = ({
             </button>
           </div>
           {getElementType(selectedPlanPhoto) === 'tuberia' && (
-            <div className="mt-3 flex items-center justify-between rounded-lg border border-[#b7d5e4] bg-[#eaf6fb] px-2.5 py-2">
-              <span className="font-mono text-[9px] font-bold tracking-[0.12em] text-[#527284]">LONGITUD {blueprint.calibration ? 'CALIBRADA' : 'REGISTRADA'}</span>
-              <span className="font-mono text-sm font-bold text-[#0b5d8c]">{Number.parseFloat(String(selectedPlanPhoto.metraje ?? 0)).toFixed(2)} m</span>
-            </div>
+            <>
+              <div className="mt-3 flex items-center justify-between rounded-lg border border-[#b7d5e4] bg-[#eaf6fb] px-2.5 py-2">
+                <span className="font-mono text-[9px] font-bold tracking-[0.12em] text-[#527284]">LONGITUD {blueprint.calibration ? 'CALIBRADA' : 'REGISTRADA'}</span>
+                <span className="font-mono text-sm font-bold text-[#0b5d8c]">{Number.parseFloat(String(selectedPlanPhoto.metraje ?? 0)).toFixed(2)} m</span>
+              </div>
+              <div className="mt-3 border border-[#b7d5e4] bg-[#f7fcfe] p-2.5">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="font-mono text-[9px] font-bold tracking-[0.12em] text-[#0b5d8c]">AJUSTE PRECISO · % DEL PLANO</p>
+                  <span className="material-symbols-outlined text-[16px] text-[#075a91]">tune</span>
+                </div>
+                <p className="mt-1 text-[10px] leading-4 text-[#547181]">Edita los extremos con precisión de 0,01%. Los puntos blancos del tramo indican inicio y final.</p>
+                <div className="mt-2 grid grid-cols-2 gap-2">
+                  {([
+                    ['Inicio X', 'planX'],
+                    ['Inicio Y', 'planY'],
+                    ['Final X', 'planEndX'],
+                    ['Final Y', 'planEndY'],
+                  ] as const).map(([label, key]) => (
+                    <label key={key} className="block">
+                      <span className="mb-1 block font-mono text-[8px] font-bold tracking-[0.08em] text-[#547181]">{label}</span>
+                      <input
+                        key={`${selectedPlanPhoto.id}-${key}-${selectedPlanPhoto[key]}`}
+                        type="number"
+                        min="0"
+                        max="100"
+                        step="0.01"
+                        defaultValue={Number(selectedPlanPhoto[key] ?? 0).toFixed(2)}
+                        onBlur={(event) => {
+                          const value = Number.parseFloat(event.currentTarget.value);
+                          if (Number.isFinite(value)) updatePipeGeometry(selectedPlanPhoto, { [key]: value });
+                        }}
+                        className="h-8 w-full border border-[#b4cbd8] bg-white px-2 font-mono text-[11px] font-bold text-[#173f58] outline-none transition focus:border-[#0566aa] focus:ring-2 focus:ring-[#0566aa]/15"
+                      />
+                    </label>
+                  ))}
+                </div>
+                <div className="mt-2 grid grid-cols-3 gap-1.5">
+                  <button type="button" onClick={() => updatePipeGeometry(selectedPlanPhoto, { planEndY: selectedPlanPhoto.planY })} className="h-8 border border-[#9ec7d8] bg-white px-1 text-[10px] font-bold text-[#075a91] transition hover:bg-[#eaf6fb]">Horizontal</button>
+                  <button type="button" onClick={() => updatePipeGeometry(selectedPlanPhoto, { planEndX: selectedPlanPhoto.planX })} className="h-8 border border-[#9ec7d8] bg-white px-1 text-[10px] font-bold text-[#075a91] transition hover:bg-[#eaf6fb]">Vertical</button>
+                  <button type="button" onClick={() => {
+                    const distance = Math.max(Math.abs(selectedPlanPhoto.planEndX! - selectedPlanPhoto.planX!), Math.abs(selectedPlanPhoto.planEndY! - selectedPlanPhoto.planY!));
+                    updatePipeGeometry(selectedPlanPhoto, {
+                      planEndX: selectedPlanPhoto.planX! + Math.sign(selectedPlanPhoto.planEndX! - selectedPlanPhoto.planX! || 1) * distance,
+                      planEndY: selectedPlanPhoto.planY! + Math.sign(selectedPlanPhoto.planEndY! - selectedPlanPhoto.planY! || 1) * distance,
+                    });
+                  }} className="h-8 border border-[#9ec7d8] bg-white px-1 text-[10px] font-bold text-[#075a91] transition hover:bg-[#eaf6fb]">45°</button>
+                </div>
+              </div>
+            </>
           )}
           {selectedPlanPhoto.acta?.trim() && (
             <div className="mt-3 flex items-center justify-between gap-3 border border-[#b7d5e4] bg-[#f4fbfe] px-2.5 py-2">
@@ -1222,6 +1314,27 @@ export const MapView: React.FC<MapViewProps> = ({
         <div className="absolute bottom-5 left-1/2 z-30 flex w-[min(92vw,560px)] -translate-x-1/2 items-center gap-3 rounded-xl border border-[#73b7d4] bg-[#073f74] px-4 py-3 text-sm text-white shadow-xl">
           <span className="material-symbols-outlined text-[21px] text-cyan-200">ads_click</span>
           <p className="flex-1 font-medium">{placementInstruction}</p>
+          {creationMode === 'tuberia' && pipeStart && (
+            <div className="flex shrink-0 overflow-hidden rounded-md border border-cyan-100/35 bg-white/10 text-[10px] font-bold">
+              {([
+                ['libre', 'Libre'],
+                ['horizontal', 'H'],
+                ['vertical', 'V'],
+                ['diagonal', '45°'],
+              ] as const).map(([alignment, label]) => (
+                <button
+                  key={alignment}
+                  type="button"
+                  onClick={() => setPipeAlignment(alignment)}
+                  className={`h-7 min-w-7 border-l border-cyan-100/20 px-1.5 transition first:border-l-0 ${pipeAlignment === alignment ? 'bg-cyan-200 text-[#073f74]' : 'text-cyan-50 hover:bg-white/10'}`}
+                  title={`Alinear nuevo tramo: ${label}`}
+                  aria-pressed={pipeAlignment === alignment}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          )}
           <button type="button" onClick={() => { setPlacement(null); setCreationMode(null); setPipeStart(null); setPipePreview(null); if (calibrationMode) cancelCalibration(); }} className="rounded-md px-2 py-1 text-xs font-bold text-cyan-100 hover:bg-white/10">Cancelar</button>
         </div>
       )}
