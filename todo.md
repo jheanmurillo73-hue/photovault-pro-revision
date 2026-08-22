@@ -38,3 +38,4 @@
 - [x] Añadir controles porcentuales independientes para reducir o ampliar iconos y textos del plano.
 - [x] Reforzar la marca modular, los estados por categoría y los módulos de autorización en el acceso.
 - [x] Acercar los rótulos de acta a iconos y tramos del plano.
+- [x] Permitir mostrar u ocultar el rótulo de acta desde el elemento seleccionado.

@@ -213,6 +213,7 @@ export const supabaseService = {
         camera_code: photo.cameraCode || 'SB850',
         camera_type: photo.cameraType || 'MT',
         acta: photo.acta || null,
+        show_acta_label: photo.showActaLabel ?? true,
         tramo: photo.tramo || null,
         metraje: photo.metraje ? String(photo.metraje) : null,
         inspector_name: photo.inspectorName,
@@ -265,6 +266,7 @@ export const supabaseService = {
       camera_code: photo.cameraCode || 'SB850',
       camera_type: photo.cameraType || 'MT',
       acta: photo.acta || null,
+      show_acta_label: photo.showActaLabel ?? true,
       tramo: photo.tramo || null,
       metraje: photo.metraje ? String(photo.metraje) : null,
       inspector_name: photo.inspectorName,
@@ -332,6 +334,7 @@ export const supabaseService = {
         cameraCode: item.camera_code || 'SB850',
         cameraType: item.camera_type || 'MT',
         acta: item.acta || undefined,
+        showActaLabel: item.show_acta_label !== false,
         tramo: item.tramo || undefined,
         metraje: item.metraje || undefined,
         inspectorName: item.inspector_name || 'Inspector',
@@ -558,6 +561,7 @@ CREATE TABLE IF NOT EXISTS public.inspection_photos (
   camera_code TEXT DEFAULT 'SB850',
   camera_type TEXT DEFAULT 'MT',
   acta TEXT,
+  show_acta_label BOOLEAN NOT NULL DEFAULT true,
   tramo TEXT,
   metraje TEXT,
   inspector_name TEXT NOT NULL,
@@ -583,6 +587,7 @@ ALTER TABLE public.inspection_photos ADD COLUMN IF NOT EXISTS plan_y NUMERIC CHE
 ALTER TABLE public.inspection_photos ADD COLUMN IF NOT EXISTS plan_end_x NUMERIC CHECK (plan_end_x >= 0 AND plan_end_x <= 100);
 ALTER TABLE public.inspection_photos ADD COLUMN IF NOT EXISTS plan_end_y NUMERIC CHECK (plan_end_y >= 0 AND plan_end_y <= 100);
 ALTER TABLE public.inspection_photos ADD COLUMN IF NOT EXISTS acta TEXT;
+ALTER TABLE public.inspection_photos ADD COLUMN IF NOT EXISTS show_acta_label BOOLEAN NOT NULL DEFAULT true;
 
 -- 3. TABLA DE REGISTRO DE ACTIVIDADES Y AUDITORÍA (inspection_activities)
 CREATE TABLE IF NOT EXISTS public.inspection_activities (

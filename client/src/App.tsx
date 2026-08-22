@@ -540,6 +540,7 @@ export default function App() {
                 inspector={inspector}
                 onSelectPhoto={handleSelectPhoto}
                 onNavigateToUpload={() => handleTabChange('upload')}
+                onUpdatePhoto={handleUpdatePhoto}
                 onUpdatePhotoPosition={handleUpdatePhotoPosition}
                 onUpdatePipelineMeasurements={handleUpdatePipelineMeasurements}
                 onCreatePhoto={handleCreatePhotoFromPlan}

@@ -13,6 +13,7 @@ interface MapViewProps {
   inspector: InspectorProfile;
   onSelectPhoto: (photo: InspectionPhoto) => void;
   onEditPhoto: (photo: InspectionPhoto) => void;
+  onUpdatePhoto: (photo: InspectionPhoto) => void;
   onDeletePhotos: (photoIds: string[]) => void;
   onNavigateToUpload: () => void;
   onCreatePhoto: (
@@ -99,6 +100,7 @@ export const MapView: React.FC<MapViewProps> = ({
   inspector,
   onSelectPhoto,
   onEditPhoto,
+  onUpdatePhoto,
   onDeletePhotos,
   onNavigateToUpload,
   onCreatePhoto,
@@ -898,7 +900,7 @@ export const MapView: React.FC<MapViewProps> = ({
                     >
                       <span className="material-symbols-outlined text-[18px]">timeline</span>
                     </button>
-                    {actaName && (
+                    {actaName && photo.showActaLabel !== false && (
                       <span
                         className="pointer-events-none absolute z-20 flex max-w-[150px] items-center gap-1 whitespace-nowrap rounded-md border border-[#0b5d8c]/35 bg-white/95 px-1.5 py-1 font-mono text-[9px] font-bold text-[#0b4770] shadow-[0_3px_10px_rgba(7,63,116,0.24)]"
                         style={{ left: `${midpointX}%`, top: `${midpointY}%`, transform: `translate(${4 + iconScale * 16}px, -50%) scale(${textScale})`, transformOrigin: 'left center' }}
@@ -941,7 +943,7 @@ export const MapView: React.FC<MapViewProps> = ({
                   >
                     <span className="material-symbols-outlined text-[18px]">{isCamera ? 'videocam' : 'inventory_2'}</span>
                   </button>
-                  {actaName && (
+                  {actaName && photo.showActaLabel !== false && (
                     <span
                       className="pointer-events-none absolute z-20 flex max-w-[150px] items-center gap-1 whitespace-nowrap rounded-md border border-[#0b5d8c]/35 bg-white/95 px-1.5 py-1 font-mono text-[9px] font-bold text-[#0b4770] shadow-[0_3px_10px_rgba(7,63,116,0.24)]"
                       style={{ left: `${photo.planX}%`, top: `${photo.planY}%`, transform: `translate(${4 + iconScale * 18}px, -50%) scale(${textScale})`, transformOrigin: 'left center' }}
@@ -1008,6 +1010,25 @@ export const MapView: React.FC<MapViewProps> = ({
             <div className="mt-3 flex items-center justify-between rounded-lg border border-[#b7d5e4] bg-[#eaf6fb] px-2.5 py-2">
               <span className="font-mono text-[9px] font-bold tracking-[0.12em] text-[#527284]">LONGITUD {blueprint.calibration ? 'CALIBRADA' : 'REGISTRADA'}</span>
               <span className="font-mono text-sm font-bold text-[#0b5d8c]">{Number.parseFloat(String(selectedPlanPhoto.metraje ?? 0)).toFixed(2)} m</span>
+            </div>
+          )}
+          {selectedPlanPhoto.acta?.trim() && (
+            <div className="mt-3 flex items-center justify-between gap-3 border border-[#b7d5e4] bg-[#f4fbfe] px-2.5 py-2">
+              <div className="min-w-0">
+                <p className="font-mono text-[9px] font-bold tracking-[0.12em] text-[#527284]">RÓTULO DE ACTA</p>
+                <p className="mt-0.5 truncate text-xs font-semibold text-[#0b4770]">{selectedPlanPhoto.acta}</p>
+              </div>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={selectedPlanPhoto.showActaLabel !== false}
+                onClick={() => onUpdatePhoto({ ...selectedPlanPhoto, showActaLabel: selectedPlanPhoto.showActaLabel === false })}
+                className={`inline-flex shrink-0 items-center gap-1.5 border px-2.5 py-1.5 text-[11px] font-bold transition ${selectedPlanPhoto.showActaLabel !== false ? 'border-[#80c7de] bg-white text-[#075a91] hover:bg-[#e6f6ff]' : 'border-[#b9cbd3] bg-[#f2f6f8] text-[#5b6f7a] hover:bg-white'}`}
+                title={selectedPlanPhoto.showActaLabel !== false ? 'Ocultar rótulo de acta en el plano' : 'Mostrar rótulo de acta en el plano'}
+              >
+                <span className="material-symbols-outlined text-[16px]">{selectedPlanPhoto.showActaLabel !== false ? 'visibility' : 'visibility_off'}</span>
+                {selectedPlanPhoto.showActaLabel !== false ? 'Visible' : 'Oculto'}
+              </button>
             </div>
           )}
           <div className="mt-3 grid grid-cols-[1fr_1fr_auto] gap-2">
