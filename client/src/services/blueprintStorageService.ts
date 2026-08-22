@@ -49,6 +49,18 @@ export async function loadBlueprintImage(): Promise<string | null> {
   return imageUrl;
 }
 
+export async function clearBlueprintImage(): Promise<void> {
+  const database = await openBlueprintDatabase();
+  await new Promise<void>((resolve, reject) => {
+    const transaction = database.transaction(STORE_NAME, 'readwrite');
+    transaction.objectStore(STORE_NAME).delete(ACTIVE_BLUEPRINT_KEY);
+    transaction.oncomplete = () => resolve();
+    transaction.onerror = () => reject(transaction.error || new Error('No se pudo eliminar el plano guardado.'));
+    transaction.onabort = () => reject(transaction.error || new Error('La eliminación del plano fue interrumpida.'));
+  });
+  database.close();
+}
+
 export function isQuotaExceededError(error: unknown): boolean {
   const errorName = error instanceof DOMException ? error.name : '';
   const errorMessage = error instanceof Error ? error.message : String(error || '');

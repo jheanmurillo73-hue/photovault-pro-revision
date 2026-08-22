@@ -387,6 +387,27 @@ export const supabaseService = {
     }
   },
 
+  // Administrative reset: clears operational inspection data only. Profiles, roles and app access are intentionally excluded.
+  resetOperationalData: async (): Promise<{ success: boolean; remote: boolean; error?: string }> => {
+    const client = getSupabaseClient();
+    if (!client || !isSupabaseConfigured()) {
+      return { success: true, remote: false };
+    }
+
+    try {
+      const { error } = await client.rpc('reset_inspection_data');
+      if (error) {
+        console.warn('Error resetting operational data in Supabase:', error.message);
+        return { success: false, remote: true, error: error.message };
+      }
+      return { success: true, remote: true };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'No se pudo restablecer la base de datos.';
+      console.warn('Operational reset error:', message);
+      return { success: false, remote: true, error: message };
+    }
+  },
+
   // Profile: Sync Inspector Profile
   syncProfile: async (profile: InspectorProfile, userId?: string): Promise<boolean> => {
     const client = getSupabaseClient();
@@ -779,6 +800,27 @@ DROP POLICY IF EXISTS "Acceso a configuracion por modulo" ON public.app_settings
 CREATE POLICY "Acceso a configuracion por modulo" ON public.app_settings FOR ALL
 USING (public.photovault_can_access_module('settings'))
 WITH CHECK (public.photovault_can_access_module('settings'));
+
+-- Restablecimiento administrativo: conserva perfiles, roles, permisos y configuración.
+CREATE OR REPLACE FUNCTION public.reset_inspection_data()
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  IF NOT public.photovault_is_admin() THEN
+    RAISE EXCEPTION 'Solo un administrador puede restablecer los datos de inspección.';
+  END IF;
+
+  DELETE FROM public.inspection_collections;
+  DELETE FROM public.inspection_activities;
+  DELETE FROM public.inspection_photos;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.reset_inspection_data() FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.reset_inspection_data() TO authenticated;
 
 -- Notificar recarga de caché
 NOTIFY pgrst, 'reload schema';
