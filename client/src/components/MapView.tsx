@@ -1047,7 +1047,13 @@ export const MapView: React.FC<MapViewProps> = ({
               }
 
               const isCamera = type === 'camara';
-              const markerColor = isCamera ? (photo.cameraType === 'BT' ? '#b94324' : '#0566aa') : '#b77812';
+              const markerColor = !isCamera
+                ? '#b77812'
+                : photo.cameraType === 'BT'
+                  ? '#b94324'
+                  : photo.cameraType === 'Datos'
+                    ? '#f97316'
+                    : '#0566aa';
               const actaName = photo.acta?.trim();
               const cameraName = isCamera ? cameraNameLabel(photo) : null;
               return (
