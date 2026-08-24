@@ -14,6 +14,8 @@ import {
   UserAccess,
   getElementType,
   getPipeNetworkOption,
+  ElectricalElementType,
+  getElectricalElementOption,
 } from './types';
 import {
   INITIAL_PHOTOS,
@@ -71,6 +73,9 @@ const normalizeInspectionPhoto = (photo: InspectionPhoto): InspectionPhoto => ({
   status: photo.status ?? 'Synced',
   requiresImmediateAction: Boolean(photo.requiresImmediateAction),
   verified: Boolean(photo.verified),
+  planArea: photo.electricalType || photo.planArea === 'electrical' ? 'electrical' : 'civil',
+  electricalType: photo.electricalType,
+  electricalColor: photo.electricalType ? getElectricalElementOption(photo.electricalType).color : undefined,
   pipeNetworkType: getElementType(photo) === 'tuberia'
     ? getPipeNetworkOption(photo.pipeNetworkType).value
     : undefined,
@@ -80,12 +85,14 @@ const normalizeInspectionPhoto = (photo: InspectionPhoto): InspectionPhoto => ({
   planEndY: normalizePlanCoordinate(photo.planEndY),
 });
 
-const createMapElementPreview = (elementType: Extract<ElementType, 'caja' | 'camara' | 'tuberia'>) => {
+const createMapElementPreview = (elementType: ElementType) => {
   const visual = elementType === 'camara'
     ? { accent: '#0566aa', symbol: 'C' }
     : elementType === 'caja'
       ? { accent: '#b77812', symbol: 'B' }
-      : { accent: '#073f74', symbol: 'T' };
+      : elementType === 'electrico'
+        ? { accent: '#7c3aed', symbol: 'E' }
+        : { accent: '#073f74', symbol: 'T' };
   return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(
     `<svg xmlns="http://www.w3.org/2000/svg" width="640" height="420" viewBox="0 0 640 420"><rect width="640" height="420" fill="#edf6fa"/><path d="M0 70H640M0 140H640M0 210H640M0 280H640M0 350H640M106 0V420M213 0V420M320 0V420M427 0V420M534 0V420" stroke="#c9dee8" stroke-width="2"/><circle cx="320" cy="210" r="86" fill="${visual.accent}"/><text x="320" y="237" text-anchor="middle" font-family="Arial, sans-serif" font-size="106" font-weight="700" fill="white">${visual.symbol}</text></svg>`,
   )}`;
@@ -296,29 +303,35 @@ export default function App() {
   };
 
   const handleCreatePhotoFromPlan = (
-    elementType: Extract<ElementType, 'caja' | 'camara' | 'tuberia'>,
+    elementType: ElementType,
     position: Pick<InspectionPhoto, 'planX' | 'planY' | 'planEndX' | 'planEndY'>,
     initialMetraje?: number,
+    electricalType?: ElectricalElementType,
   ): InspectionPhoto => {
     const createdAt = new Date();
     const suffix = Math.floor(100 + Math.random() * 900);
     const isCamera = elementType === 'camara';
     const isPipeline = elementType === 'tuberia';
+    const isElectrical = elementType === 'electrico' && Boolean(electricalType);
+    const electricalOption = getElectricalElementOption(electricalType);
     const elementName = isCamera ? 'Cámara' : isPipeline ? 'Tramo de tubería' : 'Caja';
     const newPhoto = normalizeInspectionPhoto({
       id: `plan-${Date.now()}`,
       displayId: `INSP-${createdAt.getFullYear()}-${suffix}`,
-      name: isCamera ? 'Nueva cámara' : isPipeline ? 'Nuevo tramo de tubería' : 'Nueva caja',
+      name: isElectrical ? `Nuevo ${electricalOption.label.toLowerCase()}` : isCamera ? 'Nueva cámara' : isPipeline ? 'Nuevo tramo de tubería' : 'Nueva caja',
       imageUrl: createMapElementPreview(elementType),
       date: createdAt.toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' })
         + `, ${createdAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`,
       dateRaw: createdAt.toISOString().slice(0, 10),
       status: 'Synced',
       executionStatus: 'En proceso',
-      category: 'inspection',
-      categoryLabel: 'Inspección General',
+      category: isElectrical ? 'electrical' : 'inspection',
+      categoryLabel: isElectrical ? 'Obras Eléctricas' : 'Inspección General',
       location: 'Plano de obra',
       elementType,
+      planArea: isElectrical ? 'electrical' : 'civil',
+      electricalType: isElectrical ? electricalType : undefined,
+      electricalColor: isElectrical ? electricalOption.color : undefined,
       cameraCode: isCamera ? 'SB850' : undefined,
       cameraType: isCamera ? 'MT' : undefined,
       tramo: isPipeline ? '' : undefined,
@@ -329,7 +342,7 @@ export default function App() {
       inspectorName: inspector.name,
       inspectorId: inspector.id,
       inspectorAvatar: inspector.avatarUrl,
-      type: isCamera ? 'Cámara de inspección' : isPipeline ? 'Canalización de obra' : 'Caja de inspección',
+      type: isElectrical ? electricalOption.label : isCamera ? 'Cámara de inspección' : isPipeline ? 'Canalización de obra' : 'Caja de inspección',
       verified: false,
       fieldNotes: 'Creado directamente en el plano de obra.',
       requiresImmediateAction: false,

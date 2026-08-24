@@ -61,3 +61,4 @@
 - [ ] Ejecutar la migración de reparación en Supabase antes de usar el restablecimiento operativo.
 - [x] Añadir estados visuales de carga, éxito y error al restablecimiento administrativo.
 - [x] Permitir clasificar cada tramo como media tensión, baja tensión o datos y diferenciarlo por color.
+- [x] Separar el acceso a Planos de Obra en Obras Civiles y Obras Eléctricas con datos y elementos independientes sobre el mismo JPG.
