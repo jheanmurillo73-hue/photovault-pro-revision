@@ -113,6 +113,18 @@ const getActaLabelStyle = (
   }
 };
 
+const getCameraNameStyle = (
+  planX: number,
+  planY: number,
+  offset: number,
+  textScale: number,
+): React.CSSProperties => ({
+  left: `${planX}%`,
+  top: `${planY}%`,
+  transform: `translate(${offset}px, calc(-100% - 2px)) scale(${textScale})`,
+  transformOrigin: 'left bottom',
+});
+
 const isPlaced = (photo: InspectionPhoto) =>
   typeof photo.planX === 'number' && typeof photo.planY === 'number';
 
@@ -127,6 +139,8 @@ const elementLabel = (photo: InspectionPhoto) => {
   if (type === 'tuberia') return photo.tramo ? `Tramo ${photo.tramo}` : 'Tubería sin tramo';
   return photo.name || 'Caja sin nombre';
 };
+
+const cameraNameLabel = (photo: InspectionPhoto) => photo.name?.trim() || photo.cameraCode || 'Cámara sin nombre';
 
 export const MapView: React.FC<MapViewProps> = ({
   photos,
@@ -186,6 +200,9 @@ export const MapView: React.FC<MapViewProps> = ({
   });
   const [areActaLabelsVisible, setAreActaLabelsVisible] = useState<boolean>(() =>
     localStorage.getItem('photovault_plan_acta_labels_visible') !== 'false',
+  );
+  const [areCameraNamesVisible, setAreCameraNamesVisible] = useState<boolean>(() =>
+    localStorage.getItem('photovault_plan_camera_names_visible') !== 'false',
   );
   const [blueprintStorageNotice, setBlueprintStorageNotice] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -263,6 +280,14 @@ export const MapView: React.FC<MapViewProps> = ({
       // El estado se conserva durante la sesión aunque el navegador no permita persistirlo.
     }
   }, [areActaLabelsVisible]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('photovault_plan_camera_names_visible', String(areCameraNamesVisible));
+    } catch {
+      // El estado se conserva durante la sesión aunque el navegador no permita persistirlo.
+    }
+  }, [areCameraNamesVisible]);
 
   useEffect(() => {
     if (!isPanelOpen) return;
@@ -851,6 +876,20 @@ export const MapView: React.FC<MapViewProps> = ({
           <span className="material-symbols-outlined text-[16px]">{areActaLabelsVisible ? 'visibility' : 'visibility_off'}</span>
           Actas
         </button>
+        <button
+          type="button"
+          onClick={() => setAreCameraNamesVisible((visible) => !visible)}
+          className={`inline-flex h-8 items-center gap-1.5 rounded-full border px-3 text-[11px] font-bold shadow-sm transition ${
+            areCameraNamesVisible
+              ? 'border-[#0b5d8c] bg-white text-[#075a91] hover:bg-[#e5f4fb]'
+              : 'border-[#afc0c9] bg-[#eef3f5] text-[#58717d] hover:bg-white'
+          }`}
+          title={areCameraNamesVisible ? 'Ocultar nombres de cámaras' : 'Mostrar nombres de cámaras'}
+          aria-pressed={areCameraNamesVisible}
+        >
+          <span className="material-symbols-outlined text-[16px]">{areCameraNamesVisible ? 'visibility' : 'visibility_off'}</span>
+          Nombres
+        </button>
       </div>
 
       <main className="absolute inset-x-0 bottom-0 top-[62px] overflow-auto p-5 pt-16">
@@ -1010,6 +1049,7 @@ export const MapView: React.FC<MapViewProps> = ({
               const isCamera = type === 'camara';
               const markerColor = isCamera ? (photo.cameraType === 'BT' ? '#b94324' : '#0566aa') : '#b77812';
               const actaName = photo.acta?.trim();
+              const cameraName = isCamera ? cameraNameLabel(photo) : null;
               return (
                 <React.Fragment key={photo.id}>
                   <button
@@ -1036,6 +1076,15 @@ export const MapView: React.FC<MapViewProps> = ({
                   >
                     <span className="material-symbols-outlined text-[18px]">{isCamera ? 'videocam' : 'inventory_2'}</span>
                   </button>
+                  {cameraName && areCameraNamesVisible && (
+                    <span
+                      className="pointer-events-none absolute z-20 max-w-[160px] truncate rounded-md border border-[#0566aa]/35 bg-white/95 px-1.5 py-1 font-mono text-[9px] font-bold text-[#075a91] shadow-[0_3px_10px_rgba(6,36,58,0.24)]"
+                      style={getCameraNameStyle(photo.planX!, photo.planY!, 5 + iconScale * 18, textScale)}
+                      title={cameraName}
+                    >
+                      {cameraName}
+                    </span>
+                  )}
                   {actaName && areActaLabelsVisible && photo.showActaLabel !== false && (
                     <span
                       className="pointer-events-none absolute z-20 flex max-w-[150px] items-center gap-1 whitespace-nowrap rounded-md border border-[#0b5d8c]/35 bg-white/95 px-1.5 py-1 font-mono text-[9px] font-bold text-[#0b4770] shadow-[0_3px_10px_rgba(6,36,58,0.24)]"

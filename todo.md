@@ -53,3 +53,4 @@
 - [x] Implementar un restablecimiento administrativo de datos operativos sin eliminar perfiles, cuentas, roles ni permisos.
 - [x] Permitir cargar una foto desde la galería del dispositivo en las propiedades de cada elemento.
 - [x] Permitir tomar una foto con cámara o elegirla de la galería desde las propiedades del elemento.
+- [x] Mostrar el nombre de cada cámara junto al icono y permitir ocultarlo o mostrarlo globalmente en el plano.
