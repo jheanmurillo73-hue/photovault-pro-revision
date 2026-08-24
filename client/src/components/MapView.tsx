@@ -204,6 +204,8 @@ export const MapView: React.FC<MapViewProps> = ({
   const [dragTarget, setDragTarget] = useState<DragTarget | null>(null);
   const [isPanelOpen, setIsPanelOpen] = useState<boolean>(false);
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
+  const [isHandToolActive, setIsHandToolActive] = useState(false);
+  const [panOffset, setPanOffset] = useState({ x: 0, y: 0 });
   const [iconScale, setIconScale] = useState<number>(() => {
     const saved = Number(localStorage.getItem('photovault_plan_icon_scale'));
     return Number.isFinite(saved) ? clampScale(saved, 0.4, 1.8) : 1;
@@ -222,6 +224,7 @@ export const MapView: React.FC<MapViewProps> = ({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const blueprintStorageReadyRef = useRef(false);
   const dragTargetRef = useRef<DragTarget | null>(null);
+  const panStartRef = useRef<{ clientX: number; clientY: number; offsetX: number; offsetY: number } | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -421,6 +424,7 @@ export const MapView: React.FC<MapViewProps> = ({
   };
 
   const activateCreation = (elementType: CreationMode) => {
+    setIsHandToolActive(false);
     exitMultipleSelection();
     setPlacement(null);
     setSelectedPlanPhotoId(null);
@@ -445,6 +449,7 @@ export const MapView: React.FC<MapViewProps> = ({
       setBlueprintStorageNotice('Carga primero el plano JPG para poder calibrarlo.');
       return;
     }
+    setIsHandToolActive(false);
     exitMultipleSelection();
     setPlacement(null);
     setCreationMode(null);
@@ -695,6 +700,31 @@ export const MapView: React.FC<MapViewProps> = ({
   const handleCanvasMouseLeave = () => {
     if (creationMode === 'tuberia') setPipePreview(null);
     if (calibrationMode) setCalibrationPreview(null);
+  };
+
+  const startPanning = (event: React.PointerEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    event.currentTarget.setPointerCapture(event.pointerId);
+    panStartRef.current = {
+      clientX: event.clientX,
+      clientY: event.clientY,
+      offsetX: panOffset.x,
+      offsetY: panOffset.y,
+    };
+  };
+
+  const movePanning = (event: React.PointerEvent<HTMLDivElement>) => {
+    const start = panStartRef.current;
+    if (!start) return;
+    setPanOffset({
+      x: start.offsetX + event.clientX - start.clientX,
+      y: start.offsetY + event.clientY - start.clientY,
+    });
+  };
+
+  const stopPanning = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
+    panStartRef.current = null;
   };
 
   const handleCanvasDrop = (event: React.DragEvent<HTMLDivElement>) => {
@@ -1038,7 +1068,7 @@ export const MapView: React.FC<MapViewProps> = ({
               className={`relative inline-flex max-h-[calc(100vh-15rem)] max-w-[calc(100vw-3rem)] overflow-hidden border border-[#9dbbc9] bg-white shadow-[0_18px_46px_rgba(7,63,116,0.22)] transition-transform duration-200 ${
                 placement || creationMode ? 'cursor-crosshair' : dragTarget ? 'ring-2 ring-[#18a9cf] ring-offset-2' : 'cursor-default'
               }`}
-              style={{ transform: `scale(${planScale})` }}
+              style={{ transform: `translate(${panOffset.x}px, ${panOffset.y}px) scale(${planScale})` }}
               aria-label="Plano interactivo de inspección"
             >
               <img
@@ -1047,6 +1077,23 @@ export const MapView: React.FC<MapViewProps> = ({
                 className="block max-h-[calc(100vh-15rem)] max-w-[calc(100vw-3rem)] object-contain"
                 draggable={false}
               />
+
+              {isHandToolActive && (
+                <div
+                  className="absolute inset-0 z-30 touch-none cursor-grab active:cursor-grabbing"
+                  onPointerDown={startPanning}
+                  onPointerMove={movePanning}
+                  onPointerUp={stopPanning}
+                  onPointerCancel={stopPanning}
+                  aria-label="Arrastra para mover el plano"
+                  role="application"
+                >
+                  <span className="pointer-events-none absolute right-3 top-3 inline-flex items-center gap-1.5 rounded-full bg-[#073f74]/90 px-2.5 py-1 text-[10px] font-bold text-white shadow-sm">
+                    <span className="material-symbols-outlined text-[14px]">pan_tool_alt</span>
+                    Modo mano
+                  </span>
+                </div>
+              )}
 
             <svg className="pointer-events-none absolute inset-0 h-full w-full" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
               <defs>
@@ -1644,6 +1691,31 @@ export const MapView: React.FC<MapViewProps> = ({
         <div className="hidden rounded-xl border border-[#c7d7df] bg-white/95 px-3 py-2 text-[11px] text-[#426373] shadow-sm sm:block">
           <strong className="text-[#0b2940]">{photos.filter((photo) => isPlaced(photo)).length}</strong> ubicados · <strong className="text-[#0b2940]">{totalPipelineMeters.toFixed(1)} m</strong> de tubería
         </div>
+        <button
+          type="button"
+          onClick={() => {
+            const nextHandMode = !isHandToolActive;
+            setIsHandToolActive(nextHandMode);
+            if (nextHandMode) {
+              exitMultipleSelection();
+              setPlacement(null);
+              setCreationMode(null);
+              setPipeStart(null);
+              setPipePreview(null);
+              if (calibrationMode) cancelCalibration();
+            }
+          }}
+          className={`flex h-10 items-center gap-1.5 rounded-xl border px-3 text-xs font-bold shadow-sm transition ${
+            isHandToolActive
+              ? 'border-[#073f74] bg-[#073f74] text-white'
+              : 'border-[#c7d7df] bg-white text-[#285b72] hover:bg-[#eaf6fb]'
+          }`}
+          title={isHandToolActive ? 'Desactivar mano para mover el plano' : 'Activar mano para mover el plano'}
+          aria-pressed={isHandToolActive}
+        >
+          <span className="material-symbols-outlined text-[20px]">pan_tool_alt</span>
+          <span className="hidden sm:inline">Mano</span>
+        </button>
         <button type="button" onClick={() => setIsFullscreen((value) => !value)} className="flex h-10 w-10 items-center justify-center rounded-xl border border-[#c7d7df] bg-white text-[#285b72] shadow-sm transition hover:bg-[#eaf6fb]" title={isFullscreen ? 'Salir de pantalla completa' : 'Pantalla completa'}>
           <span className="material-symbols-outlined text-[20px]">{isFullscreen ? 'fullscreen_exit' : 'fullscreen'}</span>
         </button>
