@@ -405,7 +405,6 @@ export default function App() {
     setSettings(normalizeSettings(INITIAL_SETTINGS));
     setSelectedPhotoId(null);
     setEditingPhoto(null);
-    setCurrentTab('dashboard');
 
     [
       'photovault_photos',
@@ -422,12 +421,6 @@ export default function App() {
       // El estado de la aplicación ya se limpió; la próxima carga no conservará metadatos del plano.
     }
 
-    showToast(
-      result.remote
-        ? 'Datos operativos y memoria local restablecidos. Los perfiles y permisos se conservaron.'
-        : 'Memoria local restablecida. No había conexión configurada con Supabase.',
-      'success',
-    );
   };
 
   const handleSaveProfile = (updatedProfile: InspectorProfile) => {

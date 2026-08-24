@@ -59,3 +59,4 @@
 - [ ] Eliminar los datos operativos de prueba de Supabase sin modificar perfiles, cuentas, roles ni permisos.
 - [x] Corregir el botón de restablecimiento administrativo que no ejecuta el flujo esperado.
 - [ ] Ejecutar la migración de reparación en Supabase antes de usar el restablecimiento operativo.
+- [x] Añadir estados visuales de carga, éxito y error al restablecimiento administrativo.
