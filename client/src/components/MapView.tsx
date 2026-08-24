@@ -884,7 +884,16 @@ export const MapView: React.FC<MapViewProps> = ({
               <BreadcrumbList className={`gap-1 text-[10px] font-bold tracking-[0.1em] ${selectedPlanArea === 'electrical' ? 'text-[#6d28d9]' : 'text-[#527284]'}`}>
                 <BreadcrumbItem>
                   <BreadcrumbLink asChild>
-                    <button type="button" onClick={requestReturnToAreas} className="font-mono uppercase hover:underline">Planos de obra</button>
+                    <button
+                      type="button"
+                      onClick={requestReturnToAreas}
+                      className="inline-flex items-center gap-1 rounded-sm font-mono uppercase underline decoration-1 underline-offset-4 transition hover:text-[#0566aa] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0566aa] focus-visible:ring-offset-2"
+                      aria-label="Volver al menú principal de áreas de planos"
+                      title="Volver al menú principal de áreas"
+                    >
+                      <span className="material-symbols-outlined text-[13px]">home</span>
+                      Planos de obra
+                    </button>
                   </BreadcrumbLink>
                 </BreadcrumbItem>
                 <BreadcrumbSeparator className="text-[#86a0ad]" />
