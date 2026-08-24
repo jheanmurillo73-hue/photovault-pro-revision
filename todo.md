@@ -51,3 +51,7 @@
 - [x] Retirar el fondo atenuado del modal para mantener visible el plano y el elemento seleccionado.
 - [x] Promover los últimos cambios publicados hacia desarrollo en GitHub.
 - [x] Implementar un restablecimiento administrativo de datos operativos sin eliminar perfiles, cuentas, roles ni permisos.
+- [x] Permitir cargar una foto desde la galería del dispositivo en las propiedades de cada elemento.
+- [x] Permitir tomar una foto con cámara o elegirla de la galería desde las propiedades del elemento.
+- [x] Mostrar el nombre de cada cámara junto al icono y permitir ocultarlo o mostrarlo globalmente en el plano.
+- [x] Mostrar en naranja los iconos de las cámaras de tipo Datos en el plano.
