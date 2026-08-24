@@ -7,6 +7,8 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ActaLabelPosition, BlueprintCalibration, BlueprintOverlay, ElectricalElementType, ELECTRICAL_ELEMENT_OPTIONS, getElectricalElementOption, getElementType, getPipeNetworkOption, InspectionPhoto, InspectorProfile, isElectricalElementType, PIPE_NETWORK_OPTIONS, PipeNetworkType, PlanArea } from '../types';
 import { compressImageForDevice } from '../services/deviceStorageService';
 import { isQuotaExceededError, loadBlueprintImage, saveBlueprintImage } from '../services/blueprintStorageService';
+import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from './ui/breadcrumb';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from './ui/alert-dialog';
 
 interface MapViewProps {
   photos: InspectionPhoto[];
@@ -177,7 +179,12 @@ export const MapView: React.FC<MapViewProps> = ({
     }
   });
   const [activeFilter, setActiveFilter] = useState<'all' | 'camara' | 'caja' | 'tuberia' | 'pending'>('all');
-  const [selectedPlanArea, setSelectedPlanArea] = useState<PlanArea | null>(null);
+  const [selectedPlanArea, setSelectedPlanArea] = useState<PlanArea | null>(() => {
+    const saved = localStorage.getItem('photovault_last_plan_area');
+    return saved === 'civil' || saved === 'electrical' ? saved : null;
+  });
+  const [hasPendingPlanChanges, setHasPendingPlanChanges] = useState(false);
+  const [isLeaveConfirmOpen, setIsLeaveConfirmOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [placement, setPlacement] = useState<PlacementTarget | null>(null);
   const [creationMode, setCreationMode] = useState<CreationMode | null>(null);
@@ -297,6 +304,15 @@ export const MapView: React.FC<MapViewProps> = ({
   }, [areCameraNamesVisible]);
 
   useEffect(() => {
+    if (!selectedPlanArea) return;
+    try {
+      localStorage.setItem('photovault_last_plan_area', selectedPlanArea);
+    } catch {
+      // El área permanece activa durante esta sesión aunque el navegador no permita persistirla.
+    }
+  }, [selectedPlanArea]);
+
+  useEffect(() => {
     if (!isPanelOpen) return;
     const closeOnEscape = (event: KeyboardEvent) => {
       if (event.key === 'Escape') setIsPanelOpen(false);
@@ -358,6 +374,29 @@ export const MapView: React.FC<MapViewProps> = ({
   const exitMultipleSelection = () => {
     setIsMultipleSelectionMode(false);
     setSelectedPlanPhotoIds([]);
+  };
+
+  const requestReturnToAreas = () => {
+    const hasInProgressWork = Boolean(placement || creationMode || pipeStart || calibrationMode || calibrationDraft);
+    if (hasPendingPlanChanges || hasInProgressWork) {
+      setIsLeaveConfirmOpen(true);
+      return;
+    }
+    setSelectedPlanArea(null);
+  };
+
+  const confirmReturnToAreas = () => {
+    setIsLeaveConfirmOpen(false);
+    setPlacement(null);
+    setCreationMode(null);
+    setPipeStart(null);
+    setPipePreview(null);
+    setCalibrationMode(false);
+    setCalibrationStart(null);
+    setCalibrationPreview(null);
+    setCalibrationDraft(null);
+    setHasPendingPlanChanges(false);
+    setSelectedPlanArea(null);
   };
 
   const toggleMultipleSelectionMode = () => {
@@ -448,6 +487,7 @@ export const MapView: React.FC<MapViewProps> = ({
     changes: Partial<Pick<InspectionPhoto, 'planX' | 'planY' | 'planEndX' | 'planEndY'>>,
   ) => {
     if (getElementType(photo) !== 'tuberia' || !hasCompletePipe(photo)) return;
+    setHasPendingPlanChanges(true);
     const position = {
       planX: clampPercent(changes.planX ?? photo.planX!),
       planY: clampPercent(changes.planY ?? photo.planY!),
@@ -476,6 +516,7 @@ export const MapView: React.FC<MapViewProps> = ({
       aspectRatio: calibrationDraft.aspectRatio,
       calibratedAt: new Date().toISOString(),
     };
+    setHasPendingPlanChanges(true);
     setBlueprint((previous) => ({ ...previous, calibration }));
 
     const measurements = photos
@@ -514,6 +555,7 @@ export const MapView: React.FC<MapViewProps> = ({
         visible: true,
         opacity: 1,
       }));
+      setHasPendingPlanChanges(true);
       event.target.value = '';
     } catch {
       setBlueprintStorageNotice('No se pudo procesar el JPG. Intenta con otro archivo de plano.');
@@ -526,6 +568,7 @@ export const MapView: React.FC<MapViewProps> = ({
   });
 
   const placeTargetAt = (target: PlacementTarget, planX: number, planY: number) => {
+    setHasPendingPlanChanges(true);
     if (target.stage === 'pipe-start') {
       onUpdatePhotoPosition(target.photo.id, {
         planX,
@@ -593,6 +636,7 @@ export const MapView: React.FC<MapViewProps> = ({
 
     if (creationMode === 'camara' || creationMode === 'caja') {
       const created = onCreatePhoto(creationMode, { planX, planY });
+      setHasPendingPlanChanges(true);
       setActiveFilter('all');
       setSelectedPlanPhotoId(created.id);
       setCreationMode(null);
@@ -605,6 +649,7 @@ export const MapView: React.FC<MapViewProps> = ({
 
     if (electricalCreationType) {
       const created = onCreatePhoto('electrico', { planX, planY }, undefined, electricalCreationType);
+      setHasPendingPlanChanges(true);
       setSelectedPlanPhotoId(created.id);
       setCreationMode(null);
       return;
@@ -622,6 +667,7 @@ export const MapView: React.FC<MapViewProps> = ({
         planEndX: alignedEnd.planX,
         planEndY: alignedEnd.planY,
       }, roundMeters(getMetersFromPlanPoints(pipeStart, alignedEnd, blueprint.calibration) ?? 0));
+      setHasPendingPlanChanges(true);
       setActiveFilter('all');
       setSelectedPlanPhotoId(created.id);
       setPipeStart(null);
@@ -662,12 +708,14 @@ export const MapView: React.FC<MapViewProps> = ({
     const type = getElementType(photo);
 
     if (source === 'palette') {
+      setHasPendingPlanChanges(true);
       placeTargetAt(
         { photo, stage: type === 'tuberia' ? (isPlaced(photo) ? 'pipe-end' : 'pipe-start') : 'point' },
         planX,
         planY,
       );
     } else if (type === 'tuberia' && hasCompletePipe(photo)) {
+      setHasPendingPlanChanges(true);
       const midpointX = (photo.planX! + photo.planEndX!) / 2;
       const midpointY = (photo.planY! + photo.planEndY!) / 2;
       const shiftX = Math.min(100 - Math.max(photo.planX!, photo.planEndX!), Math.max(-Math.min(photo.planX!, photo.planEndX!), planX - midpointX));
@@ -684,6 +732,7 @@ export const MapView: React.FC<MapViewProps> = ({
         ...(metraje !== null ? { metraje: roundMeters(metraje) } : {}),
       });
     } else {
+      setHasPendingPlanChanges(true);
       onUpdatePhotoPosition(photo.id, { planX, planY });
     }
     dragTargetRef.current = null;
@@ -831,7 +880,21 @@ export const MapView: React.FC<MapViewProps> = ({
             <span className="material-symbols-outlined text-[21px]">{selectedPlanArea === 'electrical' ? 'bolt' : 'architecture'}</span>
           </div>
           <div className="min-w-0">
-            <p className={`font-mono text-[10px] font-bold tracking-[0.16em] ${selectedPlanArea === 'electrical' ? 'text-[#6d28d9]' : 'text-[#527284]'}`}>PLANO / {selectedPlanArea === 'electrical' ? 'OBRAS ELÉCTRICAS' : 'OBRAS CIVILES'}</p>
+            <Breadcrumb className="mb-1">
+              <BreadcrumbList className={`gap-1 text-[10px] font-bold tracking-[0.1em] ${selectedPlanArea === 'electrical' ? 'text-[#6d28d9]' : 'text-[#527284]'}`}>
+                <BreadcrumbItem>
+                  <BreadcrumbLink asChild>
+                    <button type="button" onClick={requestReturnToAreas} className="font-mono uppercase hover:underline">Planos de obra</button>
+                  </BreadcrumbLink>
+                </BreadcrumbItem>
+                <BreadcrumbSeparator className="text-[#86a0ad]" />
+                <BreadcrumbItem>
+                  <BreadcrumbPage className={`font-mono text-[10px] font-bold tracking-[0.1em] ${selectedPlanArea === 'electrical' ? 'text-[#6d28d9]' : 'text-[#527284]'}`}>
+                    {selectedPlanArea === 'electrical' ? 'Obras eléctricas' : 'Obras civiles'}
+                  </BreadcrumbPage>
+                </BreadcrumbItem>
+              </BreadcrumbList>
+            </Breadcrumb>
             <h1 className="truncate text-sm font-bold text-[#0b2940]">{blueprint.imageUrl ? blueprint.name : 'Carga un plano JPG para comenzar'}</h1>
           </div>
         </div>
@@ -848,7 +911,7 @@ export const MapView: React.FC<MapViewProps> = ({
           </div>
           <button
             type="button"
-            onClick={() => { setSelectedPlanArea(null); setCreationMode(null); setSelectedPlanPhotoId(null); }}
+            onClick={requestReturnToAreas}
             className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-[#b4cbd8] bg-white px-3 text-xs font-semibold text-[#154860] transition hover:bg-[#eaf6fb]"
           >
             <span className="material-symbols-outlined text-[17px]">arrow_back</span>
@@ -1408,6 +1471,7 @@ export const MapView: React.FC<MapViewProps> = ({
                 type="button"
                 onClick={() => {
                   onDeletePhotos(photosPendingDeletion.map((photo) => photo.id));
+                  setHasPendingPlanChanges(true);
                   setPhotosPendingDeletion([]);
                   setSelectedPlanPhotoId(null);
                   exitMultipleSelection();
@@ -1636,6 +1700,24 @@ export const MapView: React.FC<MapViewProps> = ({
           </aside>
         </div>
       )}
+
+      <AlertDialog open={isLeaveConfirmOpen} onOpenChange={setIsLeaveConfirmOpen}>
+        <AlertDialogContent className="border-[#c7d7df] bg-white font-['Roboto',sans-serif]">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2 text-[#0b2940]">
+              <span className="material-symbols-outlined text-[#b77812]">warning</span>
+              ¿Volver al menú de áreas?
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-sm leading-6 text-[#547181]">
+              Hay cambios recientes o una acción en curso en este plano. Los registros ya creados se conservan, pero se cancelará cualquier ubicación, trazado o calibración que aún esté en proceso.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="border-[#b4cbd8] text-[#154860]">Seguir editando</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmReturnToAreas} className="bg-[#0566aa] text-white hover:bg-[#004d84]">Volver al menú</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </section>
   );
 };

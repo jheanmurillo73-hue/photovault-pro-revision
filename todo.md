@@ -64,3 +64,4 @@
 - [x] Separar el acceso a Planos de Obra en Obras Civiles y Obras Eléctricas con datos y elementos independientes sobre el mismo JPG.
 - [x] Reorganizar la barra de herramientas de Obras Eléctricas para que todos los botones sean visibles.
 - [x] Añadir un icono de retorno desde Obras Civiles y Obras Eléctricas al menú de áreas.
+- [x] Añadir breadcrumb, memoria del área activa y confirmación de salida cuando existan cambios pendientes en el plano.
