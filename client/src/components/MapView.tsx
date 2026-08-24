@@ -4,7 +4,7 @@
  * relativos al plano, nunca como coordenadas de un proveedor cartográfico.
  */
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { ActaLabelPosition, BlueprintCalibration, BlueprintOverlay, ElectricalElementType, ELECTRICAL_ELEMENT_OPTIONS, getElectricalElementOption, getElementType, getPipeNetworkOption, InspectionPhoto, InspectorProfile, isElectricalCableType, isElectricalElementType, PIPE_NETWORK_OPTIONS, PipeNetworkType } from '../types';
+import { ActaLabelPosition, BlueprintCalibration, BlueprintOverlay, getElementType, getPipeNetworkOption, InspectionPhoto, InspectorProfile, PIPE_NETWORK_OPTIONS, PipeNetworkType } from '../types';
 import { compressImageForDevice } from '../services/deviceStorageService';
 import { isQuotaExceededError, loadBlueprintImage, saveBlueprintImage } from '../services/blueprintStorageService';
 
@@ -17,10 +17,9 @@ interface MapViewProps {
   onDeletePhotos: (photoIds: string[]) => void;
   onNavigateToUpload: () => void;
   onCreatePhoto: (
-    elementType: 'caja' | 'camara' | 'tuberia' | 'electrico',
+    elementType: 'caja' | 'camara' | 'tuberia',
     position: Pick<InspectionPhoto, 'planX' | 'planY' | 'planEndX' | 'planEndY'>,
     initialMetraje?: number,
-    electricalType?: ElectricalElementType,
   ) => InspectionPhoto;
   onUpdatePhotoPosition: (
     photoId: string,
@@ -31,7 +30,6 @@ interface MapViewProps {
 
 type PlacementStage = 'point' | 'pipe-start' | 'pipe-end';
 type PipeAlignment = 'libre' | 'horizontal' | 'vertical' | 'diagonal';
-type CreationMode = 'caja' | 'camara' | 'tuberia' | ElectricalElementType;
 
 interface PlacementTarget {
   photo: InspectionPhoto;
@@ -135,18 +133,8 @@ const hasCompletePipe = (photo: InspectionPhoto) =>
   && typeof photo.planEndX === 'number'
   && typeof photo.planEndY === 'number';
 
-const isElectricalPhoto = (photo: InspectionPhoto) =>
-  photo.planLayer === 'electrical' && isElectricalElementType(photo.electricalType);
-
-const isLinearPlanElement = (photo: InspectionPhoto) =>
-  getElementType(photo) === 'tuberia' || (isElectricalPhoto(photo) && isElectricalCableType(photo.electricalType));
-
-const isLinearCreationMode = (mode: CreationMode | null) =>
-  mode === 'tuberia' || isElectricalCableType(mode || undefined);
-
 const elementLabel = (photo: InspectionPhoto) => {
   const type = getElementType(photo);
-  if (isElectricalPhoto(photo)) return getElectricalElementOption(photo.electricalType).label;
   if (type === 'camara') return photo.cameraCode || 'Cámara sin código';
   if (type === 'tuberia') return photo.tramo ? `Tramo ${photo.tramo}` : 'Tubería sin tramo';
   return photo.name || 'Caja sin nombre';
@@ -182,11 +170,10 @@ export const MapView: React.FC<MapViewProps> = ({
       return EMPTY_BLUEPRINT;
     }
   });
-  const [activeFilter, setActiveFilter] = useState<'all' | 'camara' | 'caja' | 'tuberia' | 'electrico' | 'pending'>('all');
-  const [activePlanLayer, setActivePlanLayer] = useState<'all' | 'civil' | 'electrical'>('all');
+  const [activeFilter, setActiveFilter] = useState<'all' | 'camara' | 'caja' | 'tuberia' | 'pending'>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [placement, setPlacement] = useState<PlacementTarget | null>(null);
-  const [creationMode, setCreationMode] = useState<CreationMode | null>(null);
+  const [creationMode, setCreationMode] = useState<'caja' | 'camara' | 'tuberia' | null>(null);
   const [pipeStart, setPipeStart] = useState<PlanPoint | null>(null);
   const [pipePreview, setPipePreview] = useState<PlanPoint | null>(null);
   const [pipeAlignment, setPipeAlignment] = useState<PipeAlignment>('libre');
@@ -313,7 +300,8 @@ export const MapView: React.FC<MapViewProps> = ({
 
   const pendingPhotos = useMemo(
     () => photos.filter((photo) => {
-      return isLinearPlanElement(photo) ? !hasCompletePipe(photo) : !isPlaced(photo);
+      const type = getElementType(photo);
+      return type === 'tuberia' ? !hasCompletePipe(photo) : !isPlaced(photo);
     }),
     [photos],
   );
@@ -322,7 +310,6 @@ export const MapView: React.FC<MapViewProps> = ({
     const query = searchQuery.trim().toLowerCase();
     return photos.filter((photo) => {
       const type = getElementType(photo);
-      if (activePlanLayer !== 'all' && photo.planLayer !== activePlanLayer) return false;
       if (activeFilter === 'pending' && !pendingPhotos.some((pending) => pending.id === photo.id)) return false;
       if (activeFilter !== 'all' && activeFilter !== 'pending' && type !== activeFilter) return false;
       if (!query) return true;
@@ -330,7 +317,7 @@ export const MapView: React.FC<MapViewProps> = ({
         .filter(Boolean)
         .some((value) => String(value).toLowerCase().includes(query));
     });
-  }, [activeFilter, activePlanLayer, pendingPhotos, photos, searchQuery]);
+  }, [activeFilter, pendingPhotos, photos, searchQuery]);
 
   const positionedPhotos = useMemo(
     () => visiblePhotos.filter((photo) => isPlaced(photo)),
@@ -380,18 +367,19 @@ export const MapView: React.FC<MapViewProps> = ({
     ));
   };
 
-  const activateCreation = (elementType: CreationMode) => {
+  const activateCreation = (elementType: 'caja' | 'camara' | 'tuberia') => {
     exitMultipleSelection();
     setPlacement(null);
     setSelectedPlanPhotoId(null);
     setPipeStart(null);
     setPipePreview(null);
-    if (!isLinearCreationMode(elementType)) setPipeAlignment('libre');
+    if (elementType !== 'tuberia') setPipeAlignment('libre');
     setCreationMode((previous) => (previous === elementType ? null : elementType));
   };
 
   const selectForPlacement = (photo: InspectionPhoto) => {
-    if (isLinearPlanElement(photo)) {
+    const type = getElementType(photo);
+    if (type === 'tuberia') {
       setPlacement({ photo, stage: isPlaced(photo) ? 'pipe-end' : 'pipe-start' });
     } else {
       setPlacement({ photo, stage: 'point' });
@@ -597,34 +585,19 @@ export const MapView: React.FC<MapViewProps> = ({
       return;
     }
 
-    const electricalCreationType = isElectricalElementType(creationMode ?? undefined)
-      ? creationMode as ElectricalElementType
-      : undefined;
-
-    if (electricalCreationType && !isElectricalCableType(electricalCreationType)) {
-      const created = onCreatePhoto('electrico', { planX, planY }, undefined, electricalCreationType);
-      setActivePlanLayer('electrical');
-      setActiveFilter('electrico');
-      setSelectedPlanPhotoId(created.id);
-      setCreationMode(null);
-      return;
-    }
-
-    if (isLinearCreationMode(creationMode)) {
+    if (creationMode === 'tuberia') {
       if (!pipeStart) {
         setPipeStart({ planX, planY });
         return;
       }
       const alignedEnd = alignPipeEnd(pipeStart, { planX, planY }, pipeAlignment);
-      const isElectricalCable = Boolean(electricalCreationType && isElectricalCableType(electricalCreationType));
-      const created = onCreatePhoto(isElectricalCable ? 'electrico' : 'tuberia', {
+      const created = onCreatePhoto('tuberia', {
         planX: pipeStart.planX,
         planY: pipeStart.planY,
         planEndX: alignedEnd.planX,
         planEndY: alignedEnd.planY,
-      }, roundMeters(getMetersFromPlanPoints(pipeStart, alignedEnd, blueprint.calibration) ?? 0), isElectricalCable ? electricalCreationType : undefined);
-      setActivePlanLayer(isElectricalCable ? 'electrical' : 'civil');
-      setActiveFilter(isElectricalCable ? 'electrico' : 'all');
+      }, roundMeters(getMetersFromPlanPoints(pipeStart, alignedEnd, blueprint.calibration) ?? 0));
+      setActiveFilter('all');
       setSelectedPlanPhotoId(created.id);
       setPipeStart(null);
       setPipePreview(null);
@@ -644,12 +617,12 @@ export const MapView: React.FC<MapViewProps> = ({
       setCalibrationPreview(getPlanPosition(bounds, event.clientX, event.clientY));
       return;
     }
-    if (!isLinearCreationMode(creationMode) || !pipeStart) return;
+    if (creationMode !== 'tuberia' || !pipeStart) return;
     setPipePreview(alignPipeEnd(pipeStart, getPlanPosition(bounds, event.clientX, event.clientY), pipeAlignment));
   };
 
   const handleCanvasMouseLeave = () => {
-    if (isLinearCreationMode(creationMode)) setPipePreview(null);
+    if (creationMode === 'tuberia') setPipePreview(null);
     if (calibrationMode) setCalibrationPreview(null);
   };
 
@@ -736,10 +709,6 @@ export const MapView: React.FC<MapViewProps> = ({
     ? { planX: (calibrationStart.planX + calibrationPreview.planX) / 2, planY: (calibrationStart.planY + calibrationPreview.planY) / 2 }
     : null;
 
-  const activeElectricalCreationType = isElectricalElementType(creationMode ?? undefined)
-    ? creationMode as ElectricalElementType
-    : undefined;
-
   const placementInstruction = calibrationMode
     ? calibrationStart
       ? 'Marca el final de un tramo cuya distancia real conozcas.'
@@ -748,12 +717,10 @@ export const MapView: React.FC<MapViewProps> = ({
     ? 'Haz clic sobre el plano para agregar una nueva cámara.'
     : creationMode === 'caja'
       ? 'Haz clic sobre el plano para agregar una nueva caja.'
-    : activeElectricalCreationType && !isElectricalCableType(activeElectricalCreationType)
-      ? `Haz clic sobre el plano para agregar ${getElectricalElementOption(activeElectricalCreationType).label.toLowerCase()}.`
-    : isLinearCreationMode(creationMode)
+    : creationMode === 'tuberia'
       ? pipeStart
-        ? `Haz clic para definir el final de ${activeElectricalCreationType ? getElectricalElementOption(activeElectricalCreationType).label.toLowerCase() : 'el nuevo tramo'}. Guía actual: ${pipePreviewMeters !== null ? `${pipePreviewMeters.toFixed(2)} m` : `${pipePreviewDistance?.toFixed(1) ?? '0.0'}% del plano`}.`
-        : `Haz clic para definir el inicio de ${activeElectricalCreationType ? getElectricalElementOption(activeElectricalCreationType).label.toLowerCase() : 'un nuevo tramo de tubería'}.`
+        ? `Haz clic para definir el final del nuevo tramo. Guía actual: ${pipePreviewMeters !== null ? `${pipePreviewMeters.toFixed(2)} m` : `${pipePreviewDistance?.toFixed(1) ?? '0.0'}% del plano`}.`
+        : 'Haz clic para definir el inicio del nuevo tramo de tubería.'
       : placement
     ? placement.stage === 'pipe-start'
       ? `Haz clic para ubicar el inicio de ${elementLabel(placement.photo)}.`
@@ -825,7 +792,6 @@ export const MapView: React.FC<MapViewProps> = ({
           ['camara', 'Cámaras', 'videocam'],
           ['caja', 'Cajas', 'inventory_2'],
           ['tuberia', 'Tuberías', 'timeline'],
-          ['electrico', 'Eléctricos', 'bolt'],
           ['pending', 'Sin ubicar', 'location_off'],
         ] as const).map(([filter, label, icon]) => (
           <button
@@ -835,28 +801,6 @@ export const MapView: React.FC<MapViewProps> = ({
             className={`inline-flex h-8 items-center gap-1.5 rounded-full border px-3 text-[11px] font-bold shadow-sm transition ${
               activeFilter === filter
                 ? 'border-[#0566aa] bg-[#e5f4fb] text-[#004d84]'
-                : 'border-[#c7d7df] bg-white text-[#466473] hover:bg-[#f4fafc]'
-            }`}
-          >
-            <span className="material-symbols-outlined text-[15px]">{icon}</span>
-            {label}
-          </button>
-        ))}
-        <span className="mx-1 hidden h-6 w-px bg-[#b8ced9] sm:block" aria-hidden="true" />
-        {([
-          ['all', 'Todas las capas', 'layers'],
-          ['civil', 'Obras civiles', 'architecture'],
-          ['electrical', 'Obras eléctricas', 'bolt'],
-        ] as const).map(([layer, label, icon]) => (
-          <button
-            key={layer}
-            type="button"
-            onClick={() => setActivePlanLayer(layer)}
-            className={`inline-flex h-8 items-center gap-1.5 rounded-full border px-3 text-[11px] font-bold shadow-sm transition ${
-              activePlanLayer === layer
-                ? layer === 'electrical'
-                  ? 'border-[#7c3aed] bg-[#f3edff] text-[#5b21b6]'
-                  : 'border-[#0566aa] bg-[#e5f4fb] text-[#004d84]'
                 : 'border-[#c7d7df] bg-white text-[#466473] hover:bg-[#f4fafc]'
             }`}
           >
@@ -904,23 +848,6 @@ export const MapView: React.FC<MapViewProps> = ({
           <span className="material-symbols-outlined text-[16px]">timeline</span>
           Tubería
         </button>
-        <span className="mx-1 hidden h-6 w-px bg-[#b8ced9] sm:block" aria-hidden="true" />
-        {ELECTRICAL_ELEMENT_OPTIONS.map((element) => (
-          <button
-            key={element.value}
-            type="button"
-            onClick={() => activateCreation(element.value)}
-            className={`inline-flex h-8 items-center gap-1.5 rounded-full border px-3 text-[11px] font-bold shadow-sm transition ${
-              creationMode === element.value
-                ? 'border-[#5b21b6] bg-[#5b21b6] text-white'
-                : 'border-[#d8c3fb] bg-white text-[#5b21b6] hover:bg-[#f5f0ff]'
-            }`}
-            title={`Agregar ${element.label.toLowerCase()} a Obras Eléctricas`}
-          >
-            <span className="material-symbols-outlined text-[16px]">{element.icon}</span>
-            {element.shortLabel}
-          </button>
-        ))}
         <button
           type="button"
           onClick={toggleMultipleSelectionMode}
@@ -1002,16 +929,13 @@ export const MapView: React.FC<MapViewProps> = ({
                 </linearGradient>
               </defs>
               {positionedPhotos.map((photo) => {
-                if (!isLinearPlanElement(photo) || !hasCompletePipe(photo)) return null;
-                const electricalOption = getElectricalElementOption(photo.electricalType);
-                const pipeStroke = isElectricalPhoto(photo)
-                  ? photo.electricalColor || electricalOption.color
-                  : photo.pipeColor || getPipeNetworkOption(photo.pipeNetworkType).color;
+                if (getElementType(photo) !== 'tuberia' || !hasCompletePipe(photo)) return null;
+                const pipeStroke = photo.pipeColor || getPipeNetworkOption(photo.pipeNetworkType).color;
                 const isSelected = !isMultipleSelectionMode && selectedPlanPhotoId === photo.id;
                 return (
                   <g key={`line-${photo.id}`}>
                     <line x1={photo.planX} y1={photo.planY} x2={photo.planEndX} y2={photo.planEndY} stroke="rgba(255,255,255,0.82)" strokeWidth="2.2" strokeLinecap="round" />
-                    <line x1={photo.planX} y1={photo.planY} x2={photo.planEndX} y2={photo.planEndY} stroke={pipeStroke} strokeWidth="1.1" strokeLinecap="round" strokeDasharray={photo.electricalType === 'cable_datos' ? '2.2 1.2' : undefined} />
+                    <line x1={photo.planX} y1={photo.planY} x2={photo.planEndX} y2={photo.planEndY} stroke={pipeStroke} strokeWidth="1.1" strokeLinecap="round" />
                     {isSelected && (
                       <>
                         <circle cx={photo.planX} cy={photo.planY} r="1.55" fill="#ffffff" stroke="#073f74" strokeWidth="0.7" />
@@ -1021,16 +945,16 @@ export const MapView: React.FC<MapViewProps> = ({
                   </g>
                 );
               })}
-              {isLinearCreationMode(creationMode) && pipeStart && (
+              {creationMode === 'tuberia' && pipeStart && (
                 <>
                   {pipePreview && (
                     <>
                       <line x1={pipeStart.planX} y1={pipeStart.planY} x2={pipePreview.planX} y2={pipePreview.planY} stroke="rgba(255,255,255,0.92)" strokeWidth="2.8" strokeLinecap="round" />
-                      <line x1={pipeStart.planX} y1={pipeStart.planY} x2={pipePreview.planX} y2={pipePreview.planY} stroke={activeElectricalCreationType ? getElectricalElementOption(activeElectricalCreationType).color : '#073f74'} strokeWidth="1.3" strokeDasharray="2.2 1.4" strokeLinecap="round" />
+                      <line x1={pipeStart.planX} y1={pipeStart.planY} x2={pipePreview.planX} y2={pipePreview.planY} stroke="#073f74" strokeWidth="1.3" strokeDasharray="2.2 1.4" strokeLinecap="round" />
                       <circle cx={pipePreview.planX} cy={pipePreview.planY} r="1.25" fill="#eab308" stroke="white" strokeWidth="0.65" />
                     </>
                   )}
-                  <circle cx={pipeStart.planX} cy={pipeStart.planY} r="1.6" fill={activeElectricalCreationType ? getElectricalElementOption(activeElectricalCreationType).color : '#073f74'} stroke="white" strokeWidth="0.7" />
+                  <circle cx={pipeStart.planX} cy={pipeStart.planY} r="1.6" fill="#073f74" stroke="white" strokeWidth="0.7" />
                 </>
               )}
               {calibrationMode && calibrationStart && (
@@ -1076,9 +1000,7 @@ export const MapView: React.FC<MapViewProps> = ({
 
             {positionedPhotos.map((photo) => {
               const type = getElementType(photo);
-              const electrical = isElectricalPhoto(photo);
-              const electricalOption = getElectricalElementOption(photo.electricalType);
-              if (isLinearPlanElement(photo)) {
+              if (type === 'tuberia') {
                 if (!hasCompletePipe(photo)) return null;
                 const midpointX = (photo.planX! + photo.planEndX!) / 2;
                 const midpointY = (photo.planY! + photo.planEndY!) / 2;
@@ -1102,12 +1024,12 @@ export const MapView: React.FC<MapViewProps> = ({
                           setSelectedPlanPhotoId(photo.id);
                         }
                       }}
-                      style={{ left: `${midpointX}%`, top: `${midpointY}%`, backgroundColor: electrical ? photo.electricalColor || electricalOption.color : '#073f74', transform: `translate(-50%, -50%) scale(${iconScale})` }}
-                      className={`absolute z-10 flex h-8 w-8 items-center justify-center rounded-full border-2 border-white text-white shadow-lg transition hover:scale-110 active:cursor-grabbing ${placement || creationMode ? 'pointer-events-none' : isMultipleSelectionMode ? 'cursor-pointer' : 'cursor-grab'} ${(isMultipleSelectionMode ? selectedPlanPhotoIds.includes(photo.id) : selectedPlanPhotoId === photo.id) ? 'ring-4 ring-cyan-300 ring-offset-2' : ''}`}
+                      style={{ left: `${midpointX}%`, top: `${midpointY}%`, transform: `translate(-50%, -50%) scale(${iconScale})` }}
+                      className={`absolute z-10 flex h-8 w-8 items-center justify-center rounded-full border-2 border-white bg-[#073f74] text-white shadow-lg transition hover:scale-110 active:cursor-grabbing ${placement || creationMode ? 'pointer-events-none' : isMultipleSelectionMode ? 'cursor-pointer' : 'cursor-grab'} ${(isMultipleSelectionMode ? selectedPlanPhotoIds.includes(photo.id) : selectedPlanPhotoId === photo.id) ? 'ring-4 ring-cyan-300 ring-offset-2' : ''}`}
                       title={isMultipleSelectionMode ? `Seleccionar ${elementLabel(photo)}` : `Abrir o mover ${elementLabel(photo)}`}
                       aria-label={isMultipleSelectionMode ? `Seleccionar ${elementLabel(photo)}` : `Abrir o mover ${elementLabel(photo)}`}
                     >
-                      <span className="material-symbols-outlined text-[18px]">{electrical ? electricalOption.icon : 'timeline'}</span>
+                      <span className="material-symbols-outlined text-[18px]">timeline</span>
                     </button>
                     {actaName && areActaLabelsVisible && photo.showActaLabel !== false && (
                       <span
@@ -1124,10 +1046,8 @@ export const MapView: React.FC<MapViewProps> = ({
               }
 
               const isCamera = type === 'camara';
-              const markerColor = electrical
-                ? photo.electricalColor || electricalOption.color
-                : !isCamera
-                  ? '#b77812'
+              const markerColor = !isCamera
+                ? '#b77812'
                 : photo.cameraType === 'BT'
                   ? '#b94324'
                   : photo.cameraType === 'Datos'
@@ -1159,7 +1079,7 @@ export const MapView: React.FC<MapViewProps> = ({
                     title={isMultipleSelectionMode ? `Seleccionar ${elementLabel(photo)}` : `Abrir o mover ${elementLabel(photo)}`}
                     aria-label={isMultipleSelectionMode ? `Seleccionar ${elementLabel(photo)}` : `Abrir o mover ${elementLabel(photo)}`}
                   >
-                    <span className="material-symbols-outlined text-[18px]">{electrical ? electricalOption.icon : isCamera ? 'videocam' : 'inventory_2'}</span>
+                    <span className="material-symbols-outlined text-[18px]">{isCamera ? 'videocam' : 'inventory_2'}</span>
                   </button>
                   {cameraName && areCameraNamesVisible && (
                     <span
