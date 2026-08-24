@@ -851,8 +851,8 @@ export const MapView: React.FC<MapViewProps> = ({
             onClick={() => { setSelectedPlanArea(null); setCreationMode(null); setSelectedPlanPhotoId(null); }}
             className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-[#b4cbd8] bg-white px-3 text-xs font-semibold text-[#154860] transition hover:bg-[#eaf6fb]"
           >
-            <span className="material-symbols-outlined text-[17px]">layers</span>
-            Áreas
+            <span className="material-symbols-outlined text-[17px]">arrow_back</span>
+            Volver
           </button>
           <button
             type="button"
