@@ -811,7 +811,7 @@ export const MapView: React.FC<MapViewProps> = ({
 
   return (
     <section
-      className={`relative h-full w-full overflow-hidden bg-[#e7edf1] font-['Roboto',sans-serif] ${
+      className={`relative flex h-full w-full flex-col overflow-hidden bg-[#e7edf1] font-['Roboto',sans-serif] ${
         isFullscreen ? 'fixed inset-0 z-50 bg-[#e7edf1]' : ''
       }`}
     >
@@ -825,7 +825,7 @@ export const MapView: React.FC<MapViewProps> = ({
         </div>
       )}
 
-      <header className="absolute inset-x-0 top-0 z-30 flex flex-col gap-3 border-b border-[#c7d7df] bg-white/95 px-4 py-3 shadow-sm backdrop-blur md:flex-row md:items-center md:justify-between">
+      <header className="relative z-30 flex shrink-0 flex-col gap-3 border-b border-[#c7d7df] bg-white/95 px-4 py-3 shadow-sm backdrop-blur xl:flex-row xl:items-center xl:justify-between">
         <div className="flex min-w-0 items-center gap-3">
           <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-white shadow-sm ${selectedPlanArea === 'electrical' ? 'bg-[#6d28d9]' : 'bg-[#073f74]'}`}>
             <span className="material-symbols-outlined text-[21px]">{selectedPlanArea === 'electrical' ? 'bolt' : 'architecture'}</span>
@@ -874,7 +874,8 @@ export const MapView: React.FC<MapViewProps> = ({
         </div>
       </header>
 
-      <div className="absolute left-4 top-[78px] z-20 flex max-w-[calc(100%-2rem)] flex-wrap gap-2">
+      <div className="relative z-20 shrink-0 overflow-x-auto border-b border-[#c7d7df] bg-[#f7fbfd]/95 px-4 py-2 shadow-sm">
+      <div className="flex min-w-max items-center gap-2 pr-4">
         {(selectedPlanArea === 'electrical'
           ? [['all', 'Todos', 'bolt'], ['pending', 'Sin ubicar', 'location_off']]
           : [['all', 'Todos', 'layers'], ['camara', 'Cámaras', 'videocam'], ['caja', 'Cajas', 'inventory_2'], ['tuberia', 'Tuberías', 'timeline'], ['pending', 'Sin ubicar', 'location_off']]
@@ -948,8 +949,9 @@ export const MapView: React.FC<MapViewProps> = ({
           Nombres
         </button>
       </div>
+      </div>
 
-      <main className="absolute inset-x-0 bottom-0 top-[62px] overflow-auto p-5 pt-16">
+      <main className="relative min-h-0 flex-1 overflow-auto p-5">
         {blueprint.imageUrl ? (
           <div className="flex min-h-full min-w-full items-center justify-center py-3">
             <div
@@ -961,7 +963,7 @@ export const MapView: React.FC<MapViewProps> = ({
                 event.dataTransfer.dropEffect = 'move';
               }}
               onDrop={handleCanvasDrop}
-              className={`relative inline-flex max-h-[calc(100vh-10rem)] max-w-[calc(100vw-3rem)] overflow-hidden border border-[#9dbbc9] bg-white shadow-[0_18px_46px_rgba(7,63,116,0.22)] transition-transform duration-200 ${
+              className={`relative inline-flex max-h-[calc(100vh-15rem)] max-w-[calc(100vw-3rem)] overflow-hidden border border-[#9dbbc9] bg-white shadow-[0_18px_46px_rgba(7,63,116,0.22)] transition-transform duration-200 ${
                 placement || creationMode ? 'cursor-crosshair' : dragTarget ? 'ring-2 ring-[#18a9cf] ring-offset-2' : 'cursor-default'
               }`}
               style={{ transform: `scale(${planScale})` }}
@@ -970,7 +972,7 @@ export const MapView: React.FC<MapViewProps> = ({
               <img
                 src={blueprint.imageUrl}
                 alt={blueprint.name}
-                className="block max-h-[calc(100vh-10rem)] max-w-[calc(100vw-3rem)] object-contain"
+                className="block max-h-[calc(100vh-15rem)] max-w-[calc(100vw-3rem)] object-contain"
                 draggable={false}
               />
 
