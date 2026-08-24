@@ -58,7 +58,8 @@ export const EditPhotoModal: React.FC<EditPhotoModalProps> = ({
   const [imageSize, setImageSize] = useState(photo.fileSize ?? '');
   const [isProcessingImage, setIsProcessingImage] = useState(false);
   const [imageError, setImageError] = useState<string | null>(null);
-  const photoInputRef = useRef<HTMLInputElement>(null);
+  const galleryInputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
 
   if (!isOpen) return null;
 
@@ -176,9 +177,9 @@ export const EditPhotoModal: React.FC<EditPhotoModalProps> = ({
             <div className="mb-2 flex items-center justify-between gap-3">
               <div>
                 <p className="font-['Inter'] text-[13px] font-bold text-[#071e27]">Foto de evidencia</p>
-                <p className="mt-0.5 text-[11px] text-[#607d8b]">Elige una imagen desde la galería del dispositivo para usarla como evidencia.</p>
+                <p className="mt-0.5 text-[11px] text-[#607d8b]">Elige una foto de la galería o tómala directamente con la cámara del dispositivo.</p>
               </div>
-              <span className="material-symbols-outlined text-[21px] text-[#0566aa]">photo_library</span>
+              <span className="material-symbols-outlined text-[21px] text-[#0566aa]">add_a_photo</span>
             </div>
             <div className="flex items-center gap-3">
               <div className="h-16 w-20 shrink-0 overflow-hidden rounded-lg border border-[#c2c6d4] bg-[#e6f6ff]">
@@ -191,20 +192,32 @@ export const EditPhotoModal: React.FC<EditPhotoModalProps> = ({
                 )}
               </div>
               <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => galleryInputRef.current?.click()}
+                    disabled={isProcessingImage}
+                    className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-[#0566aa] bg-white px-3 text-[12px] font-bold text-[#004d99] transition hover:bg-[#e6f6ff] disabled:cursor-wait disabled:opacity-60"
+                  >
+                    <span className="material-symbols-outlined text-[16px]">photo_library</span>
+                    Galería
+                  </button>
                 <button
                   type="button"
-                  onClick={() => photoInputRef.current?.click()}
+                  onClick={() => cameraInputRef.current?.click()}
                   disabled={isProcessingImage}
-                  className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-[#0566aa] bg-white px-3 text-[12px] font-bold text-[#004d99] transition hover:bg-[#e6f6ff] disabled:cursor-wait disabled:opacity-60"
+                  className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-[#0566aa] px-3 text-[12px] font-bold text-white transition hover:bg-[#004d99] disabled:cursor-wait disabled:opacity-60"
                 >
-                  <span className="material-symbols-outlined text-[16px]">{isProcessingImage ? 'progress_activity' : 'upload'}</span>
-                  {isProcessingImage ? 'Optimizando…' : imageUrl ? 'Cambiar desde galería' : 'Elegir de galería'}
+                  <span className="material-symbols-outlined text-[16px]">{isProcessingImage ? 'progress_activity' : 'photo_camera'}</span>
+                  {isProcessingImage ? 'Optimizando…' : 'Tomar foto'}
                 </button>
+                </div>
                 <p className="mt-1.5 truncate text-[10px] text-[#607d8b]">{imageSize ? `Archivo original: ${imageSize}` : 'Se optimiza antes de guardarse.'}</p>
               </div>
             </div>
             {imageError && <p className="mt-2 text-[11px] font-medium text-[#ba1a1a]">{imageError}</p>}
-            <input ref={photoInputRef} type="file" accept="image/*" onChange={handlePhotoChange} className="hidden" />
+            <input ref={galleryInputRef} type="file" accept="image/*" onChange={handlePhotoChange} className="hidden" />
+            <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" onChange={handlePhotoChange} className="hidden" />
           </div>
 
           <div>
