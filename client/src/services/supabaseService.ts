@@ -398,7 +398,15 @@ export const supabaseService = {
       const { error } = await client.rpc('reset_inspection_data');
       if (error) {
         console.warn('Error resetting operational data in Supabase:', error.message);
-        return { success: false, remote: true, error: error.message };
+        const wasBlockedForUnfilteredDelete =
+          error.code === '21000' && /DELETE requires a WHERE clause/i.test(error.message);
+        return {
+          success: false,
+          remote: true,
+          error: wasBlockedForUnfilteredDelete
+            ? 'Supabase bloqueó el restablecimiento porque la función instalada aún usa eliminaciones sin condición. No se eliminaron datos. Actualiza el Script SQL de Supabase y vuelve a intentarlo.'
+            : error.message,
+        };
       }
       return { success: true, remote: true };
     } catch (err) {
@@ -813,9 +821,12 @@ BEGIN
     RAISE EXCEPTION 'Solo un administrador puede restablecer los datos de inspección.';
   END IF;
 
-  DELETE FROM public.inspection_collections;
-  DELETE FROM public.inspection_activities;
-  DELETE FROM public.inspection_photos;
+  -- La condición explícita conserva la compatibilidad con la protección
+  -- del proyecto que bloquea DELETE sin WHERE. id es la clave primaria de
+  -- estas tres tablas, por lo que no excluye ningún registro operativo.
+  DELETE FROM public.inspection_collections WHERE id IS NOT NULL;
+  DELETE FROM public.inspection_activities WHERE id IS NOT NULL;
+  DELETE FROM public.inspection_photos WHERE id IS NOT NULL;
 END;
 $$;
 

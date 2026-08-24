@@ -55,3 +55,7 @@
 - [x] Permitir tomar una foto con cámara o elegirla de la galería desde las propiedades del elemento.
 - [x] Mostrar el nombre de cada cámara junto al icono y permitir ocultarlo o mostrarlo globalmente en el plano.
 - [x] Mostrar en naranja los iconos de las cámaras de tipo Datos en el plano.
+- [x] Promover los últimos cambios del proyecto entre main, desarrollo y produccion en GitHub.
+- [ ] Eliminar los datos operativos de prueba de Supabase sin modificar perfiles, cuentas, roles ni permisos.
+- [x] Corregir el botón de restablecimiento administrativo que no ejecuta el flujo esperado.
+- [ ] Ejecutar la migración de reparación en Supabase antes de usar el restablecimiento operativo.
