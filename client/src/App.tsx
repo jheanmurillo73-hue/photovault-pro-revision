@@ -246,6 +246,10 @@ export default function App() {
   };
 
   const handleUpdatePhotoTitle = (id: string, newTitle: string) => {
+    if (userAccess.role !== 'admin') {
+      showToast('Solo el administrador puede cambiar el nombre de un elemento.', 'error');
+      return;
+    }
     setPhotos((prev) =>
       prev.map((p) => {
         if (p.id === id) {
@@ -259,20 +263,40 @@ export default function App() {
   };
 
   const handleUpdatePhoto = (updated: InspectionPhoto) => {
+    const current = photos.find((photo) => photo.id === updated.id);
+    if (!current) return;
+    const protectedUpdate = userAccess.role === 'admin'
+      ? updated
+      : {
+        ...updated,
+        name: current.name,
+        acta: current.acta,
+        actaLabelPosition: current.actaLabelPosition,
+        cameraType: current.cameraType,
+        elementType: current.elementType,
+        planX: current.planX,
+        planY: current.planY,
+        planEndX: current.planEndX,
+        planEndY: current.planEndY,
+      };
     setPhotos((prev) =>
-      prev.map((p) => (p.id === updated.id ? updated : p))
+      prev.map((p) => (p.id === protectedUpdate.id ? protectedUpdate : p))
     );
-    addActivity('Detalles actualizados', updated.name, updated.id, 'edit');
-    showToast(`Actualizado "${updated.name}"`);
+    addActivity('Detalles actualizados', protectedUpdate.name, protectedUpdate.id, 'edit');
+    showToast(`Actualizado "${protectedUpdate.name}"`);
 
     // Sync to Supabase
-    supabaseService.savePhoto(updated, inspector.id);
+    supabaseService.savePhoto(protectedUpdate, inspector.id);
   };
 
   const handleUpdatePhotoPosition = (
     photoId: string,
     position: Pick<InspectionPhoto, 'planX' | 'planY' | 'planEndX' | 'planEndY'> & Partial<Pick<InspectionPhoto, 'metraje'>>,
   ) => {
+    if (userAccess.role !== 'admin') {
+      showToast('Solo el administrador puede mover o fijar elementos en el plano.', 'error');
+      return;
+    }
     const currentPhoto = photos.find((photo) => photo.id === photoId);
     if (!currentPhoto) return;
 
@@ -286,6 +310,7 @@ export default function App() {
   const handleUpdatePipelineMeasurements = (
     measurements: Array<Pick<InspectionPhoto, 'id' | 'metraje'>>,
   ) => {
+    if (userAccess.role !== 'admin') return;
     const valuesById = new Map(measurements.map((measurement) => [measurement.id, measurement.metraje]));
     const recordsToSync: InspectionPhoto[] = [];
     const updatedPhotos = photos.map((photo) => {
@@ -308,6 +333,9 @@ export default function App() {
     initialMetraje?: number,
     electricalType?: ElectricalElementType,
   ): InspectionPhoto => {
+    if (userAccess.role !== 'admin') {
+      throw new Error('Solo el administrador puede crear elementos en el plano.');
+    }
     const createdAt = new Date();
     const suffix = Math.floor(100 + Math.random() * 900);
     const isCamera = elementType === 'camara';
@@ -358,6 +386,10 @@ export default function App() {
   };
 
   const handleDeletePhotos = (ids: string[]) => {
+    if (userAccess.role !== 'admin') {
+      showToast('Solo el administrador puede eliminar elementos del plano.', 'error');
+      return;
+    }
     const idsToDelete = new Set(ids);
     const recordsToDelete = photos.filter((photo) => idsToDelete.has(photo.id));
     if (!recordsToDelete.length) return;
@@ -593,6 +625,7 @@ export default function App() {
               <MapView
                 photos={photos}
                 inspector={inspector}
+                isAdmin={userAccess.role === 'admin'}
                 onSelectPhoto={handleSelectPhoto}
                 onNavigateToUpload={() => handleTabChange('upload')}
                 onUpdatePhoto={handleUpdatePhoto}
@@ -692,6 +725,7 @@ export default function App() {
         <EditPhotoModal
           photo={editingPhoto}
           isOpen={!!editingPhoto}
+          isAdmin={userAccess.role === 'admin'}
           onClose={() => setEditingPhoto(null)}
           onSave={handleUpdatePhoto}
         />

@@ -27,6 +27,7 @@ const loadActas = (): string[] => {
 interface EditPhotoModalProps {
   photo: InspectionPhoto;
   isOpen: boolean;
+  isAdmin: boolean;
   onClose: () => void;
   onSave: (updated: InspectionPhoto) => void;
 }
@@ -34,6 +35,7 @@ interface EditPhotoModalProps {
 export const EditPhotoModal: React.FC<EditPhotoModalProps> = ({
   photo,
   isOpen,
+  isAdmin,
   onClose,
   onSave,
 }) => {
@@ -93,17 +95,17 @@ export const EditPhotoModal: React.FC<EditPhotoModalProps> = ({
     e.preventDefault();
     onSave({
       ...photo,
-      name: name.trim() || photo.name,
+      name: isAdmin ? name.trim() || photo.name : photo.name,
       type: type.trim() || photo.type,
       location: location.trim() || photo.location,
       imageUrl: imageUrl || photo.imageUrl,
       fileSize: imageSize || photo.fileSize,
       resolution: imageUrl !== photo.imageUrl ? 'Foto adjunta desde propiedades' : photo.resolution,
-      elementType,
+      elementType: isAdmin ? elementType : photo.elementType,
       cameraCode: elementType === 'camara' ? cameraCode : undefined,
-      cameraType: elementType === 'camara' ? cameraType : undefined,
-      acta: acta || undefined,
-      actaLabelPosition: acta ? actaLabelPosition : undefined,
+      cameraType: isAdmin ? (elementType === 'camara' ? cameraType : undefined) : photo.cameraType,
+      acta: isAdmin ? acta || undefined : photo.acta,
+      actaLabelPosition: isAdmin ? (acta ? actaLabelPosition : undefined) : photo.actaLabelPosition,
       tramo: elementType === 'tuberia' ? tramo.trim() || undefined : undefined,
       metraje: elementType === 'tuberia' ? metraje.trim() || undefined : undefined,
       pipeNetworkType: elementType === 'tuberia' ? pipeNetworkType : undefined,
@@ -171,6 +173,7 @@ export const EditPhotoModal: React.FC<EditPhotoModalProps> = ({
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
+              disabled={!isAdmin}
               className="w-full bg-[#f3faff] border border-[#c2c6d4] rounded-lg p-2.5 text-[14px] text-[#071e27] focus:border-[#004d99] focus:outline-none"
               required
             />
@@ -326,6 +329,7 @@ export const EditPhotoModal: React.FC<EditPhotoModalProps> = ({
                 setActa(event.target.value);
                 setActaMessage(null);
               }}
+              disabled={!isAdmin}
               className="w-full rounded-lg border border-[#c2c6d4] bg-white p-2.5 text-[14px] text-[#071e27] outline-none focus:border-[#004d99]"
             >
               <option value="">Sin acta asignada</option>
@@ -333,7 +337,7 @@ export const EditPhotoModal: React.FC<EditPhotoModalProps> = ({
                 <option key={option} value={option}>{option}</option>
               ))}
             </select>
-            <div className="mt-2 flex gap-2">
+            {isAdmin && <div className="mt-2 flex gap-2">
               <input
                 type="text"
                 value={newActa}
@@ -351,7 +355,7 @@ export const EditPhotoModal: React.FC<EditPhotoModalProps> = ({
                 <span className="material-symbols-outlined text-[16px]">add</span>
                 Agregar
               </button>
-            </div>
+            </div>}
             {actaMessage && <p className="mt-2 text-[11px] font-medium text-[#075a91]" role="status">{actaMessage}</p>}
             {acta && (
               <div className="mt-3 border-t border-[#d6e4ea] pt-3">
@@ -361,6 +365,7 @@ export const EditPhotoModal: React.FC<EditPhotoModalProps> = ({
                   id="inspection-acta-label-position"
                   value={actaLabelPosition}
                   onChange={(event) => setActaLabelPosition(event.target.value as ActaLabelPosition)}
+                  disabled={!isAdmin}
                   className="mt-2 w-full rounded-lg border border-[#c2c6d4] bg-white p-2.5 text-[13px] text-[#071e27] outline-none focus:border-[#004d99]"
                 >
                   <option value="arriba">Arriba del elemento</option>
@@ -383,7 +388,8 @@ export const EditPhotoModal: React.FC<EditPhotoModalProps> = ({
                 <button
                   key={value}
                   type="button"
-                  onClick={() => setElementType(value)}
+                  onClick={() => isAdmin && setElementType(value)}
+                  disabled={!isAdmin}
                   aria-pressed={elementType === value}
                   className={`flex items-center justify-center gap-1.5 rounded-lg border px-2 py-2 text-[12px] font-bold transition-all active:scale-[0.97] ${
                     elementType === value
@@ -433,7 +439,8 @@ export const EditPhotoModal: React.FC<EditPhotoModalProps> = ({
                   <button
                     key={typeOption}
                     type="button"
-                    onClick={() => setCameraType(typeOption)}
+                    onClick={() => isAdmin && setCameraType(typeOption)}
+                    disabled={!isAdmin}
                     className={`py-2 px-1 rounded-lg border font-['Inter'] font-bold text-[12px] flex items-center justify-center gap-1 transition-all ${
                       cameraType === typeOption
                         ? typeOption === 'MT'

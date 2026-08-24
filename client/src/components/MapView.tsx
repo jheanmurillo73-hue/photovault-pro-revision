@@ -13,6 +13,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 interface MapViewProps {
   photos: InspectionPhoto[];
   inspector: InspectorProfile;
+  isAdmin: boolean;
   onSelectPhoto: (photo: InspectionPhoto) => void;
   onEditPhoto: (photo: InspectionPhoto) => void;
   onUpdatePhoto: (photo: InspectionPhoto) => void;
@@ -153,6 +154,7 @@ const cameraNameLabel = (photo: InspectionPhoto) => photo.name?.trim() || photo.
 export const MapView: React.FC<MapViewProps> = ({
   photos,
   inspector,
+  isAdmin,
   onSelectPhoto,
   onEditPhoto,
   onUpdatePhoto,
@@ -607,6 +609,7 @@ export const MapView: React.FC<MapViewProps> = ({
   };
 
   const handleCanvasClick = (event: React.MouseEvent<HTMLDivElement>) => {
+    if (!isAdmin) return;
     const bounds = event.currentTarget.getBoundingClientRect();
     if (!bounds.width || !bounds.height) return;
     const { planX, planY } = getPlanPosition(bounds, event.clientX, event.clientY);
@@ -728,6 +731,7 @@ export const MapView: React.FC<MapViewProps> = ({
   };
 
   const handleCanvasDrop = (event: React.DragEvent<HTMLDivElement>) => {
+    if (!isAdmin) return;
     event.preventDefault();
     const activeDrag = dragTargetRef.current ?? dragTarget;
     if (!activeDrag) return;
@@ -956,23 +960,23 @@ export const MapView: React.FC<MapViewProps> = ({
             <span className="material-symbols-outlined text-[17px]">arrow_back</span>
             Volver
           </button>
-          <button
+          {isAdmin && <button
             type="button"
             onClick={() => setIsPanelOpen(true)}
             className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-[#b4cbd8] bg-white px-3 text-xs font-semibold text-[#154860] transition hover:bg-[#eaf6fb]"
           >
             <span className="material-symbols-outlined text-[17px]">format_list_bulleted</span>
             Ubicar ({pendingPhotos.length})
-          </button>
-          <button
+          </button>}
+          {isAdmin && <button
             type="button"
             onClick={() => fileInputRef.current?.click()}
             className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-[#0566aa] px-3 text-xs font-bold text-white shadow-sm transition hover:bg-[#004d84]"
           >
             <span className="material-symbols-outlined text-[17px]">upload_file</span>
             {blueprint.imageUrl ? 'Cambiar JPG' : 'Cargar JPG'}
-          </button>
-          <input ref={fileInputRef} type="file" accept="image/jpeg,.jpg,.jpeg" onChange={handleBlueprintUpload} className="hidden" />
+          </button>}
+          {isAdmin && <input ref={fileInputRef} type="file" accept="image/jpeg,.jpg,.jpeg" onChange={handleBlueprintUpload} className="hidden" />}
         </div>
       </header>
 
@@ -997,7 +1001,7 @@ export const MapView: React.FC<MapViewProps> = ({
           </button>
         ))}
         <span className="mx-1 hidden h-6 w-px bg-[#b8ced9] sm:block" aria-hidden="true" />
-        {selectedPlanArea === 'civil' ? (
+        {isAdmin && (selectedPlanArea === 'civil' ? (
           <>
             <button type="button" onClick={() => activateCreation('caja')} className={`inline-flex h-8 items-center gap-1.5 rounded-full border px-3 text-[11px] font-bold shadow-sm transition ${creationMode === 'caja' ? 'border-[#b77812] bg-[#b77812] text-white' : 'border-[#e0bf78] bg-white text-[#8b5d05] hover:bg-[#fff6df]'}`} title="Agregar caja directamente al plano"><span className="material-symbols-outlined text-[16px]">inventory_2</span>Caja</button>
             <button type="button" onClick={() => activateCreation('camara')} className={`inline-flex h-8 items-center gap-1.5 rounded-full border px-3 text-[11px] font-bold shadow-sm transition ${creationMode === 'camara' ? 'border-[#0566aa] bg-[#0566aa] text-white' : 'border-[#8ec6dd] bg-white text-[#075a91] hover:bg-[#e5f4fb]'}`} title="Agregar cámara directamente al plano"><span className="material-symbols-outlined text-[16px]">add_a_photo</span>Cámara</button>
@@ -1007,8 +1011,8 @@ export const MapView: React.FC<MapViewProps> = ({
           ELECTRICAL_ELEMENT_OPTIONS.map((element) => (
             <button key={element.value} type="button" onClick={() => activateCreation(element.value)} className={`inline-flex h-8 items-center gap-1.5 rounded-full border px-3 text-[11px] font-bold shadow-sm transition ${creationMode === element.value ? 'border-[#5b21b6] bg-[#5b21b6] text-white' : 'border-[#d8c3fb] bg-white text-[#5b21b6] hover:bg-[#f5f0ff]'}`} title={`Agregar ${element.label.toLowerCase()} al plano eléctrico`}><span className="material-symbols-outlined text-[16px]">{element.icon}</span>{element.shortLabel}</button>
           ))
-        )}
-        <button
+        ))}
+        {isAdmin && <button
           type="button"
           onClick={toggleMultipleSelectionMode}
           className={`inline-flex h-8 items-center gap-1.5 rounded-full border px-3 text-[11px] font-bold shadow-sm transition ${
@@ -1021,7 +1025,7 @@ export const MapView: React.FC<MapViewProps> = ({
         >
           <span className="material-symbols-outlined text-[16px]">select_all</span>
           Selección
-        </button>
+        </button>}
         <button
           type="button"
           onClick={() => setAreActaLabelsVisible((visible) => !visible)}
@@ -1187,7 +1191,7 @@ export const MapView: React.FC<MapViewProps> = ({
                   <React.Fragment key={photo.id}>
                     <button
                       type="button"
-                      draggable={!placement && !isMultipleSelectionMode}
+                      draggable={isAdmin && !placement && !isMultipleSelectionMode}
                       onDragStart={(event) => startDragging(event, photo, 'plan')}
                       onDragEnd={() => {
                         dragTargetRef.current = null;
@@ -1241,7 +1245,7 @@ export const MapView: React.FC<MapViewProps> = ({
                 <React.Fragment key={photo.id}>
                   <button
                     type="button"
-                    draggable={!placement && !isMultipleSelectionMode}
+                    draggable={isAdmin && !placement && !isMultipleSelectionMode}
                     onDragStart={(event) => startDragging(event, photo, 'plan')}
                     onDragEnd={() => {
                       dragTargetRef.current = null;
