@@ -4,7 +4,7 @@
  * relativos al plano, nunca como coordenadas de un proveedor cartográfico.
  */
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { ActaLabelPosition, BlueprintCalibration, BlueprintOverlay, getElementType, InspectionPhoto, InspectorProfile } from '../types';
+import { ActaLabelPosition, BlueprintCalibration, BlueprintOverlay, getElementType, getPipeNetworkOption, InspectionPhoto, InspectorProfile, PIPE_NETWORK_OPTIONS, PipeNetworkType } from '../types';
 import { compressImageForDevice } from '../services/deviceStorageService';
 import { isQuotaExceededError, loadBlueprintImage, saveBlueprintImage } from '../services/blueprintStorageService';
 
@@ -930,8 +930,7 @@ export const MapView: React.FC<MapViewProps> = ({
               </defs>
               {positionedPhotos.map((photo) => {
                 if (getElementType(photo) !== 'tuberia' || !hasCompletePipe(photo)) return null;
-                const isMT = photo.cameraType === 'MT';
-                const pipeStroke = photo.pipeColor || (isMT ? 'url(#plan-mt)' : 'url(#plan-bt)');
+                const pipeStroke = photo.pipeColor || getPipeNetworkOption(photo.pipeNetworkType).color;
                 const isSelected = !isMultipleSelectionMode && selectedPlanPhotoId === photo.id;
                 return (
                   <g key={`line-${photo.id}`}>
@@ -1174,10 +1173,35 @@ export const MapView: React.FC<MapViewProps> = ({
                 <span className="font-mono text-sm font-bold text-[#0b5d8c]">{Number.parseFloat(String(selectedPlanPhoto.metraje ?? 0)).toFixed(2)} m</span>
               </div>
               <div className="mt-3 border border-[#b7d5e4] bg-white p-2.5">
+                <p className="font-mono text-[9px] font-bold tracking-[0.12em] text-[#0b5d8c]">TIPO DE RED</p>
+                <p className="mt-0.5 text-[10px] text-[#547181]">La red aplica un color automático al tramo.</p>
+                <div className="mt-2 grid grid-cols-3 gap-1.5">
+                  {PIPE_NETWORK_OPTIONS.map((option) => (
+                    <button
+                      key={option.value}
+                      type="button"
+                      onClick={() => onUpdatePhoto({
+                        ...selectedPlanPhoto,
+                        pipeNetworkType: option.value as PipeNetworkType,
+                        pipeColor: option.color,
+                      })}
+                      className={`flex min-h-12 flex-col items-center justify-center gap-1 border px-1 text-[9px] font-bold transition hover:bg-[#f4fbfe] ${
+                        selectedPlanPhoto.pipeNetworkType === option.value
+                          ? 'border-[#073f74] bg-[#f4fbfe] text-[#073f74] ring-1 ring-cyan-300'
+                          : 'border-[#c7dce7] bg-white text-[#547181]'
+                      }`}
+                    >
+                      <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: option.color }} />
+                      {option.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className="mt-3 border border-[#b7d5e4] bg-white p-2.5">
                 <div className="flex items-center justify-between gap-2">
                   <div>
                     <p className="font-mono text-[9px] font-bold tracking-[0.12em] text-[#0b5d8c]">COLOR DEL TRAMO</p>
-                    <p className="mt-0.5 text-[10px] text-[#547181]">Elige un color para diferenciar este tramo en el plano.</p>
+                    <p className="mt-0.5 text-[10px] text-[#547181]">Puedes ajustar el color automático cuando necesites una convención particular.</p>
                   </div>
                   <label className="relative flex h-9 w-12 shrink-0 cursor-pointer overflow-hidden border-2 border-white shadow-[0_0_0_1px_#8bb5c9]" title="Elegir color personalizado">
                     <input

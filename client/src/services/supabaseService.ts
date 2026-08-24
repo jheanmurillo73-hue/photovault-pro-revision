@@ -217,6 +217,7 @@ export const supabaseService = {
         acta_label_position: photo.actaLabelPosition || 'derecha',
         tramo: photo.tramo || null,
         metraje: photo.metraje ? String(photo.metraje) : null,
+        pipe_network_type: photo.pipeNetworkType || null,
         pipe_color: photo.pipeColor || null,
         inspector_name: photo.inspectorName,
         inspector_id: photo.inspectorId,
@@ -272,6 +273,7 @@ export const supabaseService = {
       acta_label_position: photo.actaLabelPosition || 'derecha',
       tramo: photo.tramo || null,
       metraje: photo.metraje ? String(photo.metraje) : null,
+      pipe_network_type: photo.pipeNetworkType || null,
       pipe_color: photo.pipeColor || null,
       inspector_name: photo.inspectorName,
       inspector_id: photo.inspectorId,
@@ -344,6 +346,9 @@ export const supabaseService = {
           : 'derecha',
         tramo: item.tramo || undefined,
         metraje: item.metraje || undefined,
+        pipeNetworkType: ['media_tension', 'baja_tension', 'datos'].includes(item.pipe_network_type)
+          ? item.pipe_network_type
+          : undefined,
         pipeColor: typeof item.pipe_color === 'string' && /^#[0-9a-fA-F]{6}$/.test(item.pipe_color)
           ? item.pipe_color
           : undefined,
@@ -604,6 +609,7 @@ CREATE TABLE IF NOT EXISTS public.inspection_photos (
   acta_label_position TEXT NOT NULL DEFAULT 'derecha' CHECK (acta_label_position IN ('arriba', 'abajo', 'izquierda', 'derecha')),
   tramo TEXT,
   metraje TEXT,
+  pipe_network_type TEXT CHECK (pipe_network_type IS NULL OR pipe_network_type IN ('media_tension', 'baja_tension', 'datos')),
   pipe_color TEXT CHECK (pipe_color IS NULL OR pipe_color ~ '^#[0-9A-Fa-f]{6}$'),
   inspector_name TEXT NOT NULL,
   inspector_id TEXT NOT NULL,
@@ -630,6 +636,7 @@ ALTER TABLE public.inspection_photos ADD COLUMN IF NOT EXISTS plan_end_y NUMERIC
 ALTER TABLE public.inspection_photos ADD COLUMN IF NOT EXISTS acta TEXT;
 ALTER TABLE public.inspection_photos ADD COLUMN IF NOT EXISTS show_acta_label BOOLEAN NOT NULL DEFAULT true;
 ALTER TABLE public.inspection_photos ADD COLUMN IF NOT EXISTS acta_label_position TEXT NOT NULL DEFAULT 'derecha' CHECK (acta_label_position IN ('arriba', 'abajo', 'izquierda', 'derecha'));
+ALTER TABLE public.inspection_photos ADD COLUMN IF NOT EXISTS pipe_network_type TEXT CHECK (pipe_network_type IS NULL OR pipe_network_type IN ('media_tension', 'baja_tension', 'datos'));
 ALTER TABLE public.inspection_photos ADD COLUMN IF NOT EXISTS pipe_color TEXT CHECK (pipe_color IS NULL OR pipe_color ~ '^#[0-9A-Fa-f]{6}$');
 
 -- 3. TABLA DE REGISTRO DE ACTIVIDADES Y AUDITORÍA (inspection_activities)

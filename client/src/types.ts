@@ -12,6 +12,22 @@ export type CameraType = 'MT' | 'BT' | 'Datos' | string;
 
 export type ElementType = 'caja' | 'camara' | 'tuberia';
 
+export type PipeNetworkType = 'media_tension' | 'baja_tension' | 'datos';
+
+export const PIPE_NETWORK_OPTIONS: ReadonlyArray<{
+  value: PipeNetworkType;
+  label: string;
+  color: string;
+  icon: string;
+}> = [
+  { value: 'media_tension', label: 'Media tensión', color: '#DC2626', icon: 'bolt' },
+  { value: 'baja_tension', label: 'Baja tensión', color: '#EAB308', icon: 'electric_bolt' },
+  { value: 'datos', label: 'Datos', color: '#0D9FC6', icon: 'lan' },
+];
+
+export const getPipeNetworkOption = (value?: string) =>
+  PIPE_NETWORK_OPTIONS.find((option) => option.value === value) || PIPE_NETWORK_OPTIONS[1];
+
 export type ActaLabelPosition = 'arriba' | 'abajo' | 'izquierda' | 'derecha';
 
 export type AppRole = 'admin' | 'inspector';
@@ -55,6 +71,7 @@ export interface InspectionPhoto {
   actaLabelPosition?: ActaLabelPosition;
   tramo?: string;
   metraje?: number | string;
+  pipeNetworkType?: PipeNetworkType;
   pipeColor?: string;
   latitude?: number;
   longitude?: number;

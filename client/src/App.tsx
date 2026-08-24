@@ -12,6 +12,8 @@ import {
   AppModule,
   ElementType,
   UserAccess,
+  getElementType,
+  getPipeNetworkOption,
 } from './types';
 import {
   INITIAL_PHOTOS,
@@ -69,6 +71,9 @@ const normalizeInspectionPhoto = (photo: InspectionPhoto): InspectionPhoto => ({
   status: photo.status ?? 'Synced',
   requiresImmediateAction: Boolean(photo.requiresImmediateAction),
   verified: Boolean(photo.verified),
+  pipeNetworkType: getElementType(photo) === 'tuberia'
+    ? getPipeNetworkOption(photo.pipeNetworkType).value
+    : undefined,
   planX: normalizePlanCoordinate(photo.planX),
   planY: normalizePlanCoordinate(photo.planY),
   planEndX: normalizePlanCoordinate(photo.planEndX),
@@ -318,7 +323,8 @@ export default function App() {
       cameraType: isCamera ? 'MT' : undefined,
       tramo: isPipeline ? '' : undefined,
       metraje: isPipeline ? initialMetraje ?? 0 : undefined,
-      pipeColor: isPipeline ? '#0d9fc6' : undefined,
+      pipeNetworkType: isPipeline ? 'baja_tension' : undefined,
+      pipeColor: isPipeline ? getPipeNetworkOption('baja_tension').color : undefined,
       ...position,
       inspectorName: inspector.name,
       inspectorId: inspector.id,

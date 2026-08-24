@@ -3,7 +3,7 @@
  * objeto seleccionado; una tubería nunca guarda datos de cámara, y viceversa.
  */
 import React, { useRef, useState } from 'react';
-import { InspectionPhoto, ExecutionStatus, CameraCode, CameraType, ElementType, ActaLabelPosition, getElementType } from '../types';
+import { InspectionPhoto, ExecutionStatus, CameraCode, CameraType, ElementType, ActaLabelPosition, getElementType, getPipeNetworkOption, PIPE_NETWORK_OPTIONS, PipeNetworkType } from '../types';
 import { WAREHOUSE_LOCATIONS, CAMERA_CODES, CAMERA_TYPES } from '../data/mockData';
 import { compressImageForDevice } from '../services/deviceStorageService';
 import { TramoSelector } from './TramoSelector';
@@ -50,6 +50,7 @@ export const EditPhotoModal: React.FC<EditPhotoModalProps> = ({
   const [elementType, setElementType] = useState<ElementType>(() => getElementType(photo));
   const [tramo, setTramo] = useState<string>(photo.tramo || '3x4"');
   const [metraje, setMetraje] = useState<string>(photo.metraje !== undefined ? String(photo.metraje) : '');
+  const [pipeNetworkType, setPipeNetworkType] = useState<PipeNetworkType>(getPipeNetworkOption(photo.pipeNetworkType).value);
   const [fieldNotes, setFieldNotes] = useState(photo.fieldNotes ?? '');
   const [executionStatus, setExecutionStatus] = useState<ExecutionStatus>(photo.executionStatus || 'En proceso');
   const [requiresImmediateAction, setRequiresImmediateAction] = useState(photo.requiresImmediateAction ?? false);
@@ -105,6 +106,8 @@ export const EditPhotoModal: React.FC<EditPhotoModalProps> = ({
       actaLabelPosition: acta ? actaLabelPosition : undefined,
       tramo: elementType === 'tuberia' ? tramo.trim() || undefined : undefined,
       metraje: elementType === 'tuberia' ? metraje.trim() || undefined : undefined,
+      pipeNetworkType: elementType === 'tuberia' ? pipeNetworkType : undefined,
+      pipeColor: elementType === 'tuberia' ? getPipeNetworkOption(pipeNetworkType).color : undefined,
       fieldNotes: fieldNotes.trim(),
       executionStatus,
       requiresImmediateAction,
@@ -455,6 +458,27 @@ export const EditPhotoModal: React.FC<EditPhotoModalProps> = ({
           )}
           {elementType === 'tuberia' && (
             <>
+          <div className="rounded-lg border border-[#b7d5e4] bg-[#f4fbfe] p-3">
+            <p className="font-['Inter'] text-[12px] font-bold text-[#173f58]">Tipo de red del tramo</p>
+            <p className="mt-0.5 text-[11px] text-[#607d8b]">El color se asigna automáticamente al guardar y se refleja en el plano.</p>
+            <div className="mt-2 grid grid-cols-3 gap-2">
+              {PIPE_NETWORK_OPTIONS.map((option) => (
+                <button
+                  key={option.value}
+                  type="button"
+                  onClick={() => setPipeNetworkType(option.value)}
+                  className={`flex min-h-14 flex-col items-center justify-center gap-1 border px-2 text-[11px] font-bold transition ${
+                    pipeNetworkType === option.value
+                      ? 'border-[#073f74] bg-white text-[#073f74] ring-2 ring-cyan-200'
+                      : 'border-[#c2dbe7] bg-white text-[#547181] hover:bg-[#eaf6fb]'
+                  }`}
+                >
+                  <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: option.color }} />
+                  <span>{option.label}</span>
+                </button>
+              ))}
+            </div>
+          </div>
           {/* Tramo de Tubería y Metraje (Cantidad x Dimensión + Metros Lineales) */}
           <div>
             <TramoSelector

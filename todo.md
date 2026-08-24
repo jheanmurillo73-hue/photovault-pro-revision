@@ -60,3 +60,4 @@
 - [x] Corregir el botón de restablecimiento administrativo que no ejecuta el flujo esperado.
 - [ ] Ejecutar la migración de reparación en Supabase antes de usar el restablecimiento operativo.
 - [x] Añadir estados visuales de carga, éxito y error al restablecimiento administrativo.
+- [x] Permitir clasificar cada tramo como media tensión, baja tensión o datos y diferenciarlo por color.
