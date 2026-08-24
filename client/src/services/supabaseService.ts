@@ -219,6 +219,9 @@ export const supabaseService = {
         metraje: photo.metraje ? String(photo.metraje) : null,
         pipe_network_type: photo.pipeNetworkType || null,
         pipe_color: photo.pipeColor || null,
+        plan_layer: photo.planLayer || 'civil',
+        electrical_type: photo.electricalType || null,
+        electrical_color: photo.electricalColor || null,
         inspector_name: photo.inspectorName,
         inspector_id: photo.inspectorId,
         inspector_avatar: photo.inspectorAvatar,
@@ -275,6 +278,9 @@ export const supabaseService = {
       metraje: photo.metraje ? String(photo.metraje) : null,
       pipe_network_type: photo.pipeNetworkType || null,
       pipe_color: photo.pipeColor || null,
+      plan_layer: photo.planLayer || 'civil',
+      electrical_type: photo.electricalType || null,
+      electrical_color: photo.electricalColor || null,
       inspector_name: photo.inspectorName,
       inspector_id: photo.inspectorId,
       inspector_avatar: photo.inspectorAvatar,
@@ -351,6 +357,15 @@ export const supabaseService = {
           : undefined,
         pipeColor: typeof item.pipe_color === 'string' && /^#[0-9a-fA-F]{6}$/.test(item.pipe_color)
           ? item.pipe_color
+          : undefined,
+        planLayer: item.plan_layer === 'electrical' ? 'electrical' : 'civil',
+        electricalType: [
+          'transformador', 'barrajes_elastomericos', 'tablero_distribucion', 'malla_tierra',
+          'poste_iluminacion', 'poste_media_tension', 'reconectador', 'cable_media_tension',
+          'cable_baja_tension', 'cable_datos',
+        ].includes(item.electrical_type) ? item.electrical_type : undefined,
+        electricalColor: typeof item.electrical_color === 'string' && /^#[0-9a-fA-F]{6}$/.test(item.electrical_color)
+          ? item.electrical_color
           : undefined,
         inspectorName: item.inspector_name || 'Inspector',
         inspectorId: item.inspector_id || '8842',
@@ -611,6 +626,9 @@ CREATE TABLE IF NOT EXISTS public.inspection_photos (
   metraje TEXT,
   pipe_network_type TEXT CHECK (pipe_network_type IS NULL OR pipe_network_type IN ('media_tension', 'baja_tension', 'datos')),
   pipe_color TEXT CHECK (pipe_color IS NULL OR pipe_color ~ '^#[0-9A-Fa-f]{6}$'),
+  plan_layer TEXT NOT NULL DEFAULT 'civil' CHECK (plan_layer IN ('civil', 'electrical')),
+  electrical_type TEXT,
+  electrical_color TEXT CHECK (electrical_color IS NULL OR electrical_color ~ '^#[0-9A-Fa-f]{6}$'),
   inspector_name TEXT NOT NULL,
   inspector_id TEXT NOT NULL,
   inspector_avatar TEXT DEFAULT '',
@@ -638,6 +656,9 @@ ALTER TABLE public.inspection_photos ADD COLUMN IF NOT EXISTS show_acta_label BO
 ALTER TABLE public.inspection_photos ADD COLUMN IF NOT EXISTS acta_label_position TEXT NOT NULL DEFAULT 'derecha' CHECK (acta_label_position IN ('arriba', 'abajo', 'izquierda', 'derecha'));
 ALTER TABLE public.inspection_photos ADD COLUMN IF NOT EXISTS pipe_network_type TEXT CHECK (pipe_network_type IS NULL OR pipe_network_type IN ('media_tension', 'baja_tension', 'datos'));
 ALTER TABLE public.inspection_photos ADD COLUMN IF NOT EXISTS pipe_color TEXT CHECK (pipe_color IS NULL OR pipe_color ~ '^#[0-9A-Fa-f]{6}$');
+ALTER TABLE public.inspection_photos ADD COLUMN IF NOT EXISTS plan_layer TEXT NOT NULL DEFAULT 'civil' CHECK (plan_layer IN ('civil', 'electrical'));
+ALTER TABLE public.inspection_photos ADD COLUMN IF NOT EXISTS electrical_type TEXT;
+ALTER TABLE public.inspection_photos ADD COLUMN IF NOT EXISTS electrical_color TEXT CHECK (electrical_color IS NULL OR electrical_color ~ '^#[0-9A-Fa-f]{6}$');
 
 -- 3. TABLA DE REGISTRO DE ACTIVIDADES Y AUDITORÍA (inspection_activities)
 CREATE TABLE IF NOT EXISTS public.inspection_activities (

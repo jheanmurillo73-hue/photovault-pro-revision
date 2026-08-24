@@ -3,7 +3,7 @@
  * objeto seleccionado; una tubería nunca guarda datos de cámara, y viceversa.
  */
 import React, { useRef, useState } from 'react';
-import { InspectionPhoto, ExecutionStatus, CameraCode, CameraType, ElementType, ActaLabelPosition, getElementType, getPipeNetworkOption, PIPE_NETWORK_OPTIONS, PipeNetworkType } from '../types';
+import { ElectricalElementType, ELECTRICAL_ELEMENT_OPTIONS, getElectricalElementOption, InspectionPhoto, ExecutionStatus, CameraCode, CameraType, ElementType, ActaLabelPosition, getElementType, getPipeNetworkOption, PIPE_NETWORK_OPTIONS, PipeNetworkType } from '../types';
 import { WAREHOUSE_LOCATIONS, CAMERA_CODES, CAMERA_TYPES } from '../data/mockData';
 import { compressImageForDevice } from '../services/deviceStorageService';
 import { TramoSelector } from './TramoSelector';
@@ -51,6 +51,7 @@ export const EditPhotoModal: React.FC<EditPhotoModalProps> = ({
   const [tramo, setTramo] = useState<string>(photo.tramo || '3x4"');
   const [metraje, setMetraje] = useState<string>(photo.metraje !== undefined ? String(photo.metraje) : '');
   const [pipeNetworkType, setPipeNetworkType] = useState<PipeNetworkType>(getPipeNetworkOption(photo.pipeNetworkType).value);
+  const [electricalType, setElectricalType] = useState<ElectricalElementType>(getElectricalElementOption(photo.electricalType).value);
   const [fieldNotes, setFieldNotes] = useState(photo.fieldNotes ?? '');
   const [executionStatus, setExecutionStatus] = useState<ExecutionStatus>(photo.executionStatus || 'En proceso');
   const [requiresImmediateAction, setRequiresImmediateAction] = useState(photo.requiresImmediateAction ?? false);
@@ -100,6 +101,9 @@ export const EditPhotoModal: React.FC<EditPhotoModalProps> = ({
       fileSize: imageSize || photo.fileSize,
       resolution: imageUrl !== photo.imageUrl ? 'Foto adjunta desde propiedades' : photo.resolution,
       elementType,
+      planLayer: elementType === 'electrico' ? 'electrical' : 'civil',
+      electricalType: elementType === 'electrico' ? electricalType : undefined,
+      electricalColor: elementType === 'electrico' ? getElectricalElementOption(electricalType).color : undefined,
       cameraCode: elementType === 'camara' ? cameraCode : undefined,
       cameraType: elementType === 'camara' ? cameraType : undefined,
       acta: acta || undefined,
@@ -379,6 +383,7 @@ export const EditPhotoModal: React.FC<EditPhotoModalProps> = ({
                 ['caja', 'Caja', 'inventory_2', 'bg-amber-500'],
                 ['camara', 'Cámara', 'videocam', 'bg-sky-600'],
                 ['tuberia', 'Tubería', 'timeline', 'bg-violet-600'],
+                ['electrico', 'Eléctrico', 'bolt', 'bg-purple-700'],
               ] as const).map(([value, label, icon, activeClass]) => (
                 <button
                   key={value}
@@ -490,6 +495,29 @@ export const EditPhotoModal: React.FC<EditPhotoModalProps> = ({
             />
           </div>
             </>
+          )}
+          {elementType === 'electrico' && (
+            <div className="rounded-lg border border-[#d8c3fb] bg-[#f7f3ff] p-3">
+              <p className="font-['Inter'] text-[12px] font-bold text-[#5b21b6]">Activo de Obras Eléctricas</p>
+              <p className="mt-0.5 text-[11px] text-[#6b5a85]">Selecciona el símbolo técnico que se mostrará en la capa eléctrica.</p>
+              <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3">
+                {ELECTRICAL_ELEMENT_OPTIONS.map((option) => (
+                  <button
+                    key={option.value}
+                    type="button"
+                    onClick={() => setElectricalType(option.value)}
+                    className={`flex min-h-14 items-center gap-2 border px-2 text-left text-[10px] font-bold transition ${
+                      electricalType === option.value
+                        ? 'border-[#6d28d9] bg-white text-[#5b21b6] ring-2 ring-purple-200'
+                        : 'border-[#dbcdf4] bg-white text-[#6b5a85] hover:bg-[#fbf9ff]'
+                    }`}
+                  >
+                    <span className="material-symbols-outlined text-[18px]" style={{ color: option.color }}>{option.icon}</span>
+                    <span>{option.shortLabel}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
           )}
 
           <div>
