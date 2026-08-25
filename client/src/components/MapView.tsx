@@ -156,6 +156,8 @@ const PLAN_AREA_DETAILS: Record<'civil' | 'electrical_mt' | 'electrical_bt' | 'e
   electrical_lighting: { label: 'Obras Eléctricas Alumbrado', shortLabel: 'ALUMBRADO', icon: 'light', color: '#CA8A04', panel: 'bg-[#fff8e5]' },
 };
 
+const QUICK_PLAN_AREAS = ['civil', 'electrical_mt', 'electrical_bt', 'electrical_lighting'] as const;
+
 const elementLabel = (photo: InspectionPhoto) => {
   const type = getElementType(photo);
   if (isElectricalPhoto(photo)) return getElectricalElementOption(photo.electricalType).label;
@@ -415,6 +417,23 @@ export const MapView: React.FC<MapViewProps> = ({
       return;
     }
     setSelectedPlanArea(null);
+  };
+
+  const switchPlanArea = (area: typeof QUICK_PLAN_AREAS[number]) => {
+    if (selectedPlanArea === area) return;
+    setPlacement(null);
+    setCreationMode(null);
+    setPipeStart(null);
+    setPipePreview(null);
+    setCalibrationMode(false);
+    setCalibrationStart(null);
+    setCalibrationPreview(null);
+    setCalibrationDraft(null);
+    setSelectedPlanPhotoId(null);
+    exitMultipleSelection();
+    setActiveFilter('all');
+    setSearchQuery('');
+    setSelectedPlanArea(area);
   };
 
   const confirmReturnToAreas = () => {
@@ -1079,6 +1098,28 @@ export const MapView: React.FC<MapViewProps> = ({
 
       <div className="relative z-20 shrink-0 overflow-x-auto border-b border-[#c7d7df] bg-[#f7fbfd]/95 px-4 py-2 shadow-sm">
       <div className="flex min-w-max items-center gap-2 pr-4">
+        <div className="mr-1 inline-flex items-center gap-1 rounded-lg border border-[#b9d0db] bg-white p-1 shadow-xs" aria-label="Acceso rápido a capas de obra" role="group">
+          <span className="px-1.5 font-mono text-[9px] font-bold tracking-[0.12em] text-[#66808d]">CAPAS</span>
+          {QUICK_PLAN_AREAS.map((area) => {
+            const details = PLAN_AREA_DETAILS[area];
+            const isActive = selectedPlanArea === area;
+            return (
+              <button
+                key={area}
+                type="button"
+                onClick={() => switchPlanArea(area)}
+                className={`inline-flex h-7 items-center gap-1 rounded-md border px-2 text-[10px] font-bold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0566aa] focus-visible:ring-offset-1 ${isActive ? 'text-white shadow-sm' : 'border-transparent bg-[#f4f9fb] text-[#466473] hover:bg-[#e5f4fb]'}`}
+                style={isActive ? { backgroundColor: details.color, borderColor: details.color } : undefined}
+                aria-pressed={isActive}
+                title={`Cambiar a ${details.label}`}
+              >
+                <span className="material-symbols-outlined text-[14px]">{details.icon}</span>
+                {details.shortLabel}
+              </button>
+            );
+          })}
+        </div>
+        <span className="hidden h-6 w-px bg-[#b8ced9] sm:block" aria-hidden="true" />
         {(selectedPlanArea !== 'civil'
           ? [['all', 'Todos', 'bolt'], ['pending', 'Sin ubicar', 'location_off']]
           : [['all', 'Todos', 'layers'], ['camara', 'Cámaras', 'videocam'], ['caja', 'Cajas', 'inventory_2'], ['tuberia', 'Tuberías', 'timeline'], ['pending', 'Sin ubicar', 'location_off']]
