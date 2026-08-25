@@ -92,3 +92,4 @@
 - [x] Añadir un filtro del plano para visualizar únicamente los elementos No iniciado.
 - [x] Diferenciar visualmente en el plano los elementos No iniciado mediante color de estado.
 - [x] Enfocar el plano en el elemento editado y cerrar Elemento seleccionado al guardar sus propiedades.
+- [x] Permitir configurar tipo constructivo y medida de cada tubería, además de su metraje.

@@ -457,7 +457,7 @@ export default function App() {
       cableMeters: isCable ? initialMetraje ?? 0 : undefined,
       cameraCode: isCamera ? 'SB850' : undefined,
       cameraType: isCamera ? 'MT' : undefined,
-      tramo: isPipeline ? '' : undefined,
+      tramo: isPipeline ? '2x6"' : undefined,
       metraje: isPipeline ? initialMetraje ?? 0 : undefined,
       pipeNetworkType: isPipeline ? 'baja_tension' : undefined,
       pipeColor: isPipeline ? getPipeNetworkOption('baja_tension').color : undefined,

@@ -635,14 +635,17 @@ export const EditPhotoModal: React.FC<EditPhotoModalProps> = ({
           {elementType === 'tuberia' && (
             <>
           <div className="rounded-lg border border-[#b7d5e4] bg-[#f4fbfe] p-3">
-            <p className="font-['Inter'] text-[12px] font-bold text-[#173f58]">Tipo de red del tramo</p>
-            <p className="mt-0.5 text-[11px] text-[#607d8b]">El color se asigna automáticamente al guardar y se refleja en el plano.</p>
+            <p className="font-['Inter'] text-[12px] font-bold text-[#173f58]">Tipo de tubería</p>
+            <p className="mt-0.5 text-[11px] text-[#607d8b]">Selecciona MT, BT o Datos. El color se asigna automáticamente y se refleja en el plano.</p>
             <div className="mt-2 grid grid-cols-3 gap-2">
               {PIPE_NETWORK_OPTIONS.map((option) => (
                 <button
                   key={option.value}
                   type="button"
-                  onClick={() => setPipeNetworkType(option.value)}
+                  onClick={() => {
+                    setPipeNetworkType(option.value);
+                    if (!tramo.trim()) setTramo(option.value === 'baja_tension' ? '2x6"' : '3x4"');
+                  }}
                   className={`flex min-h-14 flex-col items-center justify-center gap-1 border px-2 text-[11px] font-bold transition ${
                     pipeNetworkType === option.value
                       ? 'border-[#073f74] bg-white text-[#073f74] ring-2 ring-cyan-200'
@@ -654,6 +657,26 @@ export const EditPhotoModal: React.FC<EditPhotoModalProps> = ({
                 </button>
               ))}
             </div>
+            <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-3">
+              {[
+                { type: 'media_tension' as PipeNetworkType, tramo: '3x4"', label: 'MT 3×4″' },
+                { type: 'baja_tension' as PipeNetworkType, tramo: '2x6"', label: 'BT 2×6″' },
+                { type: 'datos' as PipeNetworkType, tramo: '3x4"', label: 'Datos 3×4″' },
+              ].map((preset) => (
+                <button
+                  key={preset.label}
+                  type="button"
+                  onClick={() => {
+                    setPipeNetworkType(preset.type);
+                    setTramo(preset.tramo);
+                  }}
+                  className={`rounded-md border px-2 py-2 text-[11px] font-bold transition ${pipeNetworkType === preset.type && tramo === preset.tramo ? 'border-[#0566aa] bg-white text-[#004d84] ring-2 ring-cyan-200' : 'border-[#c2dbe7] bg-white text-[#547181] hover:bg-[#eaf6fb]'}`}
+                  title={`Aplicar configuración ${preset.label}`}
+                >
+                  {preset.label}
+                </button>
+              ))}
+            </div>
           </div>
           {/* Tramo de Tubería y Metraje (Cantidad x Dimensión + Metros Lineales) */}
           <div>
@@ -662,8 +685,14 @@ export const EditPhotoModal: React.FC<EditPhotoModalProps> = ({
               onTramoChange={setTramo}
               metraje={metraje}
               onMetrajeChange={setMetraje}
-              label="Propiedades de Tramo y Metraje de Tubería (4&quot;, 6&quot;, etc.)"
+              label="Configuración y longitud de tubería"
             />
+          </div>
+          <div className="rounded-lg border border-[#9fc7d9] bg-white px-3 py-2.5">
+            <p className="font-mono text-[10px] font-bold uppercase tracking-wide text-[#527284]">Resumen técnico</p>
+            <p className="mt-1 text-[13px] font-bold text-[#073f74]">
+              Tubería {getPipeNetworkOption(pipeNetworkType).label} {tramo || 'sin medida'} · {metraje || '0'} m
+            </p>
           </div>
             </>
           )}
