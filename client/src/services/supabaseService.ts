@@ -1,5 +1,5 @@
 import { getSupabaseClient, isSupabaseConfigured, getActiveSupabaseConfig } from '../lib/supabase';
-import { InspectionPhoto, InspectorProfile, ActivityItem, InspectionCollection, AppSettings, AppModule, AppRole, UserAccess, normalizePipeConduits } from '../types';
+import { ActaItem, InspectionPhoto, InspectorProfile, ActivityItem, InspectionCollection, AppSettings, AppModule, AppRole, UserAccess, normalizePipeConduits } from '../types';
 import { ALL_OPERATIONAL_MODULES, createFallbackAccess, isPrimaryAdmin, normalizeModules } from '../lib/accessControl';
 
 const parseImageUrls = (value: unknown, fallback?: string): string[] => {
@@ -23,6 +23,28 @@ const parsePipeConduits = (value: unknown) => {
   } catch {
     return [];
   }
+};
+
+const parseActaItem = (value: unknown): ActaItem | undefined => {
+  if (!value) return undefined;
+  let candidate = value;
+  if (typeof value === 'string') {
+    try {
+      candidate = JSON.parse(value);
+    } catch {
+      return undefined;
+    }
+  }
+  if (!candidate || typeof candidate !== 'object' || Array.isArray(candidate)) return undefined;
+  const item = candidate as Partial<ActaItem>;
+  if (typeof item.code !== 'string' || typeof item.description !== 'string') return undefined;
+  return {
+    code: item.code,
+    description: item.description,
+    unit: typeof item.unit === 'string' ? item.unit : '',
+    quantity: typeof item.quantity === 'string' ? item.quantity : '',
+    section: typeof item.section === 'string' ? item.section : 'Sin categoría',
+  };
 };
 
 export interface SupabaseConnectionStatus {
@@ -237,6 +259,7 @@ export const supabaseService = {
         camera_code: photo.cameraCode || 'SB850',
         camera_type: photo.cameraType || 'MT',
         acta: photo.acta || null,
+        acta_item: photo.actaItem || null,
         show_acta_label: photo.showActaLabel ?? true,
         acta_label_position: photo.actaLabelPosition || 'derecha',
         tramo: photo.tramo || null,
@@ -301,6 +324,7 @@ export const supabaseService = {
       camera_code: photo.cameraCode || 'SB850',
       camera_type: photo.cameraType || 'MT',
       acta: photo.acta || null,
+      acta_item: photo.actaItem || null,
       show_acta_label: photo.showActaLabel ?? true,
       acta_label_position: photo.actaLabelPosition || 'derecha',
       tramo: photo.tramo || null,
@@ -382,6 +406,7 @@ export const supabaseService = {
         cameraCode: item.camera_code || 'SB850',
         cameraType: item.camera_type || 'MT',
         acta: item.acta || undefined,
+        actaItem: parseActaItem(item.acta_item),
         showActaLabel: item.show_acta_label !== false,
         actaLabelPosition: ['arriba', 'abajo', 'izquierda', 'derecha'].includes(item.acta_label_position)
           ? item.acta_label_position
@@ -667,6 +692,7 @@ CREATE TABLE IF NOT EXISTS public.inspection_photos (
   camera_code TEXT DEFAULT 'SB850',
   camera_type TEXT DEFAULT 'MT',
   acta TEXT,
+  acta_item JSONB,
   show_acta_label BOOLEAN NOT NULL DEFAULT true,
   acta_label_position TEXT NOT NULL DEFAULT 'derecha' CHECK (acta_label_position IN ('arriba', 'abajo', 'izquierda', 'derecha')),
   tramo TEXT,
@@ -703,6 +729,7 @@ ALTER TABLE public.inspection_photos ADD COLUMN IF NOT EXISTS plan_y NUMERIC CHE
 ALTER TABLE public.inspection_photos ADD COLUMN IF NOT EXISTS plan_end_x NUMERIC CHECK (plan_end_x >= 0 AND plan_end_x <= 100);
 ALTER TABLE public.inspection_photos ADD COLUMN IF NOT EXISTS plan_end_y NUMERIC CHECK (plan_end_y >= 0 AND plan_end_y <= 100);
 ALTER TABLE public.inspection_photos ADD COLUMN IF NOT EXISTS acta TEXT;
+ALTER TABLE public.inspection_photos ADD COLUMN IF NOT EXISTS acta_item JSONB;
 ALTER TABLE public.inspection_photos ADD COLUMN IF NOT EXISTS image_urls TEXT;
 ALTER TABLE public.inspection_photos ADD COLUMN IF NOT EXISTS show_acta_label BOOLEAN NOT NULL DEFAULT true;
 ALTER TABLE public.inspection_photos ADD COLUMN IF NOT EXISTS acta_label_position TEXT NOT NULL DEFAULT 'derecha' CHECK (acta_label_position IN ('arriba', 'abajo', 'izquierda', 'derecha'));

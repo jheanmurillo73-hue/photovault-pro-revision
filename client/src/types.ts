@@ -139,6 +139,14 @@ export const getPipeNetworkOption = (value?: string) =>
 
 export type ActaLabelPosition = 'arriba' | 'abajo' | 'izquierda' | 'derecha';
 
+export interface ActaItem {
+  code: string;
+  description: string;
+  unit: string;
+  quantity: string;
+  section: string;
+}
+
 export type AppRole = 'admin' | 'inspector';
 
 export type AppModule =
@@ -177,6 +185,7 @@ export interface InspectionPhoto {
   cameraCode?: CameraCode;
   cameraType?: CameraType;
   acta?: string;
+  actaItem?: ActaItem;
   showActaLabel?: boolean;
   actaLabelPosition?: ActaLabelPosition;
   tramo?: string;

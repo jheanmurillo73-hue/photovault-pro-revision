@@ -96,3 +96,6 @@
 - [x] Permitir registrar varias conducciones MT, BT y Datos con configuración y metraje propios dentro de un tramo.
 - [x] Persistir las conducciones múltiples de cada tramo en Supabase.
 - [x] Ampliar al máximo útil el rango de zoom del plano.
+- [x] Incorporar el ítem de acta del catálogo adjunto en las propiedades de cada elemento.
+- [x] Mostrar el ítem de acta en la vista de base de datos y en las exportaciones CSV.
+- [x] Persistir el ítem de acta en Supabase mediante una migración SQL segura.

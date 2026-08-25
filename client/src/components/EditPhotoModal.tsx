@@ -5,12 +5,17 @@
 import React, { useRef, useState } from 'react';
 import { CableGauge, CableType, CABLE_TYPE_OPTIONS, getCableGaugeOptionsForPlanArea, InspectionPhoto, ExecutionStatus, CameraCode, CameraType, ElementType, ActaLabelPosition, getElectricalElementOption, getElectricalPlanArea, getElementType, getPipeNetworkOption, PIPE_NETWORK_OPTIONS, PipeConduit, PipeNetworkType, getDefaultPipeConfiguration, normalizePipeConduits } from '../types';
 import { WAREHOUSE_LOCATIONS, CAMERA_CODES, CAMERA_TYPES } from '../data/mockData';
+import { ACTA_ITEM_OPTIONS, getActaItemKey } from '../data/actaItems';
 import { compressImageForDevice } from '../services/deviceStorageService';
 import { TramoSelector } from './TramoSelector';
 
 const ACTAS_STORAGE_KEY = 'photovault_actas_catalog';
 const DEFAULT_ACTAS = Array.from({ length: 10 }, (_, index) => `Acta ${index + 1}`);
 const PIPE_NETWORK_ORDER: PipeNetworkType[] = ['media_tension', 'baja_tension', 'datos'];
+const ACTA_ITEMS_BY_SECTION = ACTA_ITEM_OPTIONS.reduce<Record<string, typeof ACTA_ITEM_OPTIONS[number][]>>((groups, item) => {
+  (groups[item.section] ||= []).push(item);
+  return groups;
+}, {});
 
 const createPipeConduitId = (networkType: PipeNetworkType) =>
   typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
@@ -51,6 +56,7 @@ export const EditPhotoModal: React.FC<EditPhotoModalProps> = ({
   const [cameraCode, setCameraCode] = useState<CameraCode>(photo.cameraCode || 'SB850');
   const [cameraType, setCameraType] = useState<CameraType>(photo.cameraType || 'MT');
   const [acta, setActa] = useState(photo.acta ?? '');
+  const [actaItemKey, setActaItemKey] = useState(() => photo.actaItem ? getActaItemKey(photo.actaItem) : '');
   const [actaLabelPosition, setActaLabelPosition] = useState<ActaLabelPosition>(photo.actaLabelPosition || 'derecha');
   const [actas, setActas] = useState<string[]>(loadActas);
   const [newActa, setNewActa] = useState('');
@@ -87,6 +93,7 @@ export const EditPhotoModal: React.FC<EditPhotoModalProps> = ({
   const electricalOption = getElectricalElementOption(photo.electricalType);
   const electricalArea = getElectricalPlanArea(photo.electricalType);
   const cableGaugeOptions = getCableGaugeOptionsForPlanArea(photo.planArea);
+  const selectedActaItem = ACTA_ITEM_OPTIONS.find((item) => getActaItemKey(item) === actaItemKey);
 
   const orderedPipeConduits = [...pipeConduits].sort(
     (left, right) => PIPE_NETWORK_ORDER.indexOf(left.networkType) - PIPE_NETWORK_ORDER.indexOf(right.networkType),
@@ -195,6 +202,7 @@ export const EditPhotoModal: React.FC<EditPhotoModalProps> = ({
       cameraCode: elementType === 'camara' ? cameraCode : undefined,
       cameraType: isAdmin ? (elementType === 'camara' ? cameraType : undefined) : photo.cameraType,
       acta: isAdmin ? acta || undefined : photo.acta,
+      actaItem: isAdmin ? selectedActaItem : photo.actaItem,
       actaLabelPosition: isAdmin ? (acta ? actaLabelPosition : undefined) : photo.actaLabelPosition,
       tramo: elementType === 'tuberia' ? primaryConduit?.configuration : undefined,
       metraje: elementType === 'tuberia' ? primaryConduit?.meters : undefined,
@@ -518,6 +526,33 @@ export const EditPhotoModal: React.FC<EditPhotoModalProps> = ({
               </button>
             </div>}
             {actaMessage && <p className="mt-2 text-[11px] font-medium text-[#075a91]" role="status">{actaMessage}</p>}
+            <div className="mt-3 border-t border-[#d6e4ea] pt-3">
+              <label htmlFor="inspection-acta-item" className="block font-['Inter'] text-[12px] font-bold text-[#173f58]">Ítem de acta</label>
+              <p className="mt-0.5 text-[11px] text-[#607d8b]">Selecciona el ítem contractual aplicable. La lista está agrupada por capítulo para mantener la vista compacta.</p>
+              <select
+                id="inspection-acta-item"
+                value={actaItemKey}
+                onChange={(event) => setActaItemKey(event.target.value)}
+                disabled={!isAdmin}
+                className="mt-2 w-full rounded-lg border border-[#c2c6d4] bg-white p-2.5 text-[12px] text-[#071e27] outline-none focus:border-[#004d99]"
+              >
+                <option value="">Sin ítem de acta asignado</option>
+                {Object.entries(ACTA_ITEMS_BY_SECTION).map(([section, items]) => (
+                  <optgroup key={section} label={section}>
+                    {items.map((item) => (
+                      <option key={getActaItemKey(item)} value={getActaItemKey(item)}>
+                        {item.code} · {item.description}
+                      </option>
+                    ))}
+                  </optgroup>
+                ))}
+              </select>
+              {selectedActaItem && (
+                <p className="mt-2 rounded-md border border-[#cfe0e9] bg-white px-2 py-1.5 text-[10px] leading-4 text-[#315c70]">
+                  <strong className="text-[#073f74]">{selectedActaItem.code}</strong> · {selectedActaItem.unit || 'Sin unidad'} · Cantidad contractual {selectedActaItem.quantity || '—'}
+                </p>
+              )}
+            </div>
             {acta && (
               <div className="mt-3 border-t border-[#d6e4ea] pt-3">
                 <label htmlFor="inspection-acta-label-position" className="block font-['Inter'] text-[12px] font-bold text-[#173f58]">Posición del texto en el plano</label>

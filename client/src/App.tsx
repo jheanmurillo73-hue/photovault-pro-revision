@@ -368,6 +368,7 @@ export default function App() {
         ...updated,
         name: current.name,
         acta: current.acta,
+        actaItem: current.actaItem,
         actaLabelPosition: current.actaLabelPosition,
         cameraType: current.cameraType,
         elementType: current.elementType,
