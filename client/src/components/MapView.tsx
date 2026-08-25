@@ -4,7 +4,7 @@
  * relativos al plano, nunca como coordenadas de un proveedor cartográfico.
  */
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { ActaLabelPosition, BlueprintCalibration, BlueprintOverlay, ElectricalElementType, ELECTRICAL_ELEMENT_OPTIONS, getCableTypeOption, getElectricalElementOption, getElectricalPlanArea, getElementType, getPipeNetworkOption, InspectionPhoto, InspectorProfile, isElectricalElementType, PIPE_NETWORK_OPTIONS, PipeNetworkType, PlanArea } from '../types';
+import { ActaLabelPosition, BlueprintCalibration, BlueprintOverlay, ElectricalElementType, ELECTRICAL_ELEMENT_OPTIONS, getCableTypeOption, getElectricalElementOption, getElectricalPlanArea, getElementType, getPipeNetworkOption, InspectionPhoto, InspectorProfile, isElectricalElementType, PlanArea } from '../types';
 import { compressImageForDevice } from '../services/deviceStorageService';
 import { isQuotaExceededError, loadBlueprintImage, saveBlueprintImage } from '../services/blueprintStorageService';
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from './ui/breadcrumb';
@@ -935,11 +935,11 @@ export const MapView: React.FC<MapViewProps> = ({
     setDragTarget(target);
   };
 
-  const planScale = clampScale(Number(blueprint.scale) || 1, 0.45, 3);
+  const planScale = clampScale(Number(blueprint.scale) || 1, 0.45, 8);
   const adjustPlanScale = (difference: number) => {
     setBlueprint((previous) => ({
       ...previous,
-      scale: clampScale((Number(previous.scale) || 1) + difference, 0.45, 3),
+      scale: clampScale((Number(previous.scale) || 1) + difference, 0.45, 8),
     }));
   };
   const adjustIconScale = (difference: number) => {
@@ -1338,16 +1338,49 @@ export const MapView: React.FC<MapViewProps> = ({
                 const pipeline = getElementType(photo) === 'tuberia';
                 const cable = isCable(photo);
                 if ((!pipeline && !cable) || !hasCompletePipe(photo)) return null;
-                const pipeStroke = isNotStarted(photo)
-                  ? NO_STARTED_MARKER_COLOR
-                  : cable
-                  ? getCableTypeOption(photo.cableType).color
-                  : photo.pipeColor || getPipeNetworkOption(photo.pipeNetworkType).color;
+                const pipeConduits = pipeline && photo.pipeConduits?.length
+                  ? photo.pipeConduits
+                  : pipeline ? [{
+                    id: `legacy-${photo.id}`,
+                    networkType: getPipeNetworkOption(photo.pipeNetworkType).value,
+                    configuration: photo.tramo || '',
+                    meters: photo.metraje ?? 0,
+                  }] : [];
+                const lineDeltaX = photo.planEndX! - photo.planX!;
+                const lineDeltaY = photo.planEndY! - photo.planY!;
+                const lineLength = Math.hypot(lineDeltaX, lineDeltaY) || 1;
+                const parallelOffset = (index: number) => (index - (pipeConduits.length - 1) / 2) * 0.72;
+                const offsetPoint = (x: number, y: number, offset: number) => ({
+                  x: x + (-lineDeltaY / lineLength) * offset,
+                  y: y + (lineDeltaX / lineLength) * offset,
+                });
                 const isSelected = !isMultipleSelectionMode && selectedPlanPhotoId === photo.id;
                 return (
                   <g key={`line-${photo.id}`}>
                     <line x1={photo.planX} y1={photo.planY} x2={photo.planEndX} y2={photo.planEndY} stroke="rgba(255,255,255,0.82)" strokeWidth="2.2" strokeLinecap="round" />
-                    <line x1={photo.planX} y1={photo.planY} x2={photo.planEndX} y2={photo.planEndY} stroke={pipeStroke} strokeWidth={cable ? '1.35' : '1.1'} strokeDasharray={cable ? '1.1 0.8' : undefined} strokeLinecap="round" />
+                    {cable && (
+                      <line x1={photo.planX} y1={photo.planY} x2={photo.planEndX} y2={photo.planEndY} stroke={isNotStarted(photo) ? NO_STARTED_MARKER_COLOR : getCableTypeOption(photo.cableType).color} strokeWidth="1.35" strokeDasharray="1.1 0.8" strokeLinecap="round" />
+                    )}
+                    {pipeline && isNotStarted(photo) && (
+                      <line x1={photo.planX} y1={photo.planY} x2={photo.planEndX} y2={photo.planEndY} stroke={NO_STARTED_MARKER_COLOR} strokeWidth="1.35" strokeLinecap="round" />
+                    )}
+                    {pipeline && !isNotStarted(photo) && pipeConduits.map((conduit, index) => {
+                      const offset = parallelOffset(index);
+                      const start = offsetPoint(photo.planX!, photo.planY!, offset);
+                      const end = offsetPoint(photo.planEndX!, photo.planEndY!, offset);
+                      return (
+                        <line
+                          key={conduit.id}
+                          x1={start.x}
+                          y1={start.y}
+                          x2={end.x}
+                          y2={end.y}
+                          stroke={getPipeNetworkOption(conduit.networkType).color}
+                          strokeWidth="1.35"
+                          strokeLinecap="round"
+                        />
+                      );
+                    })}
                     {isSelected && (
                       <>
                         <circle cx={photo.planX} cy={photo.planY} r="1.55" fill="#ffffff" stroke="#073f74" strokeWidth="0.7" />
@@ -1634,58 +1667,31 @@ export const MapView: React.FC<MapViewProps> = ({
                 <span className="font-mono text-sm font-bold text-[#0b5d8c]">{Number.parseFloat(String(selectedPlanPhoto.metraje ?? 0)).toFixed(2)} m</span>
               </div>
               <div className="mt-3 border border-[#b7d5e4] bg-white p-2.5">
-                <p className="font-mono text-[9px] font-bold tracking-[0.12em] text-[#0b5d8c]">TIPO DE RED</p>
-                <p className="mt-0.5 text-[10px] text-[#547181]">La red aplica un color automático al tramo.</p>
-                <div className="mt-2 grid grid-cols-3 gap-1.5">
-                  {PIPE_NETWORK_OPTIONS.map((option) => (
-                    <button
-                      key={option.value}
-                      type="button"
-                      onClick={() => onUpdatePhoto({
-                        ...selectedPlanPhoto,
-                        pipeNetworkType: option.value as PipeNetworkType,
-                        pipeColor: option.color,
-                      })}
-                      className={`flex min-h-12 flex-col items-center justify-center gap-1 border px-1 text-[9px] font-bold transition hover:bg-[#f4fbfe] ${
-                        selectedPlanPhoto.pipeNetworkType === option.value
-                          ? 'border-[#073f74] bg-[#f4fbfe] text-[#073f74] ring-1 ring-cyan-300'
-                          : 'border-[#c7dce7] bg-white text-[#547181]'
-                      }`}
-                    >
-                      <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: option.color }} />
-                      {option.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              <div className="mt-3 border border-[#b7d5e4] bg-white p-2.5">
-                <div className="flex items-center justify-between gap-2">
+                <div className="flex items-start justify-between gap-3">
                   <div>
-                    <p className="font-mono text-[9px] font-bold tracking-[0.12em] text-[#0b5d8c]">COLOR DEL TRAMO</p>
-                    <p className="mt-0.5 text-[10px] text-[#547181]">Puedes ajustar el color automático cuando necesites una convención particular.</p>
+                    <p className="font-mono text-[9px] font-bold tracking-[0.12em] text-[#0b5d8c]">CONDUCCIONES DEL TRAMO</p>
+                    <p className="mt-0.5 text-[10px] text-[#547181]">Los colores corresponden a cada red. Configura o agrega conducciones desde Propiedades.</p>
                   </div>
-                  <label className="relative flex h-9 w-12 shrink-0 cursor-pointer overflow-hidden border-2 border-white shadow-[0_0_0_1px_#8bb5c9]" title="Elegir color personalizado">
-                    <input
-                      type="color"
-                      value={selectedPlanPhoto.pipeColor || '#0d9fc6'}
-                      onChange={(event) => onUpdatePhoto({ ...selectedPlanPhoto, pipeColor: event.currentTarget.value.toUpperCase() })}
-                      className="absolute -inset-2 h-16 w-16 cursor-pointer border-0 bg-transparent p-0"
-                      aria-label="Elegir color del tramo"
-                    />
-                  </label>
+                  <span className="material-symbols-outlined text-[17px] text-[#075a91]">account_tree</span>
                 </div>
-                <div className="mt-2 flex flex-wrap gap-1.5">
-                  {['#0D9FC6', '#0566AA', '#16A34A', '#EAB308', '#EA580C', '#DC2626', '#7C3AED', '#1F2937'].map((color) => (
-                    <button
-                      key={color}
-                      type="button"
-                      onClick={() => onUpdatePhoto({ ...selectedPlanPhoto, pipeColor: color })}
-                      className={`h-6 w-6 border-2 transition hover:scale-110 ${selectedPlanPhoto.pipeColor?.toUpperCase() === color ? 'border-[#073f74] ring-2 ring-cyan-300 ring-offset-1' : 'border-white shadow-[0_0_0_1px_#b4cbd8]'}`}
-                      style={{ backgroundColor: color }}
-                      title={`Asignar color ${color}`}
-                      aria-label={`Asignar color ${color}`}
-                    />
-                  ))}
+                <div className="mt-2 space-y-1.5">
+                  {(selectedPlanPhoto.pipeConduits?.length ? selectedPlanPhoto.pipeConduits : [{
+                    id: `legacy-${selectedPlanPhoto.id}`,
+                    networkType: getPipeNetworkOption(selectedPlanPhoto.pipeNetworkType).value,
+                    configuration: selectedPlanPhoto.tramo || 'sin medida',
+                    meters: selectedPlanPhoto.metraje ?? 0,
+                  }]).map((conduit) => {
+                    const option = getPipeNetworkOption(conduit.networkType);
+                    return (
+                      <div key={conduit.id} className="flex items-center justify-between gap-2 border border-[#d7e6ee] bg-[#f8fcfe] px-2 py-1.5">
+                        <span className="inline-flex min-w-0 items-center gap-1.5 text-[11px] font-bold text-[#173f58]">
+                          <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: option.color }} />
+                          {option.label} · {conduit.configuration || 'sin calibre'}
+                        </span>
+                        <span className="shrink-0 font-mono text-[10px] font-bold text-[#0b5d8c]">{conduit.meters || '0'} m</span>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
               <div className="mt-3 border border-[#b7d5e4] bg-[#f7fcfe] p-2.5">
@@ -1932,10 +1938,10 @@ export const MapView: React.FC<MapViewProps> = ({
             <div className="flex items-center gap-1.5 px-2 py-1.5">
               <span className="material-symbols-outlined text-[16px] text-[#0566aa]">zoom_in</span>
               <span className="font-mono text-[10px] font-bold text-[#355c70]">PLANO {Math.round(planScale * 100)}%</span>
-              <button type="button" onClick={() => adjustPlanScale(-0.1)} disabled={planScale <= 0.45} className="flex h-6 w-6 items-center justify-center rounded text-[#285b72] transition hover:bg-[#eaf6fb] disabled:cursor-not-allowed disabled:opacity-35" aria-label="Reducir tamaño del plano" title="Reducir plano">
+              <button type="button" onClick={() => adjustPlanScale(-0.25)} disabled={planScale <= 0.45} className="flex h-6 w-6 items-center justify-center rounded text-[#285b72] transition hover:bg-[#eaf6fb] disabled:cursor-not-allowed disabled:opacity-35" aria-label="Reducir tamaño del plano" title="Reducir plano en incrementos de 25%">
                 <span className="material-symbols-outlined text-[16px]">remove</span>
               </button>
-              <button type="button" onClick={() => adjustPlanScale(0.1)} disabled={planScale >= 3} className="flex h-6 w-6 items-center justify-center rounded text-[#285b72] transition hover:bg-[#eaf6fb] disabled:cursor-not-allowed disabled:opacity-35" aria-label="Aumentar tamaño del plano" title="Aumentar plano hasta 300%">
+              <button type="button" onClick={() => adjustPlanScale(0.25)} disabled={planScale >= 8} className="flex h-6 w-6 items-center justify-center rounded text-[#285b72] transition hover:bg-[#eaf6fb] disabled:cursor-not-allowed disabled:opacity-35" aria-label="Aumentar tamaño del plano" title="Aumentar plano hasta 800%">
                 <span className="material-symbols-outlined text-[16px]">add</span>
               </button>
             </div>

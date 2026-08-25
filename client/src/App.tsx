@@ -14,6 +14,7 @@ import {
   UserAccess,
   getElementType,
   getPipeNetworkOption,
+  normalizePipeConduits,
   ElectricalElementType,
   getElectricalElementOption,
   getElectricalPlanArea,
@@ -75,6 +76,15 @@ const normalizeInspectionPhoto = (photo: InspectionPhoto): InspectionPhoto => {
     : photo.imageUrl ? [photo.imageUrl] : [];
   const evidenceUrls = candidateEvidenceUrls.filter((url) => !isTechnicalPreview(url));
   const imageUrl = evidenceUrls[0] || photo.imageUrl?.trim() || createMapElementPreview(getElementType(photo));
+  const isPipeline = getElementType(photo) === 'tuberia';
+  const pipeConduits = isPipeline
+    ? normalizePipeConduits(photo.pipeConduits, {
+      networkType: getPipeNetworkOption(photo.pipeNetworkType).value,
+      configuration: photo.tramo,
+      meters: photo.metraje,
+    })
+    : [];
+  const primaryConduit = pipeConduits[0];
 
   return {
     ...photo,
@@ -93,9 +103,13 @@ const normalizeInspectionPhoto = (photo: InspectionPhoto): InspectionPhoto => {
       : photo.planArea || 'civil',
     electricalType: photo.electricalType,
     electricalColor: photo.electricalType ? getElectricalElementOption(photo.electricalType).color : undefined,
-    pipeNetworkType: getElementType(photo) === 'tuberia'
-      ? getPipeNetworkOption(photo.pipeNetworkType).value
+    tramo: isPipeline ? primaryConduit?.configuration : photo.tramo,
+    metraje: isPipeline ? primaryConduit?.meters : photo.metraje,
+    pipeNetworkType: isPipeline ? primaryConduit?.networkType : undefined,
+    pipeColor: isPipeline && primaryConduit
+      ? getPipeNetworkOption(primaryConduit.networkType).color
       : undefined,
+    pipeConduits: isPipeline ? pipeConduits : undefined,
     planX: normalizePlanCoordinate(photo.planX),
     planY: normalizePlanCoordinate(photo.planY),
     planEndX: normalizePlanCoordinate(photo.planEndX),
@@ -383,7 +397,13 @@ export default function App() {
     const currentPhoto = photos.find((photo) => photo.id === photoId);
     if (!currentPhoto) return;
 
-    const updated = normalizeInspectionPhoto({ ...currentPhoto, ...position });
+    const updated = normalizeInspectionPhoto({
+      ...currentPhoto,
+      ...position,
+      pipeConduits: position.metraje !== undefined && getElementType(currentPhoto) === 'tuberia'
+        ? currentPhoto.pipeConduits?.map((conduit) => ({ ...conduit, meters: position.metraje! }))
+        : currentPhoto.pipeConduits,
+    });
     setPhotos((previous) => previous.map((photo) => (photo.id === photoId ? updated : photo)));
     supabaseService.savePhoto(updated, inspector.id);
     addActivity('Ubicación actualizada en el plano', updated.name, updated.id, 'edit');
@@ -402,6 +422,7 @@ export default function App() {
       const updated = normalizeInspectionPhoto({
         ...photo,
         metraje,
+        pipeConduits: photo.pipeConduits?.map((conduit) => ({ ...conduit, meters: metraje })),
         ...(photo.electricalType === 'cableado' ? { cableMeters: metraje } : {}),
       });
       recordsToSync.push(updated);
@@ -461,6 +482,12 @@ export default function App() {
       metraje: isPipeline ? initialMetraje ?? 0 : undefined,
       pipeNetworkType: isPipeline ? 'baja_tension' : undefined,
       pipeColor: isPipeline ? getPipeNetworkOption('baja_tension').color : undefined,
+      pipeConduits: isPipeline ? [{
+        id: 'baja_tension-1',
+        networkType: 'baja_tension',
+        configuration: '2x6"',
+        meters: initialMetraje ?? 0,
+      }] : undefined,
       ...position,
       inspectorName: inspector.name,
       inspectorId: inspector.id,

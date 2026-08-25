@@ -93,3 +93,6 @@
 - [x] Diferenciar visualmente en el plano los elementos No iniciado mediante color de estado.
 - [x] Enfocar el plano en el elemento editado y cerrar Elemento seleccionado al guardar sus propiedades.
 - [x] Permitir configurar tipo constructivo y medida de cada tubería, además de su metraje.
+- [x] Permitir registrar varias conducciones MT, BT y Datos con configuración y metraje propios dentro de un tramo.
+- [x] Persistir las conducciones múltiples de cada tramo en Supabase.
+- [x] Ampliar al máximo útil el rango de zoom del plano.

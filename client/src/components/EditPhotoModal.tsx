@@ -3,13 +3,19 @@
  * objeto seleccionado; una tubería nunca guarda datos de cámara, y viceversa.
  */
 import React, { useRef, useState } from 'react';
-import { CableGauge, CableType, CABLE_TYPE_OPTIONS, getCableGaugeOptionsForPlanArea, InspectionPhoto, ExecutionStatus, CameraCode, CameraType, ElementType, ActaLabelPosition, getElectricalElementOption, getElectricalPlanArea, getElementType, getPipeNetworkOption, PIPE_NETWORK_OPTIONS, PipeNetworkType } from '../types';
+import { CableGauge, CableType, CABLE_TYPE_OPTIONS, getCableGaugeOptionsForPlanArea, InspectionPhoto, ExecutionStatus, CameraCode, CameraType, ElementType, ActaLabelPosition, getElectricalElementOption, getElectricalPlanArea, getElementType, getPipeNetworkOption, PIPE_NETWORK_OPTIONS, PipeConduit, PipeNetworkType, getDefaultPipeConfiguration, normalizePipeConduits } from '../types';
 import { WAREHOUSE_LOCATIONS, CAMERA_CODES, CAMERA_TYPES } from '../data/mockData';
 import { compressImageForDevice } from '../services/deviceStorageService';
 import { TramoSelector } from './TramoSelector';
 
 const ACTAS_STORAGE_KEY = 'photovault_actas_catalog';
 const DEFAULT_ACTAS = Array.from({ length: 10 }, (_, index) => `Acta ${index + 1}`);
+const PIPE_NETWORK_ORDER: PipeNetworkType[] = ['media_tension', 'baja_tension', 'datos'];
+
+const createPipeConduitId = (networkType: PipeNetworkType) =>
+  typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+    ? crypto.randomUUID()
+    : `${networkType}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
 const loadActas = (): string[] => {
   try {
@@ -50,9 +56,11 @@ export const EditPhotoModal: React.FC<EditPhotoModalProps> = ({
   const [newActa, setNewActa] = useState('');
   const [actaMessage, setActaMessage] = useState<string | null>(null);
   const [elementType, setElementType] = useState<ElementType>(() => getElementType(photo));
-  const [tramo, setTramo] = useState<string>(photo.tramo || '3x4"');
-  const [metraje, setMetraje] = useState<string>(photo.metraje !== undefined ? String(photo.metraje) : '');
-  const [pipeNetworkType, setPipeNetworkType] = useState<PipeNetworkType>(getPipeNetworkOption(photo.pipeNetworkType).value);
+  const [pipeConduits, setPipeConduits] = useState<PipeConduit[]>(() => normalizePipeConduits(photo.pipeConduits, {
+    networkType: getPipeNetworkOption(photo.pipeNetworkType).value,
+    configuration: photo.tramo,
+    meters: photo.metraje,
+  }));
   const [cableType, setCableType] = useState<CableType>(photo.cableType || (photo.planArea === 'electrical_lighting' ? 'alumbrado' : photo.planArea === 'electrical_bt' ? 'baja_tension' : 'media_tension'));
   const [cableGauge, setCableGauge] = useState<CableGauge>(() => {
     const availableGauges = getCableGaugeOptionsForPlanArea(photo.planArea);
@@ -79,6 +87,31 @@ export const EditPhotoModal: React.FC<EditPhotoModalProps> = ({
   const electricalOption = getElectricalElementOption(photo.electricalType);
   const electricalArea = getElectricalPlanArea(photo.electricalType);
   const cableGaugeOptions = getCableGaugeOptionsForPlanArea(photo.planArea);
+
+  const orderedPipeConduits = [...pipeConduits].sort(
+    (left, right) => PIPE_NETWORK_ORDER.indexOf(left.networkType) - PIPE_NETWORK_ORDER.indexOf(right.networkType),
+  );
+
+  const addPipeConduit = (networkType: PipeNetworkType) => {
+    if (pipeConduits.some((conduit) => conduit.networkType === networkType)) return;
+    setPipeConduits((previous) => [...previous, {
+      id: createPipeConduitId(networkType),
+      networkType,
+      configuration: getDefaultPipeConfiguration(networkType),
+      meters: 0,
+    }]);
+  };
+
+  const updatePipeConduit = (id: string, changes: Partial<Pick<PipeConduit, 'configuration' | 'meters'>>) => {
+    setPipeConduits((previous) => previous.map((conduit) => (
+      conduit.id === id ? { ...conduit, ...changes } : conduit
+    )));
+  };
+
+  const removePipeConduit = (id: string) => {
+    if (pipeConduits.length <= 1) return;
+    setPipeConduits((previous) => previous.filter((conduit) => conduit.id !== id));
+  };
 
   if (!isOpen) return null;
 
@@ -147,6 +180,8 @@ export const EditPhotoModal: React.FC<EditPhotoModalProps> = ({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const savedImageUrls = imageUrls;
+    const savedPipeConduits = orderedPipeConduits;
+    const primaryConduit = savedPipeConduits[0];
     onSave({
       ...photo,
       name: isAdmin ? name.trim() || photo.name : photo.name,
@@ -161,10 +196,11 @@ export const EditPhotoModal: React.FC<EditPhotoModalProps> = ({
       cameraType: isAdmin ? (elementType === 'camara' ? cameraType : undefined) : photo.cameraType,
       acta: isAdmin ? acta || undefined : photo.acta,
       actaLabelPosition: isAdmin ? (acta ? actaLabelPosition : undefined) : photo.actaLabelPosition,
-      tramo: elementType === 'tuberia' ? tramo.trim() || undefined : undefined,
-      metraje: elementType === 'tuberia' ? metraje.trim() || undefined : undefined,
-      pipeNetworkType: elementType === 'tuberia' ? pipeNetworkType : undefined,
-      pipeColor: elementType === 'tuberia' ? getPipeNetworkOption(pipeNetworkType).color : undefined,
+      tramo: elementType === 'tuberia' ? primaryConduit?.configuration : undefined,
+      metraje: elementType === 'tuberia' ? primaryConduit?.meters : undefined,
+      pipeNetworkType: elementType === 'tuberia' ? primaryConduit?.networkType : undefined,
+      pipeColor: elementType === 'tuberia' && primaryConduit ? getPipeNetworkOption(primaryConduit.networkType).color : undefined,
+      pipeConduits: elementType === 'tuberia' ? savedPipeConduits : undefined,
       cableType: photo.electricalType === 'cableado' ? cableType : undefined,
       cableGauge: photo.electricalType === 'cableado' ? cableGauge : undefined,
       cableMeters: photo.electricalType === 'cableado' ? cableMeters.trim() || undefined : undefined,
@@ -635,64 +671,78 @@ export const EditPhotoModal: React.FC<EditPhotoModalProps> = ({
           {elementType === 'tuberia' && (
             <>
           <div className="rounded-lg border border-[#b7d5e4] bg-[#f4fbfe] p-3">
-            <p className="font-['Inter'] text-[12px] font-bold text-[#173f58]">Tipo de tubería</p>
-            <p className="mt-0.5 text-[11px] text-[#607d8b]">Selecciona MT, BT o Datos. El color se asigna automáticamente y se refleja en el plano.</p>
-            <div className="mt-2 grid grid-cols-3 gap-2">
-              {PIPE_NETWORK_OPTIONS.map((option) => (
-                <button
-                  key={option.value}
-                  type="button"
-                  onClick={() => {
-                    setPipeNetworkType(option.value);
-                    if (!tramo.trim()) setTramo(option.value === 'baja_tension' ? '2x6"' : '3x4"');
-                  }}
-                  className={`flex min-h-14 flex-col items-center justify-center gap-1 border px-2 text-[11px] font-bold transition ${
-                    pipeNetworkType === option.value
-                      ? 'border-[#073f74] bg-white text-[#073f74] ring-2 ring-cyan-200'
-                      : 'border-[#c2dbe7] bg-white text-[#547181] hover:bg-[#eaf6fb]'
-                  }`}
-                >
-                  <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: option.color }} />
-                  <span>{option.label}</span>
-                </button>
-              ))}
-            </div>
-            <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-3">
-              {[
-                { type: 'media_tension' as PipeNetworkType, tramo: '3x4"', label: 'MT 3×4″' },
-                { type: 'baja_tension' as PipeNetworkType, tramo: '2x6"', label: 'BT 2×6″' },
-                { type: 'datos' as PipeNetworkType, tramo: '3x4"', label: 'Datos 3×4″' },
-              ].map((preset) => (
-                <button
-                  key={preset.label}
-                  type="button"
-                  onClick={() => {
-                    setPipeNetworkType(preset.type);
-                    setTramo(preset.tramo);
-                  }}
-                  className={`rounded-md border px-2 py-2 text-[11px] font-bold transition ${pipeNetworkType === preset.type && tramo === preset.tramo ? 'border-[#0566aa] bg-white text-[#004d84] ring-2 ring-cyan-200' : 'border-[#c2dbe7] bg-white text-[#547181] hover:bg-[#eaf6fb]'}`}
-                  title={`Aplicar configuración ${preset.label}`}
-                >
-                  {preset.label}
-                </button>
-              ))}
+            <p className="font-['Inter'] text-[12px] font-bold text-[#173f58]">Conducciones dentro del tramo</p>
+            <p className="mt-0.5 text-[11px] text-[#607d8b]">Agrega MT, BT y Datos en el mismo trazado. Cada conducción conserva su propio calibre y metraje.</p>
+            <div className="mt-3 grid grid-cols-3 gap-2">
+              {PIPE_NETWORK_OPTIONS.map((option) => {
+                const isAdded = pipeConduits.some((conduit) => conduit.networkType === option.value);
+                return (
+                  <button
+                    key={option.value}
+                    type="button"
+                    onClick={() => addPipeConduit(option.value)}
+                    disabled={!isAdmin || isAdded}
+                    className={`flex min-h-14 flex-col items-center justify-center gap-1 border px-2 text-[11px] font-bold transition ${
+                      isAdded
+                        ? 'cursor-default border-[#073f74] bg-white text-[#073f74] ring-2 ring-cyan-200'
+                        : 'border-[#c2dbe7] bg-white text-[#547181] hover:bg-[#eaf6fb] disabled:cursor-not-allowed disabled:opacity-60'
+                    }`}
+                    title={isAdded ? `${option.label} ya está incluida` : `Agregar conducción de ${option.label}`}
+                  >
+                    <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: option.color }} />
+                    <span>{isAdded ? `${option.label} incluida` : `Agregar ${option.label}`}</span>
+                  </button>
+                );
+              })}
             </div>
           </div>
-          {/* Tramo de Tubería y Metraje (Cantidad x Dimensión + Metros Lineales) */}
-          <div>
-            <TramoSelector
-              tramo={tramo}
-              onTramoChange={setTramo}
-              metraje={metraje}
-              onMetrajeChange={setMetraje}
-              label="Configuración y longitud de tubería"
-            />
+          <div className="space-y-3">
+            {orderedPipeConduits.map((conduit, index) => {
+              const option = getPipeNetworkOption(conduit.networkType);
+              return (
+                <div key={conduit.id} className="rounded-lg border border-[#c7dce7] bg-white p-3 shadow-[0_1px_0_rgba(7,63,116,0.05)]">
+                  <div className="mb-2 flex items-start justify-between gap-3">
+                    <div className="flex items-center gap-2">
+                      <span className="h-3 w-3 shrink-0 rounded-full" style={{ backgroundColor: option.color }} />
+                      <div>
+                        <p className="font-['Inter'] text-[12px] font-bold text-[#173f58]">Tubería {option.label}</p>
+                        <p className="text-[10px] text-[#607d8b]">Conducción {index + 1} del tramo</p>
+                      </div>
+                    </div>
+                    {pipeConduits.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={() => removePipeConduit(conduit.id)}
+                        disabled={!isAdmin}
+                        className="flex h-7 w-7 items-center justify-center rounded-md border border-[#f3c5c5] text-[#b42318] transition hover:bg-[#fff1f1] disabled:cursor-not-allowed disabled:opacity-60"
+                        title={`Quitar conducción ${option.label}`}
+                        aria-label={`Quitar conducción ${option.label}`}
+                      >
+                        <span className="material-symbols-outlined text-[16px]">delete</span>
+                      </button>
+                    )}
+                  </div>
+                  <TramoSelector
+                    tramo={conduit.configuration}
+                    onTramoChange={(configuration) => updatePipeConduit(conduit.id, { configuration })}
+                    metraje={String(conduit.meters ?? '')}
+                    onMetrajeChange={(meters) => updatePipeConduit(conduit.id, { meters })}
+                    label={`Calibre y metraje · ${option.label}`}
+                  />
+                </div>
+              );
+            })}
           </div>
           <div className="rounded-lg border border-[#9fc7d9] bg-white px-3 py-2.5">
             <p className="font-mono text-[10px] font-bold uppercase tracking-wide text-[#527284]">Resumen técnico</p>
-            <p className="mt-1 text-[13px] font-bold text-[#073f74]">
-              Tubería {getPipeNetworkOption(pipeNetworkType).label} {tramo || 'sin medida'} · {metraje || '0'} m
-            </p>
+            <div className="mt-1 space-y-1">
+              {orderedPipeConduits.map((conduit) => (
+                <p key={conduit.id} className="text-[13px] font-bold text-[#073f74]">
+                  <span className="mr-1 inline-block h-2 w-2 rounded-full" style={{ backgroundColor: getPipeNetworkOption(conduit.networkType).color }} />
+                  Tubería {getPipeNetworkOption(conduit.networkType).label} {conduit.configuration || 'sin medida'} · {conduit.meters || '0'} m
+                </p>
+              ))}
+            </div>
           </div>
             </>
           )}
