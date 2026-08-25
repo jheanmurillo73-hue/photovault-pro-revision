@@ -60,7 +60,10 @@ export const EditPhotoModal: React.FC<EditPhotoModalProps> = ({
   const [executionStatus, setExecutionStatus] = useState<ExecutionStatus>(photo.executionStatus || 'En proceso');
   const [requiresImmediateAction, setRequiresImmediateAction] = useState(photo.requiresImmediateAction ?? false);
   const [verified, setVerified] = useState(photo.verified ?? false);
-  const [imageUrl, setImageUrl] = useState(photo.imageUrl ?? '');
+  const [imageUrls, setImageUrls] = useState<string[]>(() => {
+    const existing = Array.isArray(photo.imageUrls) ? photo.imageUrls.filter(Boolean) : [];
+    return existing.length > 0 ? existing : photo.imageUrl ? [photo.imageUrl] : [];
+  });
   const [imageSize, setImageSize] = useState(photo.fileSize ?? '');
   const [isProcessingImage, setIsProcessingImage] = useState(false);
   const [imageError, setImageError] = useState<string | null>(null);
@@ -72,22 +75,34 @@ export const EditPhotoModal: React.FC<EditPhotoModalProps> = ({
   if (!isOpen) return null;
 
   const handlePhotoChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-    if (!file.type.startsWith('image/')) {
+    const selectedFiles = Array.from(event.target.files || []);
+    if (selectedFiles.length === 0) return;
+    const validFiles = selectedFiles.filter((file) => file.type.startsWith('image/'));
+    if (validFiles.length === 0) {
       setImageError('Selecciona una imagen válida en formato JPG, PNG, WebP o HEIC.');
+      return;
+    }
+
+    const remainingSlots = Math.max(0, 6 - imageUrls.length);
+    if (remainingSlots === 0) {
+      setImageError('Cada elemento puede conservar hasta 6 fotos de evidencia. Elimina una para agregar otra.');
+      event.target.value = '';
       return;
     }
 
     setImageError(null);
     setIsProcessingImage(true);
     try {
-      const optimizedImage = await compressImageForDevice(file, 1280, 960, 0.76);
-      const originalSize = file.size > 1024 * 1024
-        ? `${(file.size / (1024 * 1024)).toFixed(1)} MB`
-        : `${Math.max(1, Math.round(file.size / 1024))} KB`;
-      setImageUrl(optimizedImage);
-      setImageSize(originalSize);
+      const filesToProcess = validFiles.slice(0, remainingSlots);
+      const optimizedImages = await Promise.all(filesToProcess.map((file) => compressImageForDevice(file, 1280, 960, 0.76)));
+      const originalSize = filesToProcess.reduce((total, file) => total + file.size, 0);
+      setImageUrls((previous) => [...previous, ...optimizedImages].slice(0, 6));
+      setImageSize(originalSize > 1024 * 1024
+        ? `${(originalSize / (1024 * 1024)).toFixed(1)} MB`
+        : `${Math.max(1, Math.round(originalSize / 1024))} KB`);
+      if (filesToProcess.length < selectedFiles.length) {
+        setImageError('Se agregaron las fotos disponibles hasta el máximo de 6 por elemento.');
+      }
     } catch {
       setImageError('No se pudo optimizar la foto. Intenta con otro archivo.');
     } finally {
@@ -98,14 +113,16 @@ export const EditPhotoModal: React.FC<EditPhotoModalProps> = ({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    const savedImageUrls = imageUrls.length > 0 ? imageUrls : [photo.imageUrl];
     onSave({
       ...photo,
       name: isAdmin ? name.trim() || photo.name : photo.name,
       type: type.trim() || photo.type,
       location: location.trim() || photo.location,
-      imageUrl: imageUrl || photo.imageUrl,
+      imageUrl: savedImageUrls[0] || photo.imageUrl,
+      imageUrls: savedImageUrls,
       fileSize: imageSize || photo.fileSize,
-      resolution: imageUrl !== photo.imageUrl ? 'Foto adjunta desde propiedades' : photo.resolution,
+      resolution: JSON.stringify(savedImageUrls) !== JSON.stringify(photo.imageUrls || [photo.imageUrl]) ? 'Fotos adjuntas desde propiedades' : photo.resolution,
       elementType: isAdmin ? elementType : photo.elementType,
       cameraCode: elementType === 'camara' ? cameraCode : undefined,
       cameraType: isAdmin ? (elementType === 'camara' ? cameraType : undefined) : photo.cameraType,
@@ -190,22 +207,28 @@ export const EditPhotoModal: React.FC<EditPhotoModalProps> = ({
           <div className="rounded-xl border border-[#b7d5e4] bg-[#f8fbfd] p-3">
             <div className="mb-2 flex items-center justify-between gap-3">
               <div>
-                <p className="font-['Inter'] text-[13px] font-bold text-[#071e27]">Foto de evidencia</p>
-                <p className="mt-0.5 text-[11px] text-[#607d8b]">Elige una foto de la galería o tómala directamente con la cámara del dispositivo.</p>
+                <p className="font-['Inter'] text-[13px] font-bold text-[#071e27]">Fotos de evidencia</p>
+                <p className="mt-0.5 text-[11px] text-[#607d8b]">Agrega hasta 6 fotos desde la galería o la cámara. La primera es la portada del elemento.</p>
               </div>
               <span className="material-symbols-outlined text-[21px] text-[#0566aa]">add_a_photo</span>
             </div>
-            <div className="flex items-center gap-3">
-              <div className="h-16 w-20 shrink-0 overflow-hidden rounded-lg border border-[#c2c6d4] bg-[#e6f6ff]">
-                {imageUrl ? (
-                  <img src={imageUrl} alt="Vista previa de la foto del elemento" className="h-full w-full object-cover" />
-                ) : (
-                  <div className="flex h-full w-full items-center justify-center text-[#527284]">
-                    <span className="material-symbols-outlined text-[22px]">image</span>
+            <div className="space-y-3">
+              <div className="grid grid-cols-3 gap-2 sm:grid-cols-6">
+                {imageUrls.map((url, index) => (
+                  <div key={`${url.slice(0, 32)}-${index}`} className="group relative aspect-square overflow-hidden rounded-lg border border-[#a7c8da] bg-[#e6f6ff]">
+                    <button type="button" onClick={() => setImageUrls((previous) => [previous[index], ...previous.filter((_, itemIndex) => itemIndex !== index)])} className="h-full w-full" title={index === 0 ? 'Foto de portada' : 'Usar como foto de portada'}>
+                      <img src={url} alt={`Foto de evidencia ${index + 1}`} className="h-full w-full object-cover" />
+                    </button>
+                    {index === 0 && <span className="absolute left-1 top-1 rounded bg-[#073f74] px-1 py-0.5 text-[8px] font-bold text-white">PORTADA</span>}
+                    {imageUrls.length > 1 && (
+                      <button type="button" onClick={() => setImageUrls((previous) => previous.filter((_, itemIndex) => itemIndex !== index))} className="absolute right-1 top-1 grid h-5 w-5 place-items-center rounded-full bg-[#8b1d1d] text-white opacity-0 transition-opacity group-hover:opacity-100 focus:opacity-100" title={`Eliminar foto ${index + 1}`} aria-label={`Eliminar foto ${index + 1}`}>
+                        <span className="material-symbols-outlined text-[13px]">close</span>
+                      </button>
+                    )}
                   </div>
-                )}
+                ))}
               </div>
-              <div className="min-w-0 flex-1">
+              <div className="min-w-0">
                 <div className="flex flex-wrap gap-2">
                   <button
                     type="button"
@@ -226,11 +249,11 @@ export const EditPhotoModal: React.FC<EditPhotoModalProps> = ({
                   {isProcessingImage ? 'Optimizando…' : 'Tomar foto'}
                 </button>
                 </div>
-                <p className="mt-1.5 truncate text-[10px] text-[#607d8b]">{imageSize ? `Archivo original: ${imageSize}` : 'Se optimiza antes de guardarse.'}</p>
+                <p className="mt-1.5 text-[10px] text-[#607d8b]">{imageUrls.length}/6 fotos. {imageSize ? `Última carga original: ${imageSize}.` : 'Cada imagen se optimiza antes de guardarse.'}</p>
               </div>
             </div>
             {imageError && <p className="mt-2 text-[11px] font-medium text-[#ba1a1a]">{imageError}</p>}
-            <input ref={galleryInputRef} type="file" accept="image/*" onChange={handlePhotoChange} className="hidden" />
+            <input ref={galleryInputRef} type="file" accept="image/*" multiple onChange={handlePhotoChange} className="hidden" />
             <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" onChange={handlePhotoChange} className="hidden" />
           </div>
 

@@ -217,6 +217,7 @@ export const MapView: React.FC<MapViewProps> = ({
   const [calibrationMeters, setCalibrationMeters] = useState('10');
   const [isCalibrationDialogOpen, setIsCalibrationDialogOpen] = useState(false);
   const [selectedPlanPhotoId, setSelectedPlanPhotoId] = useState<string | null>(null);
+  const [hoveredPlanPhotoId, setHoveredPlanPhotoId] = useState<string | null>(null);
   const [isMultipleSelectionMode, setIsMultipleSelectionMode] = useState(false);
   const [selectedPlanPhotoIds, setSelectedPlanPhotoIds] = useState<string[]>([]);
   const [photosPendingDeletion, setPhotosPendingDeletion] = useState<InspectionPhoto[]>([]);
@@ -374,6 +375,10 @@ export const MapView: React.FC<MapViewProps> = ({
   const positionedPhotos = useMemo(
     () => visiblePhotos.filter((photo) => isPlaced(photo)),
     [visiblePhotos],
+  );
+  const hoveredPlanPhoto = useMemo(
+    () => positionedPhotos.find((photo) => photo.id === hoveredPlanPhotoId) || null,
+    [hoveredPlanPhotoId, positionedPhotos],
   );
 
   const electricalOptionsForArea = useMemo(
@@ -1276,13 +1281,43 @@ export const MapView: React.FC<MapViewProps> = ({
               </div>
             )}
 
+            {hoveredPlanPhoto && !placement && !creationMode && (() => {
+              const isLongitudinal = getElementType(hoveredPlanPhoto) === 'tuberia' || isCable(hoveredPlanPhoto);
+              const anchorX = isLongitudinal && hasCompletePipe(hoveredPlanPhoto)
+                ? (hoveredPlanPhoto.planX! + hoveredPlanPhoto.planEndX!) / 2
+                : hoveredPlanPhoto.planX!;
+              const anchorY = isLongitudinal && hasCompletePipe(hoveredPlanPhoto)
+                ? (hoveredPlanPhoto.planY! + hoveredPlanPhoto.planEndY!) / 2
+                : hoveredPlanPhoto.planY!;
+              const photoCount = hoveredPlanPhoto.imageUrls?.length || 1;
+              return (
+                <div
+                  id={`element-preview-${hoveredPlanPhoto.id}`}
+                  className="pointer-events-none absolute z-30 w-44 overflow-hidden rounded-lg border border-[#9fc2d2] bg-white shadow-[0_12px_28px_rgba(5,39,67,0.28)]"
+                  style={{ left: `${anchorX}%`, top: `${anchorY}%`, transform: `translate(12px, calc(-100% - 10px)) scale(${Math.min(1, Math.max(0.72, iconScale))})`, transformOrigin: 'left bottom' }}
+                  role="status"
+                  aria-live="polite"
+                >
+                  <img src={hoveredPlanPhoto.imageUrl} alt={`Miniatura de ${elementLabel(hoveredPlanPhoto)}`} className="h-24 w-full object-cover" />
+                  <div className="flex items-center justify-between gap-2 px-2 py-1.5">
+                    <span className="truncate font-mono text-[9px] font-bold text-[#073f74]">{elementLabel(hoveredPlanPhoto)}</span>
+                    <span className="inline-flex shrink-0 items-center gap-0.5 text-[9px] font-bold text-[#527284]">
+                      <span className="material-symbols-outlined text-[12px]">photo_library</span>{photoCount}
+                    </span>
+                  </div>
+                </div>
+              );
+            })()}
+
             {positionedPhotos.map((photo) => {
               const type = getElementType(photo);
-              if (type === 'tuberia') {
+              if (type === 'tuberia' || isCable(photo)) {
                 if (!hasCompletePipe(photo)) return null;
                 const midpointX = (photo.planX! + photo.planEndX!) / 2;
                 const midpointY = (photo.planY! + photo.planEndY!) / 2;
                 const actaName = photo.acta?.trim();
+                const cable = isCable(photo);
+                const longitudinalMarkerColor = cable ? getCableTypeOption(photo.cableType).color : '#073f74';
                 return (
                   <React.Fragment key={photo.id}>
                     <button
@@ -1293,6 +1328,10 @@ export const MapView: React.FC<MapViewProps> = ({
                         dragTargetRef.current = null;
                         setDragTarget(null);
                       }}
+                      onMouseEnter={() => setHoveredPlanPhotoId(photo.id)}
+                      onMouseLeave={() => setHoveredPlanPhotoId((current) => current === photo.id ? null : current)}
+                      onFocus={() => setHoveredPlanPhotoId(photo.id)}
+                      onBlur={() => setHoveredPlanPhotoId((current) => current === photo.id ? null : current)}
                       onClick={(event) => {
                         event.stopPropagation();
                         if (placement || creationMode) return;
@@ -1302,12 +1341,13 @@ export const MapView: React.FC<MapViewProps> = ({
                           setSelectedPlanPhotoId(photo.id);
                         }
                       }}
-                      style={{ left: `${midpointX}%`, top: `${midpointY}%`, transform: `translate(-50%, -50%) scale(${iconScale})` }}
-                      className={`absolute z-10 flex h-8 w-8 items-center justify-center rounded-full border-2 border-white bg-[#073f74] text-white shadow-lg transition hover:scale-110 active:cursor-grabbing ${placement || creationMode ? 'pointer-events-none' : isMultipleSelectionMode ? 'cursor-pointer' : 'cursor-grab'} ${(isMultipleSelectionMode ? selectedPlanPhotoIds.includes(photo.id) : selectedPlanPhotoId === photo.id) ? 'ring-4 ring-cyan-300 ring-offset-2' : ''}`}
+                      style={{ left: `${midpointX}%`, top: `${midpointY}%`, backgroundColor: longitudinalMarkerColor, transform: `translate(-50%, -50%) scale(${iconScale})` }}
+                      className={`absolute z-10 flex h-8 w-8 items-center justify-center rounded-full border-2 border-white text-white shadow-lg transition hover:scale-110 active:cursor-grabbing ${placement || creationMode ? 'pointer-events-none' : isMultipleSelectionMode ? 'cursor-pointer' : 'cursor-grab'} ${(isMultipleSelectionMode ? selectedPlanPhotoIds.includes(photo.id) : selectedPlanPhotoId === photo.id) ? 'ring-4 ring-cyan-300 ring-offset-2' : ''}`}
                       title={isMultipleSelectionMode ? `Seleccionar ${elementLabel(photo)}` : `Abrir o mover ${elementLabel(photo)}`}
                       aria-label={isMultipleSelectionMode ? `Seleccionar ${elementLabel(photo)}` : `Abrir o mover ${elementLabel(photo)}`}
+                      aria-describedby={hoveredPlanPhotoId === photo.id ? `element-preview-${photo.id}` : undefined}
                     >
-                      <span className="material-symbols-outlined text-[18px]">timeline</span>
+                      <span className="material-symbols-outlined text-[18px]">{cable ? 'cable' : 'timeline'}</span>
                     </button>
                     {actaName && areActaLabelsVisible && photo.showActaLabel !== false && (
                       <span
@@ -1347,6 +1387,10 @@ export const MapView: React.FC<MapViewProps> = ({
                       dragTargetRef.current = null;
                       setDragTarget(null);
                     }}
+                    onMouseEnter={() => setHoveredPlanPhotoId(photo.id)}
+                    onMouseLeave={() => setHoveredPlanPhotoId((current) => current === photo.id ? null : current)}
+                    onFocus={() => setHoveredPlanPhotoId(photo.id)}
+                    onBlur={() => setHoveredPlanPhotoId((current) => current === photo.id ? null : current)}
                     onClick={(event) => {
                       event.stopPropagation();
                       if (placement || creationMode) return;
@@ -1360,6 +1404,7 @@ export const MapView: React.FC<MapViewProps> = ({
                     className={`absolute z-10 flex h-9 w-9 items-center justify-center rounded-full border-2 border-white text-white shadow-[0_3px_10px_rgba(6,36,58,0.35)] transition hover:scale-110 active:cursor-grabbing ${placement || creationMode ? 'pointer-events-none' : isMultipleSelectionMode ? 'cursor-pointer' : 'cursor-grab'} ${(isMultipleSelectionMode ? selectedPlanPhotoIds.includes(photo.id) : selectedPlanPhotoId === photo.id) ? 'ring-4 ring-cyan-300 ring-offset-2' : ''}`}
                     title={isMultipleSelectionMode ? `Seleccionar ${elementLabel(photo)}` : `Abrir o mover ${elementLabel(photo)}`}
                     aria-label={isMultipleSelectionMode ? `Seleccionar ${elementLabel(photo)}` : `Abrir o mover ${elementLabel(photo)}`}
+                    aria-describedby={hoveredPlanPhotoId === photo.id ? `element-preview-${photo.id}` : undefined}
                   >
                     <span className="material-symbols-outlined text-[18px]">{electrical ? electricalOption.icon : isCamera ? 'videocam' : 'inventory_2'}</span>
                   </button>

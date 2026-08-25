@@ -65,29 +65,37 @@ const normalizePlanCoordinate = (value: unknown): number | undefined => {
   return value >= 0 && value <= 100 ? value : undefined;
 };
 
-const normalizeInspectionPhoto = (photo: InspectionPhoto): InspectionPhoto => ({
-  ...photo,
-  name: photo.name ?? 'Inspección sin nombre',
-  type: photo.type ?? '',
-  location: photo.location ?? '',
-  fieldNotes: photo.fieldNotes ?? '',
-  executionStatus: photo.executionStatus ?? 'En proceso',
-  status: photo.status ?? 'Synced',
-  requiresImmediateAction: Boolean(photo.requiresImmediateAction),
-  verified: Boolean(photo.verified),
-  planArea: photo.electricalType || photo.planArea === 'electrical'
-    ? getElectricalPlanArea(photo.electricalType)
-    : photo.planArea || 'civil',
-  electricalType: photo.electricalType,
-  electricalColor: photo.electricalType ? getElectricalElementOption(photo.electricalType).color : undefined,
-  pipeNetworkType: getElementType(photo) === 'tuberia'
-    ? getPipeNetworkOption(photo.pipeNetworkType).value
-    : undefined,
-  planX: normalizePlanCoordinate(photo.planX),
-  planY: normalizePlanCoordinate(photo.planY),
-  planEndX: normalizePlanCoordinate(photo.planEndX),
-  planEndY: normalizePlanCoordinate(photo.planEndY),
-});
+const normalizeInspectionPhoto = (photo: InspectionPhoto): InspectionPhoto => {
+  const imageUrls = Array.isArray(photo.imageUrls)
+    ? photo.imageUrls.filter((url): url is string => typeof url === 'string' && url.trim().length > 0)
+    : photo.imageUrl ? [photo.imageUrl] : [];
+
+  return {
+    ...photo,
+    imageUrl: imageUrls[0] || photo.imageUrl,
+    imageUrls,
+    name: photo.name ?? 'Inspección sin nombre',
+    type: photo.type ?? '',
+    location: photo.location ?? '',
+    fieldNotes: photo.fieldNotes ?? '',
+    executionStatus: photo.executionStatus ?? 'En proceso',
+    status: photo.status ?? 'Synced',
+    requiresImmediateAction: Boolean(photo.requiresImmediateAction),
+    verified: Boolean(photo.verified),
+    planArea: photo.electricalType || photo.planArea === 'electrical'
+      ? getElectricalPlanArea(photo.electricalType)
+      : photo.planArea || 'civil',
+    electricalType: photo.electricalType,
+    electricalColor: photo.electricalType ? getElectricalElementOption(photo.electricalType).color : undefined,
+    pipeNetworkType: getElementType(photo) === 'tuberia'
+      ? getPipeNetworkOption(photo.pipeNetworkType).value
+      : undefined,
+    planX: normalizePlanCoordinate(photo.planX),
+    planY: normalizePlanCoordinate(photo.planY),
+    planEndX: normalizePlanCoordinate(photo.planEndX),
+    planEndY: normalizePlanCoordinate(photo.planEndY),
+  };
+};
 
 const createMapElementPreview = (elementType: ElementType) => {
   const visual = elementType === 'camara'

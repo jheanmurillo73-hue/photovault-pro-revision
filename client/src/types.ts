@@ -114,6 +114,7 @@ export interface InspectionPhoto {
   displayId: string;
   name: string;
   imageUrl: string;
+  imageUrls?: string[];
   date: string;
   dateRaw: string;
   status: SyncStatus;

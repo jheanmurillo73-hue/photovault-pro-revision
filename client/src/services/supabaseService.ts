@@ -2,6 +2,19 @@ import { getSupabaseClient, isSupabaseConfigured, getActiveSupabaseConfig } from
 import { InspectionPhoto, InspectorProfile, ActivityItem, InspectionCollection, AppSettings, AppModule, AppRole, UserAccess } from '../types';
 import { ALL_OPERATIONAL_MODULES, createFallbackAccess, isPrimaryAdmin, normalizeModules } from '../lib/accessControl';
 
+const parseImageUrls = (value: unknown, fallback?: string): string[] => {
+  if (Array.isArray(value)) return value.filter((url): url is string => typeof url === 'string' && url.trim().length > 0);
+  if (typeof value === 'string' && value.trim()) {
+    try {
+      const parsed = JSON.parse(value);
+      if (Array.isArray(parsed)) return parsed.filter((url): url is string => typeof url === 'string' && url.trim().length > 0);
+    } catch {
+      return fallback ? [fallback] : [];
+    }
+  }
+  return fallback ? [fallback] : [];
+};
+
 export interface SupabaseConnectionStatus {
   connected: boolean;
   configured: boolean;
@@ -203,6 +216,7 @@ export const supabaseService = {
         display_id: photo.displayId,
         name: photo.name,
         image_url: photo.imageUrl,
+        image_urls: JSON.stringify(photo.imageUrls || [photo.imageUrl]),
         date: photo.date,
         date_raw: photo.dateRaw,
         status: photo.status,
@@ -265,6 +279,7 @@ export const supabaseService = {
       display_id: photo.displayId,
       name: photo.name,
       image_url: photo.imageUrl,
+      image_urls: JSON.stringify(photo.imageUrls || [photo.imageUrl]),
       date: photo.date,
       date_raw: photo.dateRaw,
       status: photo.status,
@@ -337,11 +352,14 @@ export const supabaseService = {
 
       if (!data) return [];
 
-      return data.map((item: any) => ({
+      return data.map((item: any) => {
+        const imageUrls = parseImageUrls(item.image_urls, item.image_url);
+        return {
         id: item.id,
         displayId: item.display_id || item.id,
         name: item.name || 'Sin título',
-        imageUrl: item.image_url,
+        imageUrl: imageUrls[0] || item.image_url,
+        imageUrls,
         date: item.date,
         dateRaw: item.date_raw || item.created_at || new Date().toISOString(),
         status: item.status || 'Synced',
@@ -394,7 +412,8 @@ export const supabaseService = {
         planY: typeof item.plan_y === 'number' ? item.plan_y : undefined,
         planEndX: typeof item.plan_end_x === 'number' ? item.plan_end_x : undefined,
         planEndY: typeof item.plan_end_y === 'number' ? item.plan_end_y : undefined,
-      }));
+        };
+      });
     } catch (err) {
       console.warn('Error in fetchPhotos:', err);
       return null;
@@ -624,6 +643,7 @@ CREATE TABLE IF NOT EXISTS public.inspection_photos (
   display_id TEXT NOT NULL,
   name TEXT NOT NULL,
   image_url TEXT NOT NULL,
+  image_urls TEXT,
   date TEXT NOT NULL,
   date_raw TEXT,
   status TEXT NOT NULL DEFAULT 'Synced' CHECK (status IN ('Synced', 'In Progress', 'Flagged')),
@@ -669,6 +689,7 @@ ALTER TABLE public.inspection_photos ADD COLUMN IF NOT EXISTS plan_y NUMERIC CHE
 ALTER TABLE public.inspection_photos ADD COLUMN IF NOT EXISTS plan_end_x NUMERIC CHECK (plan_end_x >= 0 AND plan_end_x <= 100);
 ALTER TABLE public.inspection_photos ADD COLUMN IF NOT EXISTS plan_end_y NUMERIC CHECK (plan_end_y >= 0 AND plan_end_y <= 100);
 ALTER TABLE public.inspection_photos ADD COLUMN IF NOT EXISTS acta TEXT;
+ALTER TABLE public.inspection_photos ADD COLUMN IF NOT EXISTS image_urls TEXT;
 ALTER TABLE public.inspection_photos ADD COLUMN IF NOT EXISTS show_acta_label BOOLEAN NOT NULL DEFAULT true;
 ALTER TABLE public.inspection_photos ADD COLUMN IF NOT EXISTS acta_label_position TEXT NOT NULL DEFAULT 'derecha' CHECK (acta_label_position IN ('arriba', 'abajo', 'izquierda', 'derecha'));
 ALTER TABLE public.inspection_photos ADD COLUMN IF NOT EXISTS pipe_network_type TEXT CHECK (pipe_network_type IS NULL OR pipe_network_type IN ('media_tension', 'baja_tension', 'datos'));
