@@ -91,3 +91,4 @@
 - [x] Cerrar el modal de propiedades después de guardar los cambios correctamente.
 - [x] Añadir un filtro del plano para visualizar únicamente los elementos No iniciado.
 - [x] Diferenciar visualmente en el plano los elementos No iniciado mediante color de estado.
+- [x] Enfocar el plano en el elemento editado y cerrar Elemento seleccionado al guardar sus propiedades.

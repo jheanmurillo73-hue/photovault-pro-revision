@@ -198,6 +198,7 @@ export default function App() {
   const [selectedPhotoId, setSelectedPhotoId] = useState<string | null>(null);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState<boolean>(false);
   const [editingPhoto, setEditingPhoto] = useState<InspectionPhoto | null>(null);
+  const [mapFocusElementId, setMapFocusElementId] = useState<string | null>(null);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState<boolean>(false);
   const [isSignOutModalOpen, setIsSignOutModalOpen] = useState<boolean>(false);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState<boolean>(false);
@@ -728,6 +729,8 @@ export default function App() {
                 onCreatePhoto={handleCreatePhotoFromPlan}
                 onEditPhoto={(photo) => setEditingPhoto(photo)}
                 onDeletePhotos={handleDeletePhotos}
+                focusElementId={mapFocusElementId}
+                onFocusElementHandled={() => setMapFocusElementId(null)}
               />
             ) : currentTab === 'database' ? (
               <DatabaseTableView
@@ -824,6 +827,9 @@ export default function App() {
           onSave={(updatedPhoto) => {
             handleUpdatePhoto(updatedPhoto);
             setEditingPhoto(null);
+            setSelectedPhotoId(updatedPhoto.id);
+            setCurrentTab('map');
+            setMapFocusElementId(updatedPhoto.id);
           }}
         />
       )}

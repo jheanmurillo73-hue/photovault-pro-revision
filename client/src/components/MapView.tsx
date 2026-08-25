@@ -31,6 +31,8 @@ interface MapViewProps {
     position: Pick<InspectionPhoto, 'planX' | 'planY' | 'planEndX' | 'planEndY'> & Partial<Pick<InspectionPhoto, 'metraje'>>,
   ) => void;
   onUpdatePipelineMeasurements: (measurements: Array<Pick<InspectionPhoto, 'id' | 'metraje'>>) => void;
+  focusElementId?: string | null;
+  onFocusElementHandled?: () => void;
 }
 
 type PlacementStage = 'point' | 'pipe-start' | 'pipe-end';
@@ -194,6 +196,8 @@ export const MapView: React.FC<MapViewProps> = ({
   onCreatePhoto,
   onUpdatePhotoPosition,
   onUpdatePipelineMeasurements,
+  focusElementId,
+  onFocusElementHandled,
 }) => {
   const [blueprint, setBlueprint] = useState<BlueprintOverlay>(() => {
     const saved = localStorage.getItem('photovault_blueprint');
@@ -243,6 +247,7 @@ export const MapView: React.FC<MapViewProps> = ({
   const [calibrationMeters, setCalibrationMeters] = useState('10');
   const [isCalibrationDialogOpen, setIsCalibrationDialogOpen] = useState(false);
   const [selectedPlanPhotoId, setSelectedPlanPhotoId] = useState<string | null>(null);
+  const [focusedPlanPhotoId, setFocusedPlanPhotoId] = useState<string | null>(null);
   const [hoveredPlanPhotoId, setHoveredPlanPhotoId] = useState<string | null>(null);
   const [isMultipleSelectionMode, setIsMultipleSelectionMode] = useState(false);
   const [selectedPlanPhotoIds, setSelectedPlanPhotoIds] = useState<string[]>([]);
@@ -279,6 +284,34 @@ export const MapView: React.FC<MapViewProps> = ({
     if (!selectedPlanArea || selectedPlanArea === 'electrical') return;
     setFiltersByPlanArea((previous) => ({ ...previous, [selectedPlanArea]: filter }));
   };
+
+  useEffect(() => {
+    if (!focusElementId) return;
+    const photo = photos.find((item) => item.id === focusElementId);
+    if (!photo) {
+      onFocusElementHandled?.();
+      return;
+    }
+
+    const targetArea = getPhotoPlanArea(photo);
+    setSelectedPlanArea(targetArea);
+    setFiltersByPlanArea((previous) => ({ ...previous, [targetArea]: 'all' }));
+    setSearchQuery('');
+    setSelectedPlanPhotoId(null);
+    setSelectedPlanPhotoIds([]);
+    setHoveredPlanPhotoId(null);
+    setFocusedPlanPhotoId(photo.id);
+    onFocusElementHandled?.();
+
+    const frame = window.requestAnimationFrame(() => {
+      document.getElementById(`plan-marker-${photo.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' });
+    });
+    const clearFocus = window.setTimeout(() => setFocusedPlanPhotoId(null), 2600);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      window.clearTimeout(clearFocus);
+    };
+  }, [focusElementId]);
 
   useEffect(() => {
     let active = true;
@@ -1440,7 +1473,8 @@ export const MapView: React.FC<MapViewProps> = ({
                         }
                       }}
                       style={{ left: `${midpointX}%`, top: `${midpointY}%`, backgroundColor: longitudinalMarkerColor, transform: `translate(-50%, -50%) scale(${iconScale})` }}
-                      className={`absolute z-10 flex h-8 w-8 items-center justify-center rounded-full border-2 border-white text-white shadow-lg transition hover:scale-110 active:cursor-grabbing ${placement || creationMode ? 'pointer-events-none' : isMultipleSelectionMode ? 'cursor-pointer' : 'cursor-grab'} ${(isMultipleSelectionMode ? selectedPlanPhotoIds.includes(photo.id) : selectedPlanPhotoId === photo.id) ? 'ring-4 ring-cyan-300 ring-offset-2' : ''}`}
+                      id={`plan-marker-${photo.id}`}
+                      className={`absolute z-10 flex h-8 w-8 items-center justify-center rounded-full border-2 border-white text-white shadow-lg transition hover:scale-110 active:cursor-grabbing ${placement || creationMode ? 'pointer-events-none' : isMultipleSelectionMode ? 'cursor-pointer' : 'cursor-grab'} ${(isMultipleSelectionMode ? selectedPlanPhotoIds.includes(photo.id) : selectedPlanPhotoId === photo.id) ? 'ring-4 ring-cyan-300 ring-offset-2' : focusedPlanPhotoId === photo.id ? 'ring-4 ring-amber-300 ring-offset-2 animate-pulse' : ''}`}
                       title={isMultipleSelectionMode ? `Seleccionar ${elementLabel(photo)}` : `Abrir o mover ${elementLabel(photo)}`}
                       aria-label={isMultipleSelectionMode ? `Seleccionar ${elementLabel(photo)}` : `Abrir o mover ${elementLabel(photo)}`}
                       aria-describedby={hoveredPlanPhotoId === photo.id ? `element-preview-${photo.id}` : undefined}
@@ -1500,7 +1534,8 @@ export const MapView: React.FC<MapViewProps> = ({
                       }
                     }}
                     style={{ left: `${photo.planX}%`, top: `${photo.planY}%`, backgroundColor: markerColor, transform: `translate(-50%, -50%) scale(${iconScale})` }}
-                    className={`absolute z-10 flex h-9 w-9 items-center justify-center rounded-full border-2 border-white text-white shadow-[0_3px_10px_rgba(6,36,58,0.35)] transition hover:scale-110 active:cursor-grabbing ${placement || creationMode ? 'pointer-events-none' : isMultipleSelectionMode ? 'cursor-pointer' : 'cursor-grab'} ${(isMultipleSelectionMode ? selectedPlanPhotoIds.includes(photo.id) : selectedPlanPhotoId === photo.id) ? 'ring-4 ring-cyan-300 ring-offset-2' : ''}`}
+                    id={`plan-marker-${photo.id}`}
+                    className={`absolute z-10 flex h-9 w-9 items-center justify-center rounded-full border-2 border-white text-white shadow-[0_3px_10px_rgba(6,36,58,0.35)] transition hover:scale-110 active:cursor-grabbing ${placement || creationMode ? 'pointer-events-none' : isMultipleSelectionMode ? 'cursor-pointer' : 'cursor-grab'} ${(isMultipleSelectionMode ? selectedPlanPhotoIds.includes(photo.id) : selectedPlanPhotoId === photo.id) ? 'ring-4 ring-cyan-300 ring-offset-2' : focusedPlanPhotoId === photo.id ? 'ring-4 ring-amber-300 ring-offset-2 animate-pulse' : ''}`}
                     title={isMultipleSelectionMode ? `Seleccionar ${elementLabel(photo)}` : `Abrir o mover ${elementLabel(photo)}`}
                     aria-label={isMultipleSelectionMode ? `Seleccionar ${elementLabel(photo)}` : `Abrir o mover ${elementLabel(photo)}`}
                     aria-describedby={hoveredPlanPhotoId === photo.id ? `element-preview-${photo.id}` : undefined}
