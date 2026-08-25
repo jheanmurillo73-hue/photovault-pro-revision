@@ -102,3 +102,5 @@
 - [x] Permitir aumentar o disminuir de forma precisa la dimensión visual de los tramos de tubería.
 - [x] Añadir búsqueda rápida dentro del selector de ítems de acta.
 - [x] Mostrar una consulta completa y compacta del ítem de acta seleccionado en propiedades.
+- [x] Permitir configurar el porcentaje de aumento o disminución de la longitud de un tramo.
+- [x] Añadir deshacer y rehacer para los cambios de dimensión de tuberías.

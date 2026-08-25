@@ -60,6 +60,14 @@ interface CalibrationDraft {
   aspectRatio: number;
 }
 
+type PipeGeometry = Required<Pick<InspectionPhoto, 'planX' | 'planY' | 'planEndX' | 'planEndY'>>;
+
+interface PipeDimensionHistoryEntry {
+  photoId: string;
+  before: PipeGeometry;
+  after: PipeGeometry;
+}
+
 const EMPTY_BLUEPRINT: BlueprintOverlay = {
   id: 'bp-user',
   name: 'Plano de obra sin cargar',
@@ -246,6 +254,9 @@ export const MapView: React.FC<MapViewProps> = ({
   const [calibrationDraft, setCalibrationDraft] = useState<CalibrationDraft | null>(null);
   const [calibrationMeters, setCalibrationMeters] = useState('10');
   const [isCalibrationDialogOpen, setIsCalibrationDialogOpen] = useState(false);
+  const [pipeDimensionPercent, setPipeDimensionPercent] = useState('10');
+  const [pipeDimensionUndoStack, setPipeDimensionUndoStack] = useState<PipeDimensionHistoryEntry[]>([]);
+  const [pipeDimensionRedoStack, setPipeDimensionRedoStack] = useState<PipeDimensionHistoryEntry[]>([]);
   const [selectedPlanPhotoId, setSelectedPlanPhotoId] = useState<string | null>(null);
   const [focusedPlanPhotoId, setFocusedPlanPhotoId] = useState<string | null>(null);
   const [hoveredPlanPhotoId, setHoveredPlanPhotoId] = useState<string | null>(null);
@@ -621,15 +632,28 @@ export const MapView: React.FC<MapViewProps> = ({
   const updatePipeGeometry = (
     photo: InspectionPhoto,
     changes: Partial<Pick<InspectionPhoto, 'planX' | 'planY' | 'planEndX' | 'planEndY'>>,
+    options: { recordHistory?: boolean } = {},
   ) => {
     if (getElementType(photo) !== 'tuberia' || !hasCompletePipe(photo)) return;
     setHasPendingPlanChanges(true);
+    const before: PipeGeometry = {
+      planX: photo.planX!,
+      planY: photo.planY!,
+      planEndX: photo.planEndX!,
+      planEndY: photo.planEndY!,
+    };
     const position = {
       planX: clampPercent(changes.planX ?? photo.planX!),
       planY: clampPercent(changes.planY ?? photo.planY!),
       planEndX: clampPercent(changes.planEndX ?? photo.planEndX!),
       planEndY: clampPercent(changes.planEndY ?? photo.planEndY!),
     };
+    const hasGeometryChanged = Object.keys(before).some((key) => before[key as keyof PipeGeometry] !== position[key as keyof PipeGeometry]);
+    if (options.recordHistory !== false && hasGeometryChanged) {
+      const entry: PipeDimensionHistoryEntry = { photoId: photo.id, before, after: position };
+      setPipeDimensionUndoStack((previous) => [...previous.slice(-19), entry]);
+      setPipeDimensionRedoStack([]);
+    }
     const metraje = getCalibratedMeters(position);
     onUpdatePhotoPosition(photo.id, {
       ...position,
@@ -643,6 +667,31 @@ export const MapView: React.FC<MapViewProps> = ({
       planEndX: photo.planX! + (photo.planEndX! - photo.planX!) * factor,
       planEndY: photo.planY! + (photo.planEndY! - photo.planY!) * factor,
     });
+  };
+
+  const getPipeDimensionAdjustment = () => {
+    const parsed = Number.parseFloat(pipeDimensionPercent.replace(',', '.'));
+    return clampScale(Number.isFinite(parsed) ? parsed : 10, 1, 75) / 100;
+  };
+
+  const undoPipeDimension = () => {
+    const entry = pipeDimensionUndoStack.at(-1);
+    if (!entry) return;
+    const photo = photos.find((item) => item.id === entry.photoId);
+    if (!photo) return;
+    setPipeDimensionUndoStack((previous) => previous.slice(0, -1));
+    setPipeDimensionRedoStack((previous) => [...previous.slice(-19), entry]);
+    updatePipeGeometry(photo, entry.before, { recordHistory: false });
+  };
+
+  const redoPipeDimension = () => {
+    const entry = pipeDimensionRedoStack.at(-1);
+    if (!entry) return;
+    const photo = photos.find((item) => item.id === entry.photoId);
+    if (!photo) return;
+    setPipeDimensionRedoStack((previous) => previous.slice(0, -1));
+    setPipeDimensionUndoStack((previous) => [...previous.slice(-19), entry]);
+    updatePipeGeometry(photo, entry.after, { recordHistory: false });
   };
 
   const saveCalibration = (event: React.FormEvent) => {
@@ -1736,26 +1785,62 @@ export const MapView: React.FC<MapViewProps> = ({
                 <div className="mt-2 border border-[#c7dce7] bg-white px-2 py-2">
                   <div className="flex items-center justify-between gap-2">
                     <p className="font-mono text-[8px] font-bold tracking-[0.1em] text-[#547181]">DIMENSIÓN DEL TRAMO</p>
-                    <span className="text-[9px] font-semibold text-[#607d8b]">Ajuste de 10%</span>
+                    <label className="flex items-center gap-1 text-[9px] font-semibold text-[#607d8b]">
+                      Ajuste
+                      <input
+                        type="number"
+                        min="1"
+                        max="75"
+                        step="1"
+                        inputMode="decimal"
+                        value={pipeDimensionPercent}
+                        onChange={(event) => setPipeDimensionPercent(event.target.value)}
+                        className="h-6 w-10 border border-[#b4cbd8] bg-white px-1 text-center font-mono text-[10px] font-bold text-[#173f58] outline-none focus:border-[#0566aa]"
+                        aria-label="Porcentaje para aumentar o disminuir la longitud del tramo"
+                      />
+                      %
+                    </label>
                   </div>
                   <div className="mt-1.5 grid grid-cols-2 gap-1.5">
                     <button
                       type="button"
-                      onClick={() => adjustPipeLength(selectedPlanPhoto, 0.9)}
+                      onClick={() => adjustPipeLength(selectedPlanPhoto, Math.max(0.01, 1 - getPipeDimensionAdjustment()))}
                       className="inline-flex h-8 items-center justify-center gap-1 border border-[#b4cbd8] bg-white px-2 text-[10px] font-bold text-[#315c70] transition hover:bg-[#eaf6fb]"
-                      title="Disminuir la longitud visual del tramo un 10% desde su extremo final"
+                      title="Disminuir la longitud visual del tramo usando el porcentaje indicado"
                     >
                       <span className="material-symbols-outlined text-[14px]">remove</span>
                       Disminuir
                     </button>
                     <button
                       type="button"
-                      onClick={() => adjustPipeLength(selectedPlanPhoto, 1.1)}
+                      onClick={() => adjustPipeLength(selectedPlanPhoto, 1 + getPipeDimensionAdjustment())}
                       className="inline-flex h-8 items-center justify-center gap-1 border border-[#0566aa] bg-[#f4fbfe] px-2 text-[10px] font-bold text-[#075a91] transition hover:bg-[#e6f6ff]"
-                      title="Aumentar la longitud visual del tramo un 10% desde su extremo final"
+                      title="Aumentar la longitud visual del tramo usando el porcentaje indicado"
                     >
                       <span className="material-symbols-outlined text-[14px]">add</span>
                       Aumentar
+                    </button>
+                  </div>
+                  <div className="mt-1.5 grid grid-cols-2 gap-1.5 border-t border-[#e0ebf0] pt-1.5">
+                    <button
+                      type="button"
+                      onClick={undoPipeDimension}
+                      disabled={pipeDimensionUndoStack.at(-1)?.photoId !== selectedPlanPhoto.id}
+                      className="inline-flex h-7 items-center justify-center gap-1 border border-[#b4cbd8] bg-white px-2 text-[10px] font-bold text-[#315c70] transition hover:bg-[#eaf6fb] disabled:cursor-not-allowed disabled:opacity-40"
+                      title="Deshacer el último cambio de dimensión de este tramo"
+                    >
+                      <span className="material-symbols-outlined text-[14px]">undo</span>
+                      Deshacer
+                    </button>
+                    <button
+                      type="button"
+                      onClick={redoPipeDimension}
+                      disabled={pipeDimensionRedoStack.at(-1)?.photoId !== selectedPlanPhoto.id}
+                      className="inline-flex h-7 items-center justify-center gap-1 border border-[#b4cbd8] bg-white px-2 text-[10px] font-bold text-[#315c70] transition hover:bg-[#eaf6fb] disabled:cursor-not-allowed disabled:opacity-40"
+                      title="Rehacer el último cambio de dimensión de este tramo"
+                    >
+                      <span className="material-symbols-outlined text-[14px]">redo</span>
+                      Rehacer
                     </button>
                   </div>
                 </div>
