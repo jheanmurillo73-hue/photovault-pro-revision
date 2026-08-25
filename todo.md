@@ -55,3 +55,16 @@
 - [x] Permitir tomar una foto con cámara o elegirla de la galería desde las propiedades del elemento.
 - [x] Mostrar el nombre de cada cámara junto al icono y permitir ocultarlo o mostrarlo globalmente en el plano.
 - [x] Mostrar en naranja los iconos de las cámaras de tipo Datos en el plano.
+- [x] Promover los últimos cambios del proyecto entre main, desarrollo y produccion en GitHub.
+- [ ] Eliminar los datos operativos de prueba de Supabase sin modificar perfiles, cuentas, roles ni permisos.
+- [x] Corregir el botón de restablecimiento administrativo que no ejecuta el flujo esperado.
+- [ ] Ejecutar la migración de reparación en Supabase antes de usar el restablecimiento operativo.
+- [x] Añadir estados visuales de carga, éxito y error al restablecimiento administrativo.
+- [x] Permitir clasificar cada tramo como media tensión, baja tensión o datos y diferenciarlo por color.
+- [x] Separar el acceso a Planos de Obra en Obras Civiles y Obras Eléctricas con datos y elementos independientes sobre el mismo JPG.
+- [x] Reorganizar la barra de herramientas de Obras Eléctricas para que todos los botones sean visibles.
+- [x] Añadir un icono de retorno desde Obras Civiles y Obras Eléctricas al menú de áreas.
+- [x] Añadir breadcrumb, memoria del área activa y confirmación de salida cuando existan cambios pendientes en el plano.
+- [x] Reforzar la interacción de la ruta de navegación para volver al menú principal de áreas.
+- [x] Añadir una herramienta de mano para desplazar el plano sin mover los elementos.
+- [x] Restringir la carga y estructura del plano al administrador, permitiendo al inspector editar solo propiedades autorizadas.

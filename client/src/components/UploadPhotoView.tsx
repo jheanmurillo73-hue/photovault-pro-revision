@@ -3,7 +3,7 @@
  * propiedades propias del elemento activo para evitar registros híbridos.
  */
 import React, { useState, useRef } from 'react';
-import { InspectionPhoto, PhotoCategory, InspectorProfile, ExecutionStatus, CameraCode, CameraType, ElementType } from '../types';
+import { InspectionPhoto, PhotoCategory, InspectorProfile, ExecutionStatus, CameraCode, CameraType, ElementType, getPipeNetworkOption, PIPE_NETWORK_OPTIONS, PipeNetworkType } from '../types';
 import { WAREHOUSE_LOCATIONS, CAMERA_CODES, CAMERA_TYPES } from '../data/mockData';
 import { compressImageForDevice } from '../services/deviceStorageService';
 import { TramoSelector } from './TramoSelector';
@@ -31,6 +31,7 @@ export const UploadPhotoView: React.FC<UploadPhotoViewProps> = ({
   const [elementType, setElementType] = useState<ElementType>('caja');
   const [tramo, setTramo] = useState<string>('3x4"');
   const [metraje, setMetraje] = useState<string>('12');
+  const [pipeNetworkType, setPipeNetworkType] = useState<PipeNetworkType>('baja_tension');
   const [fieldNotes, setFieldNotes] = useState<string>('');
   const [requiresImmediateAction, setRequiresImmediateAction] = useState<boolean>(false);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
@@ -146,6 +147,8 @@ export const UploadPhotoView: React.FC<UploadPhotoViewProps> = ({
       cameraType: elementType === 'camara' ? cameraType : undefined,
       tramo: elementType === 'tuberia' ? tramo.trim() || undefined : undefined,
       metraje: elementType === 'tuberia' ? metraje.trim() || undefined : undefined,
+      pipeNetworkType: elementType === 'tuberia' ? pipeNetworkType : undefined,
+      pipeColor: elementType === 'tuberia' ? getPipeNetworkOption(pipeNetworkType).color : undefined,
       inspectorName: inspector.name,
       inspectorId: inspector.id,
       inspectorAvatar: inspector.avatarUrl,
@@ -586,6 +589,27 @@ export const UploadPhotoView: React.FC<UploadPhotoViewProps> = ({
             )}
             {elementType === 'tuberia' && (
               <>
+            <div className="md:col-span-2 rounded-xl border border-[#b7d5e4] bg-[#f4fbfe] p-3.5">
+              <p className="font-['Inter'] text-[12px] font-bold text-[#173f58]">Tipo de red del tramo</p>
+              <p className="mt-0.5 text-[11px] text-[#607d8b]">Al guardar, el tramo adopta el color asignado a su red en el plano.</p>
+              <div className="mt-2 grid grid-cols-3 gap-2">
+                {PIPE_NETWORK_OPTIONS.map((option) => (
+                  <button
+                    key={option.value}
+                    type="button"
+                    onClick={() => setPipeNetworkType(option.value)}
+                    className={`flex min-h-14 flex-col items-center justify-center gap-1 border px-2 text-[11px] font-bold transition ${
+                      pipeNetworkType === option.value
+                        ? 'border-[#073f74] bg-white text-[#073f74] ring-2 ring-cyan-200'
+                        : 'border-[#c2dbe7] bg-white text-[#547181] hover:bg-[#eaf6fb]'
+                    }`}
+                  >
+                    <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: option.color }} />
+                    <span>{option.label}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
             {/* Tramo de Tubería y Metraje (Cantidad x Dimensión + Metros Lineales) */}
             <div className="md:col-span-2">
               <TramoSelector

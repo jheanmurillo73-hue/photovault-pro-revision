@@ -44,6 +44,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const [isResetModalOpen, setIsResetModalOpen] = useState<boolean>(false);
   const [resetPhrase, setResetPhrase] = useState<string>('');
   const [isResetting, setIsResetting] = useState<boolean>(false);
+  const [resetFeedback, setResetFeedback] = useState<{
+    type: 'loading' | 'success' | 'error';
+    message: string;
+  } | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const hasSupabase = isSupabaseConfigured();
@@ -108,12 +112,17 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const handleOperationalReset = async () => {
     if (!onResetOperationalData || resetPhrase.trim().toUpperCase() !== 'RESTABLECER') return;
     setIsResetting(true);
+    setResetFeedback({ type: 'loading', message: 'Estamos eliminando los datos operativos y limpiando la memoria local. No cierres esta ventana.' });
     try {
       await onResetOperationalData();
-      setIsResetModalOpen(false);
       setResetPhrase('');
+      const message = 'Restablecimiento completado. Los datos operativos fueron eliminados y los perfiles, roles y permisos se conservaron.';
+      setResetFeedback({ type: 'success', message });
+      onShowToast(message, 'success');
     } catch (error) {
-      onShowToast(error instanceof Error ? error.message : 'No se pudo completar el restablecimiento.', 'error');
+      const message = error instanceof Error ? error.message : 'No se pudo completar el restablecimiento.';
+      setResetFeedback({ type: 'error', message });
+      onShowToast(message, 'error');
     } finally {
       setIsResetting(false);
     }
@@ -618,6 +627,33 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             </div>
             <div className="space-y-4 p-5">
               <p className="text-sm leading-6 text-[#5d3c39]">Se eliminarán los registros de inspección, fotos, tramos, colecciones, bitácora y datos locales del plano. Los perfiles, usuarios, roles, permisos y la configuración de acceso se conservarán.</p>
+              {resetFeedback && (
+                <div
+                  role={resetFeedback.type === 'error' ? 'alert' : 'status'}
+                  aria-live="polite"
+                  className={`flex items-start gap-3 border px-3.5 py-3 text-sm leading-5 ${
+                    resetFeedback.type === 'loading'
+                      ? 'border-[#9ccde4] bg-[#eef8fd] text-[#174d69]'
+                      : resetFeedback.type === 'success'
+                        ? 'border-[#9bcda4] bg-[#f0f9f1] text-[#1f6430]'
+                        : 'border-[#e8aaa4] bg-[#fff4f2] text-[#8d1b13]'
+                  }`}
+                >
+                  {resetFeedback.type === 'loading' ? (
+                    <span aria-hidden="true" className="mt-0.5 h-5 w-5 shrink-0 animate-spin rounded-full border-2 border-[#77b9dc] border-t-[#075b87]" />
+                  ) : (
+                    <span aria-hidden="true" className="material-symbols-outlined mt-0.5 text-[20px]">
+                      {resetFeedback.type === 'success' ? 'check_circle' : 'error'}
+                    </span>
+                  )}
+                  <div>
+                    <p className="text-xs font-bold uppercase tracking-[0.09em]">
+                      {resetFeedback.type === 'loading' ? 'Restablecimiento en curso' : resetFeedback.type === 'success' ? 'Restablecimiento finalizado' : 'No se completó el restablecimiento'}
+                    </p>
+                    <p className="mt-1">{resetFeedback.message}</p>
+                  </div>
+                </div>
+              )}
               <div>
                 <label htmlFor="reset-confirmation" className="mb-1.5 block text-xs font-bold text-[#4a1714]">Escribe <strong>RESTABLECER</strong> para habilitar la acción.</label>
                 <input
@@ -626,16 +662,23 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                   onChange={(event) => setResetPhrase(event.target.value)}
                   placeholder="RESTABLECER"
                   autoComplete="off"
-                  className="h-11 w-full border border-[#e2aaa5] bg-[#fffafa] px-3 font-mono text-sm font-bold text-[#4a1714] outline-none transition focus:border-[#b42318] focus:ring-2 focus:ring-[#b42318]/15"
+                  disabled={isResetting || resetFeedback?.type === 'success'}
+                  className="h-11 w-full border border-[#e2aaa5] bg-[#fffafa] px-3 font-mono text-sm font-bold text-[#4a1714] outline-none transition focus:border-[#b42318] focus:ring-2 focus:ring-[#b42318]/15 disabled:cursor-not-allowed disabled:opacity-60"
                 />
               </div>
             </div>
             <div className="flex justify-end gap-2 border-t border-[#f2d0cd] px-5 py-4">
-              <button type="button" disabled={isResetting} onClick={() => { setIsResetModalOpen(false); setResetPhrase(''); }} className="h-9 border border-[#b4cbd8] bg-white px-3 text-xs font-bold text-[#315c70] transition hover:bg-[#eaf6fb] disabled:opacity-50">Cancelar</button>
-              <button type="button" disabled={isResetting || resetPhrase.trim().toUpperCase() !== 'RESTABLECER'} onClick={handleOperationalReset} className="inline-flex h-9 items-center gap-1.5 bg-[#b42318] px-3 text-xs font-bold text-white transition hover:bg-[#8d1b13] disabled:cursor-not-allowed disabled:opacity-40">
-                <span className="material-symbols-outlined text-[16px]">delete_forever</span>
-                {isResetting ? 'Restableciendo…' : 'Eliminar datos operativos'}
-              </button>
+              <button type="button" disabled={isResetting} onClick={() => { setIsResetModalOpen(false); setResetPhrase(''); setResetFeedback(null); }} className="h-9 border border-[#b4cbd8] bg-white px-3 text-xs font-bold text-[#315c70] transition hover:bg-[#eaf6fb] disabled:opacity-50">{resetFeedback?.type === 'success' ? 'Cerrar' : 'Cancelar'}</button>
+              {resetFeedback?.type !== 'success' && (
+                <button type="button" disabled={isResetting || resetPhrase.trim().toUpperCase() !== 'RESTABLECER'} onClick={handleOperationalReset} className="inline-flex h-9 items-center gap-1.5 bg-[#b42318] px-3 text-xs font-bold text-white transition hover:bg-[#8d1b13] disabled:cursor-not-allowed disabled:opacity-40">
+                  {isResetting ? (
+                    <span aria-hidden="true" className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/45 border-t-white" />
+                  ) : (
+                    <span className="material-symbols-outlined text-[16px]">delete_forever</span>
+                  )}
+                  {isResetting ? 'Restableciendo datos…' : resetFeedback?.type === 'error' ? 'Reintentar' : 'Eliminar datos operativos'}
+                </button>
+              )}
             </div>
           </section>
         </div>
