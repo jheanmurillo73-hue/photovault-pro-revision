@@ -2,7 +2,7 @@
  * Diseño: cartografía técnica sobria. La ficha evita mezclar propiedades de
  * categorías distintas y comunica el alcance real del elemento seleccionado.
  */
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { InspectionPhoto, getElementType } from '../types';
 
 interface PhotoDetailViewProps {
@@ -26,6 +26,7 @@ export const PhotoDetailView: React.FC<PhotoDetailViewProps> = ({
 }) => {
   const [zoomLevel, setZoomLevel] = useState<number>(1);
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
+  const [activeImageIndex, setActiveImageIndex] = useState<number>(0);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<boolean>(false);
   const [copiedId, setCopiedId] = useState<boolean>(false);
 
@@ -71,6 +72,43 @@ export const PhotoDetailView: React.FC<PhotoDetailViewProps> = ({
 
   const currentExecutionStatus = photo.executionStatus || 'En proceso';
   const elementType = getElementType(photo);
+  const galleryImages = Array.isArray(photo.imageUrls) && photo.imageUrls.length > 0
+    ? photo.imageUrls.filter((url): url is string => typeof url === 'string' && url.trim().length > 0)
+    : [photo.imageUrl];
+  const activeImageUrl = galleryImages[activeImageIndex] || galleryImages[0] || photo.imageUrl;
+  const hasMultipleImages = galleryImages.length > 1;
+
+  useEffect(() => {
+    setActiveImageIndex((current) => Math.min(current, Math.max(0, galleryImages.length - 1)));
+    setZoomLevel(1);
+  }, [photo.id, galleryImages.length]);
+
+  useEffect(() => {
+    if (!isFullscreen) return;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setIsFullscreen(false);
+      if (event.key === 'ArrowLeft' && hasMultipleImages) setActiveImageIndex((current) => (current - 1 + galleryImages.length) % galleryImages.length);
+      if (event.key === 'ArrowRight' && hasMultipleImages) setActiveImageIndex((current) => (current + 1) % galleryImages.length);
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [galleryImages.length, hasMultipleImages, isFullscreen]);
+
+  const showPreviousImage = () => {
+    setActiveImageIndex((current) => (current - 1 + galleryImages.length) % galleryImages.length);
+    setZoomLevel(1);
+  };
+
+  const showNextImage = () => {
+    setActiveImageIndex((current) => (current + 1) % galleryImages.length);
+    setZoomLevel(1);
+  };
+
+  const openImageFullscreen = (index: number) => {
+    setActiveImageIndex(index);
+    setZoomLevel(1);
+    setIsFullscreen(true);
+  };
 
   return (
     <div className="w-full flex flex-col gap-4">
@@ -127,19 +165,33 @@ export const PhotoDetailView: React.FC<PhotoDetailViewProps> = ({
         <div className="flex-1 bg-[#f3faff] border border-[#c2c6d4] rounded-xl overflow-hidden flex flex-col shadow-xs relative group min-h-[480px] lg:min-h-[640px]">
           {/* Image Area */}
           <div className="flex-1 relative bg-[#e6f6ff] flex items-center justify-center p-4 overflow-hidden select-none">
-            <div
+            <button
+              type="button"
+              onClick={() => openImageFullscreen(activeImageIndex)}
+              aria-label={`Abrir foto ${activeImageIndex + 1} de ${galleryImages.length} a pantalla completa`}
               className="w-full h-full flex items-center justify-center transition-transform duration-200"
               style={{
                 transform: `scale(${zoomLevel})`,
-                cursor: zoomLevel > 1 ? 'grab' : 'default',
+                cursor: zoomLevel > 1 ? 'grab' : 'zoom-in',
               }}
             >
               <img
-                src={photo.imageUrl}
-                alt={photo.name}
+                src={activeImageUrl}
+                alt={`${photo.name} — evidencia ${activeImageIndex + 1} de ${galleryImages.length}`}
                 className="w-full h-full object-contain max-h-[720px] rounded"
               />
-            </div>
+            </button>
+
+            {hasMultipleImages && (
+              <>
+                <button type="button" onClick={showPreviousImage} className="absolute left-4 top-1/2 z-10 grid h-10 w-10 -translate-y-1/2 place-items-center rounded-full border border-[#9fc2d2] bg-white/90 text-[#073f74] shadow-lg transition hover:bg-white" title="Foto anterior" aria-label="Foto anterior">
+                  <span className="material-symbols-outlined">chevron_left</span>
+                </button>
+                <button type="button" onClick={showNextImage} className="absolute right-4 top-1/2 z-10 grid h-10 w-10 -translate-y-1/2 place-items-center rounded-full border border-[#9fc2d2] bg-white/90 text-[#073f74] shadow-lg transition hover:bg-white" title="Foto siguiente" aria-label="Foto siguiente">
+                  <span className="material-symbols-outlined">chevron_right</span>
+                </button>
+              </>
+            )}
 
             {/* Image Overlay Controls */}
             <div className="absolute top-4 right-4 flex items-center gap-2 opacity-90 sm:opacity-0 group-hover:opacity-100 transition-opacity duration-200 bg-[#f3faff]/80 backdrop-blur-xs p-1 rounded-full border border-[#c2c6d4]">
@@ -173,12 +225,34 @@ export const PhotoDetailView: React.FC<PhotoDetailViewProps> = ({
               )}
               <button
                 type="button"
-                onClick={() => setIsFullscreen(true)}
+                onClick={() => openImageFullscreen(activeImageIndex)}
                 className="w-8 h-8 rounded-full flex items-center justify-center text-[#071e27] hover:bg-[#cfe6f2] transition-colors"
                 title="Pantalla Completa"
               >
                 <span className="material-symbols-outlined text-[18px]">fullscreen</span>
               </button>
+            </div>
+          </div>
+
+          <div className="border-t border-[#c2c6d4] bg-white px-3 py-2.5">
+            <div className="mb-2 flex items-center justify-between gap-2">
+              <span className="font-mono text-[10px] font-bold tracking-wide text-[#527284]">EVIDENCIAS · {activeImageIndex + 1}/{galleryImages.length}</span>
+              {hasMultipleImages && <span className="text-[10px] text-[#607d8b]">Selecciona una miniatura para ampliar</span>}
+            </div>
+            <div className="flex gap-2 overflow-x-auto pb-0.5">
+              {galleryImages.map((imageUrl, index) => (
+                <button
+                  key={`${imageUrl.slice(0, 32)}-${index}`}
+                  type="button"
+                  onClick={() => openImageFullscreen(index)}
+                  className={`relative h-14 w-16 shrink-0 overflow-hidden rounded-md border-2 transition ${index === activeImageIndex ? 'border-[#0566aa] ring-2 ring-cyan-200' : 'border-transparent hover:border-[#9fc2d2]'}`}
+                  title={`Abrir evidencia ${index + 1} a pantalla completa`}
+                  aria-label={`Abrir evidencia ${index + 1} a pantalla completa`}
+                >
+                  <img src={imageUrl} alt={`Miniatura de evidencia ${index + 1}`} className="h-full w-full object-cover" />
+                  <span className="absolute bottom-0 right-0 bg-[#073f74]/85 px-1 text-[9px] font-bold text-white">{index + 1}</span>
+                </button>
+              ))}
             </div>
           </div>
 
@@ -566,7 +640,7 @@ export const PhotoDetailView: React.FC<PhotoDetailViewProps> = ({
           <div className="flex justify-between items-center text-white pb-3 border-b border-white/20">
             <div>
               <h3 className="font-['Hanken_Grotesk'] font-bold text-lg">{photo.name}</h3>
-              <p className="text-[12px] text-gray-300">{photo.displayId} • {photo.location}</p>
+              <p className="text-[12px] text-gray-300">{photo.displayId} • {photo.location} • Foto {activeImageIndex + 1} de {galleryImages.length}</p>
             </div>
             <button
               type="button"
@@ -577,13 +651,32 @@ export const PhotoDetailView: React.FC<PhotoDetailViewProps> = ({
               <span className="material-symbols-outlined text-[28px]">close</span>
             </button>
           </div>
-          <div className="flex-1 flex items-center justify-center p-4">
+          <div className="relative flex flex-1 items-center justify-center p-4">
+            {hasMultipleImages && (
+              <button type="button" onClick={showPreviousImage} className="absolute left-4 z-10 grid h-12 w-12 place-items-center rounded-full border border-white/35 bg-black/40 text-white transition hover:bg-black/70" title="Foto anterior" aria-label="Foto anterior">
+                <span className="material-symbols-outlined text-[30px]">chevron_left</span>
+              </button>
+            )}
             <img
-              src={photo.imageUrl}
-              alt={photo.name}
+              src={activeImageUrl}
+              alt={`${photo.name} — evidencia ${activeImageIndex + 1} de ${galleryImages.length}`}
               className="max-w-full max-h-[85vh] object-contain"
             />
+            {hasMultipleImages && (
+              <button type="button" onClick={showNextImage} className="absolute right-4 z-10 grid h-12 w-12 place-items-center rounded-full border border-white/35 bg-black/40 text-white transition hover:bg-black/70" title="Foto siguiente" aria-label="Foto siguiente">
+                <span className="material-symbols-outlined text-[30px]">chevron_right</span>
+              </button>
+            )}
           </div>
+          {hasMultipleImages && (
+            <div className="flex justify-center gap-2 overflow-x-auto border-t border-white/15 px-4 py-3">
+              {galleryImages.map((imageUrl, index) => (
+                <button key={`${imageUrl.slice(0, 32)}-fullscreen-${index}`} type="button" onClick={() => setActiveImageIndex(index)} className={`h-12 w-14 shrink-0 overflow-hidden rounded border-2 transition ${index === activeImageIndex ? 'border-cyan-300' : 'border-transparent opacity-65 hover:opacity-100'}`} title={`Ver foto ${index + 1}`} aria-label={`Ver foto ${index + 1}`}>
+                  <img src={imageUrl} alt={`Miniatura de evidencia ${index + 1}`} className="h-full w-full object-cover" />
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       )}
 

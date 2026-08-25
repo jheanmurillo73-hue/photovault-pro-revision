@@ -16,6 +16,8 @@ import {
   getPipeNetworkOption,
   ElectricalElementType,
   getElectricalElementOption,
+  getElectricalPlanArea,
+  PlanArea,
 } from './types';
 import {
   INITIAL_PHOTOS,
@@ -63,27 +65,37 @@ const normalizePlanCoordinate = (value: unknown): number | undefined => {
   return value >= 0 && value <= 100 ? value : undefined;
 };
 
-const normalizeInspectionPhoto = (photo: InspectionPhoto): InspectionPhoto => ({
-  ...photo,
-  name: photo.name ?? 'Inspección sin nombre',
-  type: photo.type ?? '',
-  location: photo.location ?? '',
-  fieldNotes: photo.fieldNotes ?? '',
-  executionStatus: photo.executionStatus ?? 'En proceso',
-  status: photo.status ?? 'Synced',
-  requiresImmediateAction: Boolean(photo.requiresImmediateAction),
-  verified: Boolean(photo.verified),
-  planArea: photo.electricalType || photo.planArea === 'electrical' ? 'electrical' : 'civil',
-  electricalType: photo.electricalType,
-  electricalColor: photo.electricalType ? getElectricalElementOption(photo.electricalType).color : undefined,
-  pipeNetworkType: getElementType(photo) === 'tuberia'
-    ? getPipeNetworkOption(photo.pipeNetworkType).value
-    : undefined,
-  planX: normalizePlanCoordinate(photo.planX),
-  planY: normalizePlanCoordinate(photo.planY),
-  planEndX: normalizePlanCoordinate(photo.planEndX),
-  planEndY: normalizePlanCoordinate(photo.planEndY),
-});
+const normalizeInspectionPhoto = (photo: InspectionPhoto): InspectionPhoto => {
+  const imageUrls = Array.isArray(photo.imageUrls)
+    ? photo.imageUrls.filter((url): url is string => typeof url === 'string' && url.trim().length > 0)
+    : photo.imageUrl ? [photo.imageUrl] : [];
+
+  return {
+    ...photo,
+    imageUrl: imageUrls[0] || photo.imageUrl,
+    imageUrls,
+    name: photo.name ?? 'Inspección sin nombre',
+    type: photo.type ?? '',
+    location: photo.location ?? '',
+    fieldNotes: photo.fieldNotes ?? '',
+    executionStatus: photo.executionStatus ?? 'En proceso',
+    status: photo.status ?? 'Synced',
+    requiresImmediateAction: Boolean(photo.requiresImmediateAction),
+    verified: Boolean(photo.verified),
+    planArea: photo.electricalType || photo.planArea === 'electrical'
+      ? getElectricalPlanArea(photo.electricalType)
+      : photo.planArea || 'civil',
+    electricalType: photo.electricalType,
+    electricalColor: photo.electricalType ? getElectricalElementOption(photo.electricalType).color : undefined,
+    pipeNetworkType: getElementType(photo) === 'tuberia'
+      ? getPipeNetworkOption(photo.pipeNetworkType).value
+      : undefined,
+    planX: normalizePlanCoordinate(photo.planX),
+    planY: normalizePlanCoordinate(photo.planY),
+    planEndX: normalizePlanCoordinate(photo.planEndX),
+    planEndY: normalizePlanCoordinate(photo.planEndY),
+  };
+};
 
 const createMapElementPreview = (elementType: ElementType) => {
   const visual = elementType === 'camara'
@@ -291,7 +303,7 @@ export default function App() {
 
   const handleUpdatePhotoPosition = (
     photoId: string,
-    position: Pick<InspectionPhoto, 'planX' | 'planY' | 'planEndX' | 'planEndY'> & Partial<Pick<InspectionPhoto, 'metraje'>>,
+    position: Pick<InspectionPhoto, 'planX' | 'planY' | 'planEndX' | 'planEndY'> & Partial<Pick<InspectionPhoto, 'metraje' | 'cableMeters'>>,
   ) => {
     if (userAccess.role !== 'admin') {
       showToast('Solo el administrador puede mover o fijar elementos en el plano.', 'error');
@@ -316,7 +328,11 @@ export default function App() {
     const updatedPhotos = photos.map((photo) => {
       const metraje = valuesById.get(photo.id);
       if (metraje === undefined) return photo;
-      const updated = normalizeInspectionPhoto({ ...photo, metraje });
+      const updated = normalizeInspectionPhoto({
+        ...photo,
+        metraje,
+        ...(photo.electricalType === 'cableado' ? { cableMeters: metraje } : {}),
+      });
       recordsToSync.push(updated);
       return updated;
     });
@@ -332,6 +348,7 @@ export default function App() {
     position: Pick<InspectionPhoto, 'planX' | 'planY' | 'planEndX' | 'planEndY'>,
     initialMetraje?: number,
     electricalType?: ElectricalElementType,
+    electricalArea?: PlanArea,
   ): InspectionPhoto => {
     if (userAccess.role !== 'admin') {
       throw new Error('Solo el administrador puede crear elementos en el plano.');
@@ -341,8 +358,12 @@ export default function App() {
     const isCamera = elementType === 'camara';
     const isPipeline = elementType === 'tuberia';
     const isElectrical = elementType === 'electrico' && Boolean(electricalType);
+    const isCable = electricalType === 'cableado';
     const electricalOption = getElectricalElementOption(electricalType);
-    const elementName = isCamera ? 'Cámara' : isPipeline ? 'Tramo de tubería' : 'Caja';
+    const cableType = electricalArea === 'electrical_lighting'
+      ? 'alumbrado'
+      : electricalArea === 'electrical_bt' ? 'baja_tension' : 'media_tension';
+    const elementName = isCable ? 'Cableado' : isCamera ? 'Cámara' : isPipeline ? 'Tramo de tubería' : 'Caja';
     const newPhoto = normalizeInspectionPhoto({
       id: `plan-${Date.now()}`,
       displayId: `INSP-${createdAt.getFullYear()}-${suffix}`,
@@ -357,9 +378,12 @@ export default function App() {
       categoryLabel: isElectrical ? 'Obras Eléctricas' : 'Inspección General',
       location: 'Plano de obra',
       elementType,
-      planArea: isElectrical ? 'electrical' : 'civil',
+      planArea: isElectrical ? electricalArea || getElectricalPlanArea(electricalType) : 'civil',
       electricalType: isElectrical ? electricalType : undefined,
       electricalColor: isElectrical ? electricalOption.color : undefined,
+      cableType: isCable ? cableType : undefined,
+      cableGauge: isCable ? (electricalArea === 'electrical_lighting' ? '12' : '350') : undefined,
+      cableMeters: isCable ? initialMetraje ?? 0 : undefined,
       cameraCode: isCamera ? 'SB850' : undefined,
       cameraType: isCamera ? 'MT' : undefined,
       tramo: isPipeline ? '' : undefined,

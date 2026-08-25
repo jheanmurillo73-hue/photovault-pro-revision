@@ -68,3 +68,19 @@
 - [x] Reforzar la interacción de la ruta de navegación para volver al menú principal de áreas.
 - [x] Añadir una herramienta de mano para desplazar el plano sin mover los elementos.
 - [x] Restringir la carga y estructura del plano al administrador, permitiendo al inspector editar solo propiedades autorizadas.
+- [x] Promover de forma segura los cambios publicados a las ramas de GitHub acordadas.
+- [x] Dividir Obras Eléctricas en las capas independientes MT, BT y Alumbrado.
+- [x] Limitar las propiedades de MT, BT y Alumbrado a sus activos eléctricos correspondientes.
+- [x] Añadir cableado longitudinal en MT, BT y Alumbrado con tipo, calibre y metraje, sin incluirlo en Obras Civiles.
+- [x] Permitir adjuntar, conservar y administrar varias fotos por elemento desde sus propiedades.
+- [x] Mostrar una miniatura de la foto principal del elemento al pasar el cursor o enfocar su marcador en el plano.
+- [x] Restringir los calibres de cable de Obras Eléctricas Alumbrado a 12, 10, 8 y 6.
+- [x] Añadir un carrusel de fotos en la vista de detalle de cada elemento.
+- [x] Abrir las miniaturas del detalle en un visor de imágenes a pantalla completa.
+- [x] Añadir un menú de acceso rápido para alternar entre Obras Civiles, MT, BT y Alumbrado desde el plano.
+- [x] Recordar el filtro aplicado de manera independiente en cada capa del plano.
+- [x] Mostrar el total de elementos guardados en cada acceso rápido de capa.
+- [x] Permitir eliminar de manera segura fotos individuales desde las propiedades de un elemento.
+- [x] Ampliar el zoom detallado del plano y reducir los mínimos de iconos y textos.
+- [x] Permitir reordenar fotos por arrastre desde las propiedades para cambiar su portada.
+- [ ] Promover los cambios publicados a desarrollo, produccion y main mediante el flujo seguro de Git.

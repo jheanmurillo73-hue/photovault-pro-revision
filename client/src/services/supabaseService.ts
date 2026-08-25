@@ -2,6 +2,19 @@ import { getSupabaseClient, isSupabaseConfigured, getActiveSupabaseConfig } from
 import { InspectionPhoto, InspectorProfile, ActivityItem, InspectionCollection, AppSettings, AppModule, AppRole, UserAccess } from '../types';
 import { ALL_OPERATIONAL_MODULES, createFallbackAccess, isPrimaryAdmin, normalizeModules } from '../lib/accessControl';
 
+const parseImageUrls = (value: unknown, fallback?: string): string[] => {
+  if (Array.isArray(value)) return value.filter((url): url is string => typeof url === 'string' && url.trim().length > 0);
+  if (typeof value === 'string' && value.trim()) {
+    try {
+      const parsed = JSON.parse(value);
+      if (Array.isArray(parsed)) return parsed.filter((url): url is string => typeof url === 'string' && url.trim().length > 0);
+    } catch {
+      return fallback ? [fallback] : [];
+    }
+  }
+  return fallback ? [fallback] : [];
+};
+
 export interface SupabaseConnectionStatus {
   connected: boolean;
   configured: boolean;
@@ -203,6 +216,7 @@ export const supabaseService = {
         display_id: photo.displayId,
         name: photo.name,
         image_url: photo.imageUrl,
+        image_urls: JSON.stringify(photo.imageUrls || [photo.imageUrl]),
         date: photo.date,
         date_raw: photo.dateRaw,
         status: photo.status,
@@ -222,6 +236,9 @@ export const supabaseService = {
         plan_area: photo.planArea || 'civil',
         electrical_type: photo.electricalType || null,
         electrical_color: photo.electricalColor || null,
+        cable_type: photo.cableType || null,
+        cable_gauge: photo.cableGauge || null,
+        cable_meters: photo.cableMeters !== undefined ? String(photo.cableMeters) : null,
         inspector_name: photo.inspectorName,
         inspector_id: photo.inspectorId,
         inspector_avatar: photo.inspectorAvatar,
@@ -262,6 +279,7 @@ export const supabaseService = {
       display_id: photo.displayId,
       name: photo.name,
       image_url: photo.imageUrl,
+      image_urls: JSON.stringify(photo.imageUrls || [photo.imageUrl]),
       date: photo.date,
       date_raw: photo.dateRaw,
       status: photo.status,
@@ -281,6 +299,9 @@ export const supabaseService = {
       plan_area: photo.planArea || 'civil',
       electrical_type: photo.electricalType || null,
       electrical_color: photo.electricalColor || null,
+      cable_type: photo.cableType || null,
+      cable_gauge: photo.cableGauge || null,
+      cable_meters: photo.cableMeters !== undefined ? String(photo.cableMeters) : null,
       inspector_name: photo.inspectorName,
       inspector_id: photo.inspectorId,
       inspector_avatar: photo.inspectorAvatar,
@@ -331,11 +352,14 @@ export const supabaseService = {
 
       if (!data) return [];
 
-      return data.map((item: any) => ({
+      return data.map((item: any) => {
+        const imageUrls = parseImageUrls(item.image_urls, item.image_url);
+        return {
         id: item.id,
         displayId: item.display_id || item.id,
         name: item.name || 'Sin título',
-        imageUrl: item.image_url,
+        imageUrl: imageUrls[0] || item.image_url,
+        imageUrls,
         date: item.date,
         dateRaw: item.date_raw || item.created_at || new Date().toISOString(),
         status: item.status || 'Synced',
@@ -358,14 +382,23 @@ export const supabaseService = {
         pipeColor: typeof item.pipe_color === 'string' && /^#[0-9a-fA-F]{6}$/.test(item.pipe_color)
           ? item.pipe_color
           : undefined,
-        planArea: item.plan_area === 'electrical' ? 'electrical' : 'civil',
+        planArea: item.plan_area === 'electrical_mt' || item.plan_area === 'electrical_bt' || item.plan_area === 'electrical_lighting'
+          ? item.plan_area
+          : item.plan_area === 'electrical' ? 'electrical_mt' : 'civil',
         electricalType: [
           'transformador', 'tablero_baja_tension', 'tablero_distribucion', 'barrajes_elastomericos',
-          'malla_tierra', 'poste_media_tension', 'poste_alumbrado', 'reconectador',
+          'malla_tierra', 'poste_media_tension', 'poste_alumbrado', 'reconectador', 'cableado',
         ].includes(item.electrical_type) ? item.electrical_type : undefined,
         electricalColor: typeof item.electrical_color === 'string' && /^#[0-9a-fA-F]{6}$/.test(item.electrical_color)
           ? item.electrical_color
           : undefined,
+        cableType: ['media_tension', 'baja_tension', 'alumbrado'].includes(item.cable_type)
+          ? item.cable_type
+          : undefined,
+        cableGauge: ['350', '500', '2/0', '4/0', '12', '10', '8', '6'].includes(item.cable_gauge)
+          ? item.cable_gauge
+          : undefined,
+        cableMeters: item.cable_meters || undefined,
         inspectorName: item.inspector_name || 'Inspector',
         inspectorId: item.inspector_id || '8842',
         inspectorAvatar: item.inspector_avatar || '',
@@ -379,7 +412,8 @@ export const supabaseService = {
         planY: typeof item.plan_y === 'number' ? item.plan_y : undefined,
         planEndX: typeof item.plan_end_x === 'number' ? item.plan_end_x : undefined,
         planEndY: typeof item.plan_end_y === 'number' ? item.plan_end_y : undefined,
-      }));
+        };
+      });
     } catch (err) {
       console.warn('Error in fetchPhotos:', err);
       return null;
@@ -609,6 +643,7 @@ CREATE TABLE IF NOT EXISTS public.inspection_photos (
   display_id TEXT NOT NULL,
   name TEXT NOT NULL,
   image_url TEXT NOT NULL,
+  image_urls TEXT,
   date TEXT NOT NULL,
   date_raw TEXT,
   status TEXT NOT NULL DEFAULT 'Synced' CHECK (status IN ('Synced', 'In Progress', 'Flagged')),
@@ -625,9 +660,12 @@ CREATE TABLE IF NOT EXISTS public.inspection_photos (
   metraje TEXT,
   pipe_network_type TEXT CHECK (pipe_network_type IS NULL OR pipe_network_type IN ('media_tension', 'baja_tension', 'datos')),
   pipe_color TEXT CHECK (pipe_color IS NULL OR pipe_color ~ '^#[0-9A-Fa-f]{6}$'),
-  plan_area TEXT NOT NULL DEFAULT 'civil' CHECK (plan_area IN ('civil', 'electrical')),
+  plan_area TEXT NOT NULL DEFAULT 'civil' CHECK (plan_area IN ('civil', 'electrical', 'electrical_mt', 'electrical_bt', 'electrical_lighting')),
   electrical_type TEXT,
   electrical_color TEXT CHECK (electrical_color IS NULL OR electrical_color ~ '^#[0-9A-Fa-f]{6}$'),
+  cable_type TEXT CHECK (cable_type IS NULL OR cable_type IN ('media_tension', 'baja_tension', 'alumbrado')),
+  cable_gauge TEXT CHECK (cable_gauge IS NULL OR cable_gauge IN ('350', '500', '2/0', '4/0', '12', '10', '8', '6')),
+  cable_meters TEXT,
   inspector_name TEXT NOT NULL,
   inspector_id TEXT NOT NULL,
   inspector_avatar TEXT DEFAULT '',
@@ -651,11 +689,18 @@ ALTER TABLE public.inspection_photos ADD COLUMN IF NOT EXISTS plan_y NUMERIC CHE
 ALTER TABLE public.inspection_photos ADD COLUMN IF NOT EXISTS plan_end_x NUMERIC CHECK (plan_end_x >= 0 AND plan_end_x <= 100);
 ALTER TABLE public.inspection_photos ADD COLUMN IF NOT EXISTS plan_end_y NUMERIC CHECK (plan_end_y >= 0 AND plan_end_y <= 100);
 ALTER TABLE public.inspection_photos ADD COLUMN IF NOT EXISTS acta TEXT;
+ALTER TABLE public.inspection_photos ADD COLUMN IF NOT EXISTS image_urls TEXT;
 ALTER TABLE public.inspection_photos ADD COLUMN IF NOT EXISTS show_acta_label BOOLEAN NOT NULL DEFAULT true;
 ALTER TABLE public.inspection_photos ADD COLUMN IF NOT EXISTS acta_label_position TEXT NOT NULL DEFAULT 'derecha' CHECK (acta_label_position IN ('arriba', 'abajo', 'izquierda', 'derecha'));
 ALTER TABLE public.inspection_photos ADD COLUMN IF NOT EXISTS pipe_network_type TEXT CHECK (pipe_network_type IS NULL OR pipe_network_type IN ('media_tension', 'baja_tension', 'datos'));
 ALTER TABLE public.inspection_photos ADD COLUMN IF NOT EXISTS pipe_color TEXT CHECK (pipe_color IS NULL OR pipe_color ~ '^#[0-9A-Fa-f]{6}$');
-ALTER TABLE public.inspection_photos ADD COLUMN IF NOT EXISTS plan_area TEXT NOT NULL DEFAULT 'civil' CHECK (plan_area IN ('civil', 'electrical'));
+ALTER TABLE public.inspection_photos ADD COLUMN IF NOT EXISTS cable_type TEXT CHECK (cable_type IS NULL OR cable_type IN ('media_tension', 'baja_tension', 'alumbrado'));
+ALTER TABLE public.inspection_photos ADD COLUMN IF NOT EXISTS cable_gauge TEXT CHECK (cable_gauge IS NULL OR cable_gauge IN ('350', '500', '2/0', '4/0', '12', '10', '8', '6'));
+ALTER TABLE public.inspection_photos ADD COLUMN IF NOT EXISTS cable_meters TEXT;
+ALTER TABLE public.inspection_photos ADD COLUMN IF NOT EXISTS plan_area TEXT NOT NULL DEFAULT 'civil';
+UPDATE public.inspection_photos SET plan_area = 'electrical_mt' WHERE plan_area = 'electrical';
+ALTER TABLE public.inspection_photos DROP CONSTRAINT IF EXISTS inspection_photos_plan_area_check;
+ALTER TABLE public.inspection_photos ADD CONSTRAINT inspection_photos_plan_area_check CHECK (plan_area IN ('civil', 'electrical_mt', 'electrical_bt', 'electrical_lighting'));
 ALTER TABLE public.inspection_photos ADD COLUMN IF NOT EXISTS electrical_type TEXT;
 ALTER TABLE public.inspection_photos ADD COLUMN IF NOT EXISTS electrical_color TEXT CHECK (electrical_color IS NULL OR electrical_color ~ '^#[0-9A-Fa-f]{6}$');
 
