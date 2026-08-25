@@ -89,3 +89,5 @@
 - [x] Mostrar una etiqueta visual de “Sin evidencia” en elementos sin fotos disponibles.
 - [x] Añadir el estado operativo No iniciado en las propiedades del elemento.
 - [x] Cerrar el modal de propiedades después de guardar los cambios correctamente.
+- [x] Añadir un filtro del plano para visualizar únicamente los elementos No iniciado.
+- [x] Diferenciar visualmente en el plano los elementos No iniciado mediante color de estado.

@@ -140,6 +140,8 @@ const hasCompletePipe = (photo: InspectionPhoto) =>
   && typeof photo.planEndY === 'number';
 
 const isCable = (photo: InspectionPhoto) => photo.electricalType === 'cableado';
+const NO_STARTED_MARKER_COLOR = '#64748b';
+const isNotStarted = (photo: InspectionPhoto) => photo.executionStatus === 'No iniciado';
 
 const isElectricalPhoto = (photo: InspectionPhoto) =>
   photo.planArea !== 'civil' && isElectricalElementType(photo.electricalType);
@@ -157,7 +159,7 @@ const PLAN_AREA_DETAILS: Record<'civil' | 'electrical_mt' | 'electrical_bt' | 'e
 };
 
 const QUICK_PLAN_AREAS = ['civil', 'electrical_mt', 'electrical_bt', 'electrical_lighting'] as const;
-type PlanFilter = 'all' | 'camara' | 'caja' | 'tuberia' | 'pending';
+type PlanFilter = 'all' | 'camara' | 'caja' | 'tuberia' | 'pending' | 'not_started';
 type PlanAreaFilterState = Record<typeof QUICK_PLAN_AREAS[number], PlanFilter>;
 
 const DEFAULT_PLAN_AREA_FILTERS: PlanAreaFilterState = {
@@ -168,7 +170,7 @@ const DEFAULT_PLAN_AREA_FILTERS: PlanAreaFilterState = {
 };
 
 const isPlanFilter = (value: unknown): value is PlanFilter =>
-  value === 'all' || value === 'camara' || value === 'caja' || value === 'tuberia' || value === 'pending';
+  value === 'all' || value === 'camara' || value === 'caja' || value === 'tuberia' || value === 'pending' || value === 'not_started';
 
 const elementLabel = (photo: InspectionPhoto) => {
   const type = getElementType(photo);
@@ -414,7 +416,8 @@ export const MapView: React.FC<MapViewProps> = ({
         : getPhotoPlanArea(photo) === selectedPlanArea;
       if (!belongsToArea) return false;
       if (activeFilter === 'pending' && !pendingPhotos.some((pending) => pending.id === photo.id)) return false;
-      if (activeFilter !== 'all' && activeFilter !== 'pending' && type !== activeFilter) return false;
+      if (activeFilter === 'not_started' && !isNotStarted(photo)) return false;
+      if (activeFilter !== 'all' && activeFilter !== 'pending' && activeFilter !== 'not_started' && type !== activeFilter) return false;
       if (!query) return true;
       return [photo.name, photo.cameraCode, photo.tramo, photo.location, photo.metraje]
         .filter(Boolean)
@@ -1171,16 +1174,16 @@ export const MapView: React.FC<MapViewProps> = ({
         </div>
         <span className="hidden h-6 w-px bg-[#b8ced9] sm:block" aria-hidden="true" />
         {(selectedPlanArea !== 'civil'
-          ? [['all', 'Todos', 'bolt'], ['pending', 'Sin ubicar', 'location_off']]
-          : [['all', 'Todos', 'layers'], ['camara', 'Cámaras', 'videocam'], ['caja', 'Cajas', 'inventory_2'], ['tuberia', 'Tuberías', 'timeline'], ['pending', 'Sin ubicar', 'location_off']]
+          ? [['all', 'Todos', 'bolt'], ['not_started', 'No iniciado', 'schedule'], ['pending', 'Sin ubicar', 'location_off']]
+          : [['all', 'Todos', 'layers'], ['camara', 'Cámaras', 'videocam'], ['caja', 'Cajas', 'inventory_2'], ['tuberia', 'Tuberías', 'timeline'], ['not_started', 'No iniciado', 'schedule'], ['pending', 'Sin ubicar', 'location_off']]
         ).map(([filter, label, icon]) => (
           <button
             key={filter}
             type="button"
-            onClick={() => setActiveFilter(filter as 'all' | 'camara' | 'caja' | 'tuberia' | 'pending')}
+            onClick={() => setActiveFilter(filter as PlanFilter)}
             className={`inline-flex h-8 items-center gap-1.5 rounded-full border px-3 text-[11px] font-bold shadow-sm transition ${
               activeFilter === filter
-                ? 'border-[#0566aa] bg-[#e5f4fb] text-[#004d84]'
+                ? filter === 'not_started' ? 'border-[#64748b] bg-[#eef2f7] text-[#334155]' : 'border-[#0566aa] bg-[#e5f4fb] text-[#004d84]'
                 : 'border-[#c7d7df] bg-white text-[#466473] hover:bg-[#f4fafc]'
             }`}
           >
@@ -1302,7 +1305,9 @@ export const MapView: React.FC<MapViewProps> = ({
                 const pipeline = getElementType(photo) === 'tuberia';
                 const cable = isCable(photo);
                 if ((!pipeline && !cable) || !hasCompletePipe(photo)) return null;
-                const pipeStroke = cable
+                const pipeStroke = isNotStarted(photo)
+                  ? NO_STARTED_MARKER_COLOR
+                  : cable
                   ? getCableTypeOption(photo.cableType).color
                   : photo.pipeColor || getPipeNetworkOption(photo.pipeNetworkType).color;
                 const isSelected = !isMultipleSelectionMode && selectedPlanPhotoId === photo.id;
@@ -1408,7 +1413,9 @@ export const MapView: React.FC<MapViewProps> = ({
                 const midpointY = (photo.planY! + photo.planEndY!) / 2;
                 const actaName = photo.acta?.trim();
                 const cable = isCable(photo);
-                const longitudinalMarkerColor = cable ? getCableTypeOption(photo.cableType).color : '#073f74';
+                const longitudinalMarkerColor = isNotStarted(photo)
+                  ? NO_STARTED_MARKER_COLOR
+                  : cable ? getCableTypeOption(photo.cableType).color : '#073f74';
                 return (
                   <React.Fragment key={photo.id}>
                     <button
@@ -1457,7 +1464,7 @@ export const MapView: React.FC<MapViewProps> = ({
               const isCamera = type === 'camara';
               const electrical = isElectricalPhoto(photo);
               const electricalOption = getElectricalElementOption(photo.electricalType);
-              const markerColor = electrical
+              const baseMarkerColor = electrical
                 ? photo.electricalColor || electricalOption.color
                 : !isCamera
                   ? '#b77812'
@@ -1466,6 +1473,7 @@ export const MapView: React.FC<MapViewProps> = ({
                   : photo.cameraType === 'Datos'
                     ? '#f97316'
                     : '#0566aa';
+              const markerColor = isNotStarted(photo) ? NO_STARTED_MARKER_COLOR : baseMarkerColor;
               const actaName = photo.acta?.trim();
               const cameraName = isCamera ? cameraNameLabel(photo) : null;
               return (
