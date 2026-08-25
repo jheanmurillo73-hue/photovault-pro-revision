@@ -66,13 +66,15 @@ const normalizePlanCoordinate = (value: unknown): number | undefined => {
 };
 
 const normalizeInspectionPhoto = (photo: InspectionPhoto): InspectionPhoto => {
-  const imageUrls = Array.isArray(photo.imageUrls)
+  const evidenceUrls = Array.isArray(photo.imageUrls)
     ? photo.imageUrls.filter((url): url is string => typeof url === 'string' && url.trim().length > 0)
     : photo.imageUrl ? [photo.imageUrl] : [];
+  const imageUrl = evidenceUrls[0] || photo.imageUrl?.trim() || createMapElementPreview(getElementType(photo));
+  const imageUrls = evidenceUrls.length > 0 ? evidenceUrls : [imageUrl];
 
   return {
     ...photo,
-    imageUrl: imageUrls[0] || photo.imageUrl,
+    imageUrl,
     imageUrls,
     name: photo.name ?? 'Inspección sin nombre',
     type: photo.type ?? '',
@@ -104,14 +106,19 @@ const getEvidenceUrls = (photo: InspectionPhoto): string[] => {
   return imageUrls.length > 0 ? imageUrls : photo.imageUrl ? [photo.imageUrl] : [];
 };
 
-const isEmbeddedEvidence = (imageUrl: string) => imageUrl.startsWith('data:image/');
+const isLargeEmbeddedEvidence = (imageUrl: string) => (
+  imageUrl.startsWith('data:image/') && !imageUrl.startsWith('data:image/svg+xml')
+);
 
 const createLightweightPhotoCache = (photo: InspectionPhoto): InspectionPhoto => {
-  const remoteEvidence = getEvidenceUrls(photo).filter((imageUrl) => !isEmbeddedEvidence(imageUrl));
+  const remoteEvidence = getEvidenceUrls(photo).filter((imageUrl) => !isLargeEmbeddedEvidence(imageUrl));
+  const fallbackImageUrl = isLargeEmbeddedEvidence(photo.imageUrl)
+    ? createMapElementPreview(getElementType(photo))
+    : photo.imageUrl;
   return {
     ...photo,
-    imageUrl: remoteEvidence[0] || (isEmbeddedEvidence(photo.imageUrl) ? '' : photo.imageUrl),
-    imageUrls: remoteEvidence,
+    imageUrl: remoteEvidence[0] || fallbackImageUrl || createMapElementPreview(getElementType(photo)),
+    imageUrls: remoteEvidence.length > 0 ? remoteEvidence : [fallbackImageUrl || createMapElementPreview(getElementType(photo))],
   };
 };
 
