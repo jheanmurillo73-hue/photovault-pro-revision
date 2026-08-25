@@ -81,3 +81,5 @@
 - [x] Recordar el filtro aplicado de manera independiente en cada capa del plano.
 - [x] Mostrar el total de elementos guardados en cada acceso rápido de capa.
 - [x] Permitir eliminar de manera segura fotos individuales desde las propiedades de un elemento.
+- [x] Ampliar el zoom detallado del plano y reducir los mínimos de iconos y textos.
+- [x] Permitir reordenar fotos por arrastre desde las propiedades para cambiar su portada.

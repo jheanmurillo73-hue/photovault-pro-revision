@@ -252,11 +252,11 @@ export const MapView: React.FC<MapViewProps> = ({
   const [panOffset, setPanOffset] = useState({ x: 0, y: 0 });
   const [iconScale, setIconScale] = useState<number>(() => {
     const saved = Number(localStorage.getItem('photovault_plan_icon_scale'));
-    return Number.isFinite(saved) ? clampScale(saved, 0.4, 1.8) : 1;
+    return Number.isFinite(saved) ? clampScale(saved, 0.2, 1.8) : 1;
   });
   const [textScale, setTextScale] = useState<number>(() => {
     const saved = Number(localStorage.getItem('photovault_plan_text_scale'));
-    return Number.isFinite(saved) ? clampScale(saved, 0.5, 1.8) : 1;
+    return Number.isFinite(saved) ? clampScale(saved, 0.25, 1.8) : 1;
   });
   const [areActaLabelsVisible, setAreActaLabelsVisible] = useState<boolean>(() =>
     localStorage.getItem('photovault_plan_acta_labels_visible') !== 'false',
@@ -899,18 +899,18 @@ export const MapView: React.FC<MapViewProps> = ({
     setDragTarget(target);
   };
 
-  const planScale = clampScale(Number(blueprint.scale) || 1, 0.6, 1.8);
+  const planScale = clampScale(Number(blueprint.scale) || 1, 0.45, 3);
   const adjustPlanScale = (difference: number) => {
     setBlueprint((previous) => ({
       ...previous,
-      scale: clampScale((Number(previous.scale) || 1) + difference, 0.6, 1.8),
+      scale: clampScale((Number(previous.scale) || 1) + difference, 0.45, 3),
     }));
   };
   const adjustIconScale = (difference: number) => {
-    setIconScale((previous) => clampScale(previous + difference, 0.4, 1.8));
+    setIconScale((previous) => clampScale(previous + difference, 0.2, 1.8));
   };
   const adjustTextScale = (difference: number) => {
-    setTextScale((previous) => clampScale(previous + difference, 0.5, 1.8));
+    setTextScale((previous) => clampScale(previous + difference, 0.25, 1.8));
   };
 
   const pipePreviewDistance = useMemo(() => {
@@ -1889,17 +1889,17 @@ export const MapView: React.FC<MapViewProps> = ({
             <div className="flex items-center gap-1.5 px-2 py-1.5">
               <span className="material-symbols-outlined text-[16px] text-[#0566aa]">zoom_in</span>
               <span className="font-mono text-[10px] font-bold text-[#355c70]">PLANO {Math.round(planScale * 100)}%</span>
-              <button type="button" onClick={() => adjustPlanScale(-0.1)} disabled={planScale <= 0.6} className="flex h-6 w-6 items-center justify-center rounded text-[#285b72] transition hover:bg-[#eaf6fb] disabled:cursor-not-allowed disabled:opacity-35" aria-label="Reducir tamaño del plano" title="Reducir plano">
+              <button type="button" onClick={() => adjustPlanScale(-0.1)} disabled={planScale <= 0.45} className="flex h-6 w-6 items-center justify-center rounded text-[#285b72] transition hover:bg-[#eaf6fb] disabled:cursor-not-allowed disabled:opacity-35" aria-label="Reducir tamaño del plano" title="Reducir plano">
                 <span className="material-symbols-outlined text-[16px]">remove</span>
               </button>
-              <button type="button" onClick={() => adjustPlanScale(0.1)} disabled={planScale >= 1.8} className="flex h-6 w-6 items-center justify-center rounded text-[#285b72] transition hover:bg-[#eaf6fb] disabled:cursor-not-allowed disabled:opacity-35" aria-label="Aumentar tamaño del plano" title="Aumentar plano">
+              <button type="button" onClick={() => adjustPlanScale(0.1)} disabled={planScale >= 3} className="flex h-6 w-6 items-center justify-center rounded text-[#285b72] transition hover:bg-[#eaf6fb] disabled:cursor-not-allowed disabled:opacity-35" aria-label="Aumentar tamaño del plano" title="Aumentar plano hasta 300%">
                 <span className="material-symbols-outlined text-[16px]">add</span>
               </button>
             </div>
             <div className="flex items-center gap-1.5 px-2 py-1.5">
               <span className="material-symbols-outlined text-[16px] text-[#b77812]">ads_click</span>
               <span className="font-mono text-[10px] font-bold text-[#355c70]">ICONOS {Math.round(iconScale * 100)}%</span>
-              <button type="button" onClick={() => adjustIconScale(-0.1)} disabled={iconScale <= 0.4} className="flex h-6 w-6 items-center justify-center rounded text-[#285b72] transition hover:bg-[#eaf6fb] disabled:cursor-not-allowed disabled:opacity-35" aria-label="Reducir tamaño de los iconos" title="Reducir iconos">
+              <button type="button" onClick={() => adjustIconScale(-0.1)} disabled={iconScale <= 0.2} className="flex h-6 w-6 items-center justify-center rounded text-[#285b72] transition hover:bg-[#eaf6fb] disabled:cursor-not-allowed disabled:opacity-35" aria-label="Reducir tamaño de los iconos" title="Reducir iconos hasta 20%">
                 <span className="material-symbols-outlined text-[16px]">remove</span>
               </button>
               <button type="button" onClick={() => adjustIconScale(0.1)} disabled={iconScale >= 1.8} className="flex h-6 w-6 items-center justify-center rounded text-[#285b72] transition hover:bg-[#eaf6fb] disabled:cursor-not-allowed disabled:opacity-35" aria-label="Aumentar tamaño de los iconos" title="Aumentar iconos">
@@ -1909,7 +1909,7 @@ export const MapView: React.FC<MapViewProps> = ({
             <div className="flex items-center gap-1.5 px-2 py-1.5">
               <span className="material-symbols-outlined text-[16px] text-[#0b5d8c]">text_fields</span>
               <span className="font-mono text-[10px] font-bold text-[#355c70]">TEXTOS {Math.round(textScale * 100)}%</span>
-              <button type="button" onClick={() => adjustTextScale(-0.1)} disabled={textScale <= 0.5} className="flex h-6 w-6 items-center justify-center rounded text-[#285b72] transition hover:bg-[#eaf6fb] disabled:cursor-not-allowed disabled:opacity-35" aria-label="Reducir tamaño de los textos del plano" title="Reducir textos">
+              <button type="button" onClick={() => adjustTextScale(-0.1)} disabled={textScale <= 0.25} className="flex h-6 w-6 items-center justify-center rounded text-[#285b72] transition hover:bg-[#eaf6fb] disabled:cursor-not-allowed disabled:opacity-35" aria-label="Reducir tamaño de los textos del plano" title="Reducir textos hasta 25%">
                 <span className="material-symbols-outlined text-[16px]">remove</span>
               </button>
               <button type="button" onClick={() => adjustTextScale(0.1)} disabled={textScale >= 1.8} className="flex h-6 w-6 items-center justify-center rounded text-[#285b72] transition hover:bg-[#eaf6fb] disabled:cursor-not-allowed disabled:opacity-35" aria-label="Aumentar tamaño de los textos del plano" title="Aumentar textos">

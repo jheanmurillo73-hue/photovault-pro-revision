@@ -71,6 +71,8 @@ export const EditPhotoModal: React.FC<EditPhotoModalProps> = ({
   const [isProcessingImage, setIsProcessingImage] = useState(false);
   const [imageError, setImageError] = useState<string | null>(null);
   const [photoIndexPendingRemoval, setPhotoIndexPendingRemoval] = useState<number | null>(null);
+  const [draggedPhotoIndex, setDraggedPhotoIndex] = useState<number | null>(null);
+  const [dragOverPhotoIndex, setDragOverPhotoIndex] = useState<number | null>(null);
   const galleryInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const electricalOption = getElectricalElementOption(photo.electricalType);
@@ -129,6 +131,16 @@ export const EditPhotoModal: React.FC<EditPhotoModalProps> = ({
     if (photoIndexPendingRemoval === null) return;
     setImageUrls((previous) => previous.filter((_, index) => index !== photoIndexPendingRemoval));
     setPhotoIndexPendingRemoval(null);
+  };
+
+  const movePhoto = (fromIndex: number, toIndex: number) => {
+    if (fromIndex === toIndex) return;
+    setImageUrls((previous) => {
+      const reordered = [...previous];
+      const [movedPhoto] = reordered.splice(fromIndex, 1);
+      reordered.splice(toIndex, 0, movedPhoto);
+      return reordered;
+    });
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -235,11 +247,37 @@ export const EditPhotoModal: React.FC<EditPhotoModalProps> = ({
             <div className="space-y-3">
               <div className="grid grid-cols-3 gap-2 sm:grid-cols-6">
                 {imageUrls.map((url, index) => (
-                  <div key={`${url.slice(0, 32)}-${index}`} className="group relative aspect-square overflow-hidden rounded-lg border border-[#a7c8da] bg-[#e6f6ff]">
+                  <div
+                    key={`${url.slice(0, 32)}-${index}`}
+                    draggable={imageUrls.length > 1}
+                    onDragStart={(event) => {
+                      event.dataTransfer.effectAllowed = 'move';
+                      event.dataTransfer.setData('text/plain', String(index));
+                      setDraggedPhotoIndex(index);
+                    }}
+                    onDragOver={(event) => {
+                      event.preventDefault();
+                      event.dataTransfer.dropEffect = 'move';
+                      if (draggedPhotoIndex !== null && draggedPhotoIndex !== index) setDragOverPhotoIndex(index);
+                    }}
+                    onDragLeave={() => setDragOverPhotoIndex((current) => current === index ? null : current)}
+                    onDrop={(event) => {
+                      event.preventDefault();
+                      if (draggedPhotoIndex !== null) movePhoto(draggedPhotoIndex, index);
+                      setDraggedPhotoIndex(null);
+                      setDragOverPhotoIndex(null);
+                    }}
+                    onDragEnd={() => {
+                      setDraggedPhotoIndex(null);
+                      setDragOverPhotoIndex(null);
+                    }}
+                    className={`group relative aspect-square overflow-hidden rounded-lg border bg-[#e6f6ff] transition ${draggedPhotoIndex === index ? 'scale-95 border-[#0566aa] opacity-55' : dragOverPhotoIndex === index ? 'border-[#0566aa] ring-2 ring-cyan-300 ring-offset-1' : 'border-[#a7c8da]'} ${imageUrls.length > 1 ? 'cursor-grab active:cursor-grabbing' : ''}`}
+                  >
                     <button type="button" onClick={() => setImageUrls((previous) => [previous[index], ...previous.filter((_, itemIndex) => itemIndex !== index)])} className="h-full w-full" title={index === 0 ? 'Foto de portada' : 'Usar como foto de portada'}>
                       <img src={url} alt={`Foto de evidencia ${index + 1}`} className="h-full w-full object-cover" />
                     </button>
                     {index === 0 && <span className="absolute left-1 top-1 rounded bg-[#073f74] px-1 py-0.5 text-[8px] font-bold text-white">PORTADA</span>}
+                    {imageUrls.length > 1 && <span className="pointer-events-none absolute bottom-1 left-1 grid h-5 w-5 place-items-center rounded-full bg-[#073f74]/85 text-white" title="Arrastra para reordenar"><span className="material-symbols-outlined text-[13px]">drag_indicator</span></span>}
                     <button type="button" onClick={() => requestPhotoRemoval(index)} className={`absolute right-1 top-1 grid h-5 w-5 place-items-center rounded-full text-white shadow-sm transition ${imageUrls.length > 1 ? 'bg-[#8b1d1d] hover:bg-[#6f1515]' : 'bg-[#607d8b] hover:bg-[#466473]'}`} title={imageUrls.length > 1 ? `Eliminar foto ${index + 1}` : 'Agrega otra foto antes de eliminar la portada'} aria-label={imageUrls.length > 1 ? `Eliminar foto ${index + 1}` : 'La foto de portada no puede eliminarse todavía'}>
                       <span className="material-symbols-outlined text-[13px]">delete</span>
                     </button>
@@ -267,7 +305,7 @@ export const EditPhotoModal: React.FC<EditPhotoModalProps> = ({
                   {isProcessingImage ? 'Optimizando…' : 'Tomar foto'}
                 </button>
                 </div>
-                <p className="mt-1.5 text-[10px] text-[#607d8b]">{imageUrls.length}/6 fotos. {imageSize ? `Última carga original: ${imageSize}.` : 'Cada imagen se optimiza antes de guardarse.'}</p>
+                <p className="mt-1.5 text-[10px] text-[#607d8b]">{imageUrls.length}/6 fotos. {imageUrls.length > 1 ? 'Arrastra las miniaturas para ordenarlas; la primera es la portada. ' : ''}{imageSize ? `Última carga original: ${imageSize}.` : 'Cada imagen se optimiza antes de guardarse.'}</p>
               </div>
             </div>
             {imageError && <p className="mt-2 text-[11px] font-medium text-[#ba1a1a]">{imageError}</p>}
