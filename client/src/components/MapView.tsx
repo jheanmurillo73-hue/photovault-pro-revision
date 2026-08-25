@@ -4,7 +4,7 @@
  * relativos al plano, nunca como coordenadas de un proveedor cartográfico.
  */
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { ActaLabelPosition, BlueprintCalibration, BlueprintOverlay, ElectricalElementType, ELECTRICAL_ELEMENT_OPTIONS, getElectricalElementOption, getElectricalPlanArea, getElementType, getPipeNetworkOption, InspectionPhoto, InspectorProfile, isElectricalElementType, PIPE_NETWORK_OPTIONS, PipeNetworkType, PlanArea } from '../types';
+import { ActaLabelPosition, BlueprintCalibration, BlueprintOverlay, ElectricalElementType, ELECTRICAL_ELEMENT_OPTIONS, getCableTypeOption, getElectricalElementOption, getElectricalPlanArea, getElementType, getPipeNetworkOption, InspectionPhoto, InspectorProfile, isElectricalElementType, PIPE_NETWORK_OPTIONS, PipeNetworkType, PlanArea } from '../types';
 import { compressImageForDevice } from '../services/deviceStorageService';
 import { isQuotaExceededError, loadBlueprintImage, saveBlueprintImage } from '../services/blueprintStorageService';
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from './ui/breadcrumb';
@@ -138,6 +138,8 @@ const hasCompletePipe = (photo: InspectionPhoto) =>
   isPlaced(photo)
   && typeof photo.planEndX === 'number'
   && typeof photo.planEndY === 'number';
+
+const isCable = (photo: InspectionPhoto) => photo.electricalType === 'cableado';
 
 const isElectricalPhoto = (photo: InspectionPhoto) =>
   photo.planArea !== 'civil' && isElectricalElementType(photo.electricalType);
@@ -347,7 +349,7 @@ export const MapView: React.FC<MapViewProps> = ({
       const belongsToArea = selectedPlanArea === 'civil'
         ? !isElectricalPhoto(photo)
         : getPhotoPlanArea(photo) === selectedPlanArea;
-      return belongsToArea && (type === 'tuberia' ? !hasCompletePipe(photo) : !isPlaced(photo));
+      return belongsToArea && (type === 'tuberia' || isCable(photo) ? !hasCompletePipe(photo) : !isPlaced(photo));
     }),
     [photos, selectedPlanArea],
   );
@@ -375,7 +377,7 @@ export const MapView: React.FC<MapViewProps> = ({
   );
 
   const electricalOptionsForArea = useMemo(
-    () => ELECTRICAL_ELEMENT_OPTIONS.filter((option) => getElectricalPlanArea(option.value) === selectedPlanArea),
+    () => ELECTRICAL_ELEMENT_OPTIONS.filter((option) => option.value === 'cableado' || getElectricalPlanArea(option.value) === selectedPlanArea),
     [selectedPlanArea],
   );
 
@@ -675,6 +677,28 @@ export const MapView: React.FC<MapViewProps> = ({
       ? creationMode as ElectricalElementType
       : undefined;
 
+    if (electricalCreationType === 'cableado') {
+      if (!pipeStart) {
+        setPipeStart({ planX, planY });
+        return;
+      }
+      const alignedEnd = alignPipeEnd(pipeStart, { planX, planY }, pipeAlignment);
+      const created = onCreatePhoto('electrico', {
+        planX: pipeStart.planX,
+        planY: pipeStart.planY,
+        planEndX: alignedEnd.planX,
+        planEndY: alignedEnd.planY,
+      }, roundMeters(getMetersFromPlanPoints(pipeStart, alignedEnd, blueprint.calibration) ?? 0), 'cableado', selectedPlanArea ?? undefined);
+      setHasPendingPlanChanges(true);
+      setActiveFilter('all');
+      setSelectedPlanPhotoId(created.id);
+      setPipeStart(null);
+      setPipePreview(null);
+      setPipeAlignment('libre');
+      setCreationMode(null);
+      return;
+    }
+
     if (electricalCreationType) {
       const created = onCreatePhoto('electrico', { planX, planY }, undefined, electricalCreationType, selectedPlanArea ?? undefined);
       setHasPendingPlanChanges(true);
@@ -716,12 +740,12 @@ export const MapView: React.FC<MapViewProps> = ({
       setCalibrationPreview(getPlanPosition(bounds, event.clientX, event.clientY));
       return;
     }
-    if (creationMode !== 'tuberia' || !pipeStart) return;
+    if ((creationMode !== 'tuberia' && creationMode !== 'cableado') || !pipeStart) return;
     setPipePreview(alignPipeEnd(pipeStart, getPlanPosition(bounds, event.clientX, event.clientY), pipeAlignment));
   };
 
   const handleCanvasMouseLeave = () => {
-    if (creationMode === 'tuberia') setPipePreview(null);
+    if (creationMode === 'tuberia' || creationMode === 'cableado') setPipePreview(null);
     if (calibrationMode) setCalibrationPreview(null);
   };
 
@@ -760,15 +784,16 @@ export const MapView: React.FC<MapViewProps> = ({
     const { planX, planY } = getPlanPosition(bounds, event.clientX, event.clientY);
     const { photo, source } = activeDrag;
     const type = getElementType(photo);
+    const isLongitudinalElement = type === 'tuberia' || isCable(photo);
 
     if (source === 'palette') {
       setHasPendingPlanChanges(true);
       placeTargetAt(
-        { photo, stage: type === 'tuberia' ? (isPlaced(photo) ? 'pipe-end' : 'pipe-start') : 'point' },
+        { photo, stage: isLongitudinalElement ? (isPlaced(photo) ? 'pipe-end' : 'pipe-start') : 'point' },
         planX,
         planY,
       );
-    } else if (type === 'tuberia' && hasCompletePipe(photo)) {
+    } else if (isLongitudinalElement && hasCompletePipe(photo)) {
       setHasPendingPlanChanges(true);
       const midpointX = (photo.planX! + photo.planEndX!) / 2;
       const midpointY = (photo.planY! + photo.planEndY!) / 2;
@@ -784,6 +809,7 @@ export const MapView: React.FC<MapViewProps> = ({
       onUpdatePhotoPosition(photo.id, {
         ...position,
         ...(metraje !== null ? { metraje: roundMeters(metraje) } : {}),
+        ...(isCable(photo) && metraje !== null ? { cableMeters: roundMeters(metraje) } : {}),
       });
     } else {
       setHasPendingPlanChanges(true);
@@ -849,6 +875,10 @@ export const MapView: React.FC<MapViewProps> = ({
       ? pipeStart
         ? `Haz clic para definir el final del nuevo tramo. Guía actual: ${pipePreviewMeters !== null ? `${pipePreviewMeters.toFixed(2)} m` : `${pipePreviewDistance?.toFixed(1) ?? '0.0'}% del plano`}.`
         : 'Haz clic para definir el inicio del nuevo tramo de tubería.'
+      : creationMode === 'cableado'
+        ? pipeStart
+          ? `Haz clic para definir el final del cableado. Guía actual: ${pipePreviewMeters !== null ? `${pipePreviewMeters.toFixed(2)} m` : `${pipePreviewDistance?.toFixed(1) ?? '0.0'}% del plano`}.`
+          : 'Haz clic para definir el inicio del tramo de cableado.'
       : placement
     ? placement.stage === 'pipe-start'
       ? `Haz clic para ubicar el inicio de ${elementLabel(placement.photo)}.`
@@ -1173,13 +1203,17 @@ export const MapView: React.FC<MapViewProps> = ({
                 </linearGradient>
               </defs>
               {positionedPhotos.map((photo) => {
-                if (getElementType(photo) !== 'tuberia' || !hasCompletePipe(photo)) return null;
-                const pipeStroke = photo.pipeColor || getPipeNetworkOption(photo.pipeNetworkType).color;
+                const pipeline = getElementType(photo) === 'tuberia';
+                const cable = isCable(photo);
+                if ((!pipeline && !cable) || !hasCompletePipe(photo)) return null;
+                const pipeStroke = cable
+                  ? getCableTypeOption(photo.cableType).color
+                  : photo.pipeColor || getPipeNetworkOption(photo.pipeNetworkType).color;
                 const isSelected = !isMultipleSelectionMode && selectedPlanPhotoId === photo.id;
                 return (
                   <g key={`line-${photo.id}`}>
                     <line x1={photo.planX} y1={photo.planY} x2={photo.planEndX} y2={photo.planEndY} stroke="rgba(255,255,255,0.82)" strokeWidth="2.2" strokeLinecap="round" />
-                    <line x1={photo.planX} y1={photo.planY} x2={photo.planEndX} y2={photo.planEndY} stroke={pipeStroke} strokeWidth="1.1" strokeLinecap="round" />
+                    <line x1={photo.planX} y1={photo.planY} x2={photo.planEndX} y2={photo.planEndY} stroke={pipeStroke} strokeWidth={cable ? '1.35' : '1.1'} strokeDasharray={cable ? '1.1 0.8' : undefined} strokeLinecap="round" />
                     {isSelected && (
                       <>
                         <circle cx={photo.planX} cy={photo.planY} r="1.55" fill="#ffffff" stroke="#073f74" strokeWidth="0.7" />
@@ -1189,16 +1223,16 @@ export const MapView: React.FC<MapViewProps> = ({
                   </g>
                 );
               })}
-              {creationMode === 'tuberia' && pipeStart && (
+              {(creationMode === 'tuberia' || creationMode === 'cableado') && pipeStart && (
                 <>
                   {pipePreview && (
                     <>
                       <line x1={pipeStart.planX} y1={pipeStart.planY} x2={pipePreview.planX} y2={pipePreview.planY} stroke="rgba(255,255,255,0.92)" strokeWidth="2.8" strokeLinecap="round" />
-                      <line x1={pipeStart.planX} y1={pipeStart.planY} x2={pipePreview.planX} y2={pipePreview.planY} stroke="#073f74" strokeWidth="1.3" strokeDasharray="2.2 1.4" strokeLinecap="round" />
+                      <line x1={pipeStart.planX} y1={pipeStart.planY} x2={pipePreview.planX} y2={pipePreview.planY} stroke={creationMode === 'cableado' ? getCableTypeOption(selectedPlanArea === 'electrical_lighting' ? 'alumbrado' : selectedPlanArea === 'electrical_bt' ? 'baja_tension' : 'media_tension').color : '#073f74'} strokeWidth="1.3" strokeDasharray="2.2 1.4" strokeLinecap="round" />
                       <circle cx={pipePreview.planX} cy={pipePreview.planY} r="1.25" fill="#eab308" stroke="white" strokeWidth="0.65" />
                     </>
                   )}
-                  <circle cx={pipeStart.planX} cy={pipeStart.planY} r="1.6" fill="#073f74" stroke="white" strokeWidth="0.7" />
+                  <circle cx={pipeStart.planX} cy={pipeStart.planY} r="1.6" fill={creationMode === 'cableado' ? getCableTypeOption(selectedPlanArea === 'electrical_lighting' ? 'alumbrado' : selectedPlanArea === 'electrical_bt' ? 'baja_tension' : 'media_tension').color : '#073f74'} stroke="white" strokeWidth="0.7" />
                 </>
               )}
               {calibrationMode && calibrationStart && (
@@ -1688,7 +1722,7 @@ export const MapView: React.FC<MapViewProps> = ({
         <div className="absolute bottom-5 left-1/2 z-30 flex w-[min(92vw,560px)] -translate-x-1/2 items-center gap-3 rounded-xl border border-[#73b7d4] bg-[#073f74] px-4 py-3 text-sm text-white shadow-xl">
           <span className="material-symbols-outlined text-[21px] text-cyan-200">ads_click</span>
           <p className="flex-1 font-medium">{placementInstruction}</p>
-          {creationMode === 'tuberia' && pipeStart && (
+          {(creationMode === 'tuberia' || creationMode === 'cableado') && pipeStart && (
             <div className="flex shrink-0 overflow-hidden rounded-md border border-cyan-100/35 bg-white/10 text-[10px] font-bold">
               {([
                 ['libre', 'Libre'],

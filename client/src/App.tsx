@@ -295,7 +295,7 @@ export default function App() {
 
   const handleUpdatePhotoPosition = (
     photoId: string,
-    position: Pick<InspectionPhoto, 'planX' | 'planY' | 'planEndX' | 'planEndY'> & Partial<Pick<InspectionPhoto, 'metraje'>>,
+    position: Pick<InspectionPhoto, 'planX' | 'planY' | 'planEndX' | 'planEndY'> & Partial<Pick<InspectionPhoto, 'metraje' | 'cableMeters'>>,
   ) => {
     if (userAccess.role !== 'admin') {
       showToast('Solo el administrador puede mover o fijar elementos en el plano.', 'error');
@@ -320,7 +320,11 @@ export default function App() {
     const updatedPhotos = photos.map((photo) => {
       const metraje = valuesById.get(photo.id);
       if (metraje === undefined) return photo;
-      const updated = normalizeInspectionPhoto({ ...photo, metraje });
+      const updated = normalizeInspectionPhoto({
+        ...photo,
+        metraje,
+        ...(photo.electricalType === 'cableado' ? { cableMeters: metraje } : {}),
+      });
       recordsToSync.push(updated);
       return updated;
     });
@@ -346,8 +350,12 @@ export default function App() {
     const isCamera = elementType === 'camara';
     const isPipeline = elementType === 'tuberia';
     const isElectrical = elementType === 'electrico' && Boolean(electricalType);
+    const isCable = electricalType === 'cableado';
     const electricalOption = getElectricalElementOption(electricalType);
-    const elementName = isCamera ? 'Cámara' : isPipeline ? 'Tramo de tubería' : 'Caja';
+    const cableType = electricalArea === 'electrical_lighting'
+      ? 'alumbrado'
+      : electricalArea === 'electrical_bt' ? 'baja_tension' : 'media_tension';
+    const elementName = isCable ? 'Cableado' : isCamera ? 'Cámara' : isPipeline ? 'Tramo de tubería' : 'Caja';
     const newPhoto = normalizeInspectionPhoto({
       id: `plan-${Date.now()}`,
       displayId: `INSP-${createdAt.getFullYear()}-${suffix}`,
@@ -365,6 +373,9 @@ export default function App() {
       planArea: isElectrical ? electricalArea || getElectricalPlanArea(electricalType) : 'civil',
       electricalType: isElectrical ? electricalType : undefined,
       electricalColor: isElectrical ? electricalOption.color : undefined,
+      cableType: isCable ? cableType : undefined,
+      cableGauge: isCable ? '350' : undefined,
+      cableMeters: isCable ? initialMetraje ?? 0 : undefined,
       cameraCode: isCamera ? 'SB850' : undefined,
       cameraType: isCamera ? 'MT' : undefined,
       tramo: isPipeline ? '' : undefined,

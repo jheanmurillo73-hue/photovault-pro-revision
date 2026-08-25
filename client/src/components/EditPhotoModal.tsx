@@ -3,7 +3,7 @@
  * objeto seleccionado; una tubería nunca guarda datos de cámara, y viceversa.
  */
 import React, { useRef, useState } from 'react';
-import { InspectionPhoto, ExecutionStatus, CameraCode, CameraType, ElementType, ActaLabelPosition, getElectricalElementOption, getElectricalPlanArea, getElementType, getPipeNetworkOption, PIPE_NETWORK_OPTIONS, PipeNetworkType } from '../types';
+import { CableGauge, CableType, CABLE_GAUGE_OPTIONS, CABLE_TYPE_OPTIONS, InspectionPhoto, ExecutionStatus, CameraCode, CameraType, ElementType, ActaLabelPosition, getElectricalElementOption, getElectricalPlanArea, getElementType, getPipeNetworkOption, PIPE_NETWORK_OPTIONS, PipeNetworkType } from '../types';
 import { WAREHOUSE_LOCATIONS, CAMERA_CODES, CAMERA_TYPES } from '../data/mockData';
 import { compressImageForDevice } from '../services/deviceStorageService';
 import { TramoSelector } from './TramoSelector';
@@ -53,6 +53,9 @@ export const EditPhotoModal: React.FC<EditPhotoModalProps> = ({
   const [tramo, setTramo] = useState<string>(photo.tramo || '3x4"');
   const [metraje, setMetraje] = useState<string>(photo.metraje !== undefined ? String(photo.metraje) : '');
   const [pipeNetworkType, setPipeNetworkType] = useState<PipeNetworkType>(getPipeNetworkOption(photo.pipeNetworkType).value);
+  const [cableType, setCableType] = useState<CableType>(photo.cableType || (photo.planArea === 'electrical_lighting' ? 'alumbrado' : photo.planArea === 'electrical_bt' ? 'baja_tension' : 'media_tension'));
+  const [cableGauge, setCableGauge] = useState<CableGauge>(photo.cableGauge || '350');
+  const [cableMeters, setCableMeters] = useState<string>(photo.cableMeters !== undefined ? String(photo.cableMeters) : '');
   const [fieldNotes, setFieldNotes] = useState(photo.fieldNotes ?? '');
   const [executionStatus, setExecutionStatus] = useState<ExecutionStatus>(photo.executionStatus || 'En proceso');
   const [requiresImmediateAction, setRequiresImmediateAction] = useState(photo.requiresImmediateAction ?? false);
@@ -112,6 +115,9 @@ export const EditPhotoModal: React.FC<EditPhotoModalProps> = ({
       metraje: elementType === 'tuberia' ? metraje.trim() || undefined : undefined,
       pipeNetworkType: elementType === 'tuberia' ? pipeNetworkType : undefined,
       pipeColor: elementType === 'tuberia' ? getPipeNetworkOption(pipeNetworkType).color : undefined,
+      cableType: photo.electricalType === 'cableado' ? cableType : undefined,
+      cableGauge: photo.electricalType === 'cableado' ? cableGauge : undefined,
+      cableMeters: photo.electricalType === 'cableado' ? cableMeters.trim() || undefined : undefined,
       fieldNotes: fieldNotes.trim(),
       executionStatus,
       requiresImmediateAction,
@@ -394,6 +400,32 @@ export const EditPhotoModal: React.FC<EditPhotoModalProps> = ({
                 </div>
               </div>
               <p className="mt-2 text-[11px] leading-5 text-[#6b5a85]">El activo y su capa se definen en el plano. Aquí solo se actualizan propiedades operativas permitidas.</p>
+            </div>
+          )}
+
+          {photo.electricalType === 'cableado' && (
+            <div className="rounded-xl border border-[#c7d9ec] bg-[#f6fbff] p-3">
+              <p className="font-['Inter'] text-[13px] font-bold text-[#0c4a6e]">Propiedades del cableado</p>
+              <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                <div>
+                  <label className="block text-[12px] font-bold text-[#173f58]">Tipo de cable</label>
+                  <select value={cableType} onChange={(event) => setCableType(event.target.value as CableType)} className="mt-1.5 w-full rounded-lg border border-[#bcd4e6] bg-white p-2 text-[13px] text-[#173f58] outline-none focus:border-[#0369a1]">
+                    {CABLE_TYPE_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[12px] font-bold text-[#173f58]">Calibre del cable</label>
+                  <div className="mt-1.5 grid grid-cols-4 gap-1.5">
+                    {CABLE_GAUGE_OPTIONS.map((gauge) => (
+                      <button key={gauge} type="button" onClick={() => setCableGauge(gauge)} className={`rounded-md border px-1 py-2 text-[11px] font-bold ${cableGauge === gauge ? 'border-[#0369a1] bg-[#0369a1] text-white' : 'border-[#bcd4e6] bg-white text-[#36576e]'}`}>{gauge}</button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+              <div className="mt-3">
+                <label className="block text-[12px] font-bold text-[#173f58]">Medida del cable en metros</label>
+                <input type="number" min="0" step="0.01" value={cableMeters} onChange={(event) => setCableMeters(event.target.value)} placeholder="Ej. 125.50" className="mt-1.5 w-full rounded-lg border border-[#bcd4e6] bg-white p-2 text-[13px] text-[#173f58] outline-none focus:border-[#0369a1]" />
+              </div>
             </div>
           )}
 

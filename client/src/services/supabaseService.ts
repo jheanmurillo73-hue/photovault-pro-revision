@@ -222,6 +222,9 @@ export const supabaseService = {
         plan_area: photo.planArea || 'civil',
         electrical_type: photo.electricalType || null,
         electrical_color: photo.electricalColor || null,
+        cable_type: photo.cableType || null,
+        cable_gauge: photo.cableGauge || null,
+        cable_meters: photo.cableMeters !== undefined ? String(photo.cableMeters) : null,
         inspector_name: photo.inspectorName,
         inspector_id: photo.inspectorId,
         inspector_avatar: photo.inspectorAvatar,
@@ -281,6 +284,9 @@ export const supabaseService = {
       plan_area: photo.planArea || 'civil',
       electrical_type: photo.electricalType || null,
       electrical_color: photo.electricalColor || null,
+      cable_type: photo.cableType || null,
+      cable_gauge: photo.cableGauge || null,
+      cable_meters: photo.cableMeters !== undefined ? String(photo.cableMeters) : null,
       inspector_name: photo.inspectorName,
       inspector_id: photo.inspectorId,
       inspector_avatar: photo.inspectorAvatar,
@@ -363,11 +369,18 @@ export const supabaseService = {
           : item.plan_area === 'electrical' ? 'electrical_mt' : 'civil',
         electricalType: [
           'transformador', 'tablero_baja_tension', 'tablero_distribucion', 'barrajes_elastomericos',
-          'malla_tierra', 'poste_media_tension', 'poste_alumbrado', 'reconectador',
+          'malla_tierra', 'poste_media_tension', 'poste_alumbrado', 'reconectador', 'cableado',
         ].includes(item.electrical_type) ? item.electrical_type : undefined,
         electricalColor: typeof item.electrical_color === 'string' && /^#[0-9a-fA-F]{6}$/.test(item.electrical_color)
           ? item.electrical_color
           : undefined,
+        cableType: ['media_tension', 'baja_tension', 'alumbrado'].includes(item.cable_type)
+          ? item.cable_type
+          : undefined,
+        cableGauge: ['350', '500', '2/0', '4/0'].includes(item.cable_gauge)
+          ? item.cable_gauge
+          : undefined,
+        cableMeters: item.cable_meters || undefined,
         inspectorName: item.inspector_name || 'Inspector',
         inspectorId: item.inspector_id || '8842',
         inspectorAvatar: item.inspector_avatar || '',
@@ -630,6 +643,9 @@ CREATE TABLE IF NOT EXISTS public.inspection_photos (
   plan_area TEXT NOT NULL DEFAULT 'civil' CHECK (plan_area IN ('civil', 'electrical', 'electrical_mt', 'electrical_bt', 'electrical_lighting')),
   electrical_type TEXT,
   electrical_color TEXT CHECK (electrical_color IS NULL OR electrical_color ~ '^#[0-9A-Fa-f]{6}$'),
+  cable_type TEXT CHECK (cable_type IS NULL OR cable_type IN ('media_tension', 'baja_tension', 'alumbrado')),
+  cable_gauge TEXT CHECK (cable_gauge IS NULL OR cable_gauge IN ('350', '500', '2/0', '4/0')),
+  cable_meters TEXT,
   inspector_name TEXT NOT NULL,
   inspector_id TEXT NOT NULL,
   inspector_avatar TEXT DEFAULT '',
@@ -657,6 +673,9 @@ ALTER TABLE public.inspection_photos ADD COLUMN IF NOT EXISTS show_acta_label BO
 ALTER TABLE public.inspection_photos ADD COLUMN IF NOT EXISTS acta_label_position TEXT NOT NULL DEFAULT 'derecha' CHECK (acta_label_position IN ('arriba', 'abajo', 'izquierda', 'derecha'));
 ALTER TABLE public.inspection_photos ADD COLUMN IF NOT EXISTS pipe_network_type TEXT CHECK (pipe_network_type IS NULL OR pipe_network_type IN ('media_tension', 'baja_tension', 'datos'));
 ALTER TABLE public.inspection_photos ADD COLUMN IF NOT EXISTS pipe_color TEXT CHECK (pipe_color IS NULL OR pipe_color ~ '^#[0-9A-Fa-f]{6}$');
+ALTER TABLE public.inspection_photos ADD COLUMN IF NOT EXISTS cable_type TEXT CHECK (cable_type IS NULL OR cable_type IN ('media_tension', 'baja_tension', 'alumbrado'));
+ALTER TABLE public.inspection_photos ADD COLUMN IF NOT EXISTS cable_gauge TEXT CHECK (cable_gauge IS NULL OR cable_gauge IN ('350', '500', '2/0', '4/0'));
+ALTER TABLE public.inspection_photos ADD COLUMN IF NOT EXISTS cable_meters TEXT;
 ALTER TABLE public.inspection_photos ADD COLUMN IF NOT EXISTS plan_area TEXT NOT NULL DEFAULT 'civil';
 UPDATE public.inspection_photos SET plan_area = 'electrical_mt' WHERE plan_area = 'electrical';
 ALTER TABLE public.inspection_photos DROP CONSTRAINT IF EXISTS inspection_photos_plan_area_check;

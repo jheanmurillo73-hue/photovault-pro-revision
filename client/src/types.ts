@@ -22,7 +22,22 @@ export type ElectricalElementType =
   | 'malla_tierra'
   | 'poste_media_tension'
   | 'poste_alumbrado'
-  | 'reconectador';
+  | 'reconectador'
+  | 'cableado';
+
+export type CableType = 'media_tension' | 'baja_tension' | 'alumbrado';
+export type CableGauge = '350' | '500' | '2/0' | '4/0';
+
+export const CABLE_TYPE_OPTIONS: ReadonlyArray<{ value: CableType; label: string; color: string }> = [
+  { value: 'media_tension', label: 'Media tensión', color: '#6D28D9' },
+  { value: 'baja_tension', label: 'Baja tensión', color: '#0369A1' },
+  { value: 'alumbrado', label: 'Alumbrado', color: '#CA8A04' },
+];
+
+export const CABLE_GAUGE_OPTIONS: ReadonlyArray<CableGauge> = ['350', '500', '2/0', '4/0'];
+
+export const getCableTypeOption = (value?: string) =>
+  CABLE_TYPE_OPTIONS.find((option) => option.value === value) || CABLE_TYPE_OPTIONS[0];
 
 export const ELECTRICAL_ELEMENT_OPTIONS: ReadonlyArray<{
   value: ElectricalElementType;
@@ -39,6 +54,7 @@ export const ELECTRICAL_ELEMENT_OPTIONS: ReadonlyArray<{
   { value: 'poste_media_tension', label: 'Poste de media tensión', shortLabel: 'Poste MT', icon: 'cell_tower', color: '#B91C1C' },
   { value: 'poste_alumbrado', label: 'Poste de alumbrado', shortLabel: 'Poste alumbrado', icon: 'light', color: '#CA8A04' },
   { value: 'reconectador', label: 'Reconectador', shortLabel: 'Reconectador', icon: 'power', color: '#9F1239' },
+  { value: 'cableado', label: 'Cableado eléctrico', shortLabel: 'Cableado', icon: 'cable', color: '#6D28D9' },
 ];
 
 export const getElectricalElementOption = (value?: string) =>
@@ -125,6 +141,9 @@ export interface InspectionPhoto {
   planArea?: PlanArea;
   electricalType?: ElectricalElementType;
   electricalColor?: string;
+  cableType?: CableType;
+  cableGauge?: CableGauge;
+  cableMeters?: number | string;
   inspectorName: string;
   inspectorId: string;
   inspectorAvatar: string;
