@@ -70,6 +70,7 @@ export const EditPhotoModal: React.FC<EditPhotoModalProps> = ({
   const [imageSize, setImageSize] = useState(photo.fileSize ?? '');
   const [isProcessingImage, setIsProcessingImage] = useState(false);
   const [imageError, setImageError] = useState<string | null>(null);
+  const [photoIndexPendingRemoval, setPhotoIndexPendingRemoval] = useState<number | null>(null);
   const galleryInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const electricalOption = getElectricalElementOption(photo.electricalType);
@@ -113,6 +114,21 @@ export const EditPhotoModal: React.FC<EditPhotoModalProps> = ({
       setIsProcessingImage(false);
       event.target.value = '';
     }
+  };
+
+  const requestPhotoRemoval = (index: number) => {
+    if (imageUrls.length <= 1) {
+      setImageError('El elemento debe conservar una foto de portada. Agrega otra evidencia antes de eliminar esta foto.');
+      return;
+    }
+    setImageError(null);
+    setPhotoIndexPendingRemoval(index);
+  };
+
+  const confirmPhotoRemoval = () => {
+    if (photoIndexPendingRemoval === null) return;
+    setImageUrls((previous) => previous.filter((_, index) => index !== photoIndexPendingRemoval));
+    setPhotoIndexPendingRemoval(null);
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -224,11 +240,9 @@ export const EditPhotoModal: React.FC<EditPhotoModalProps> = ({
                       <img src={url} alt={`Foto de evidencia ${index + 1}`} className="h-full w-full object-cover" />
                     </button>
                     {index === 0 && <span className="absolute left-1 top-1 rounded bg-[#073f74] px-1 py-0.5 text-[8px] font-bold text-white">PORTADA</span>}
-                    {imageUrls.length > 1 && (
-                      <button type="button" onClick={() => setImageUrls((previous) => previous.filter((_, itemIndex) => itemIndex !== index))} className="absolute right-1 top-1 grid h-5 w-5 place-items-center rounded-full bg-[#8b1d1d] text-white opacity-0 transition-opacity group-hover:opacity-100 focus:opacity-100" title={`Eliminar foto ${index + 1}`} aria-label={`Eliminar foto ${index + 1}`}>
-                        <span className="material-symbols-outlined text-[13px]">close</span>
-                      </button>
-                    )}
+                    <button type="button" onClick={() => requestPhotoRemoval(index)} className={`absolute right-1 top-1 grid h-5 w-5 place-items-center rounded-full text-white shadow-sm transition ${imageUrls.length > 1 ? 'bg-[#8b1d1d] hover:bg-[#6f1515]' : 'bg-[#607d8b] hover:bg-[#466473]'}`} title={imageUrls.length > 1 ? `Eliminar foto ${index + 1}` : 'Agrega otra foto antes de eliminar la portada'} aria-label={imageUrls.length > 1 ? `Eliminar foto ${index + 1}` : 'La foto de portada no puede eliminarse todavía'}>
+                      <span className="material-symbols-outlined text-[13px]">delete</span>
+                    </button>
                   </div>
                 ))}
               </div>
@@ -260,6 +274,22 @@ export const EditPhotoModal: React.FC<EditPhotoModalProps> = ({
             <input ref={galleryInputRef} type="file" accept="image/*" multiple onChange={handlePhotoChange} className="hidden" />
             <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" onChange={handlePhotoChange} className="hidden" />
           </div>
+
+          {photoIndexPendingRemoval !== null && (
+            <div className="rounded-xl border border-[#e6b4b0] bg-[#fff8f7] p-3 shadow-sm">
+              <div className="flex items-start gap-2">
+                <span className="material-symbols-outlined mt-0.5 text-[19px] text-[#a52d27]">warning</span>
+                <div className="min-w-0 flex-1">
+                  <p className="text-[13px] font-bold text-[#7f1d1d]">¿Eliminar la foto {photoIndexPendingRemoval + 1}?</p>
+                  <p className="mt-0.5 text-[11px] leading-4 text-[#7f3a35]">La foto se retirará de la galería cuando guardes las propiedades del elemento.</p>
+                  <div className="mt-2 flex justify-end gap-2">
+                    <button type="button" onClick={() => setPhotoIndexPendingRemoval(null)} className="rounded-md border border-[#d5b6b2] bg-white px-2.5 py-1.5 text-[11px] font-bold text-[#6e4944] hover:bg-[#fff1ef]">Cancelar</button>
+                    <button type="button" onClick={confirmPhotoRemoval} className="rounded-md bg-[#a52d27] px-2.5 py-1.5 text-[11px] font-bold text-white hover:bg-[#861f1b]">Eliminar foto</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
 
           <div>
             <label className="block font-['Inter'] font-bold text-[13px] text-[#071e27] mb-1">
