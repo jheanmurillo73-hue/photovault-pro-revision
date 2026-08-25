@@ -4,7 +4,7 @@
  */
 export type SyncStatus = 'Synced' | 'In Progress' | 'Flagged';
 
-export type ExecutionStatus = 'En proceso' | 'Terminado';
+export type ExecutionStatus = 'No iniciado' | 'En proceso' | 'Terminado';
 
 export type CameraCode = 'SB850' | 'SB851' | 'SB858' | string;
 
@@ -75,6 +75,54 @@ export const getElectricalPlanArea = (electricalType?: ElectricalElementType): P
 
 export type PipeNetworkType = 'media_tension' | 'baja_tension' | 'datos';
 
+export interface PipeConduit {
+  id: string;
+  networkType: PipeNetworkType;
+  configuration: string;
+  meters: number | string;
+}
+
+export const getDefaultPipeConfiguration = (networkType: PipeNetworkType): string =>
+  networkType === 'baja_tension' ? '2x6"' : '3x4"';
+
+const isPipeNetworkType = (value: unknown): value is PipeNetworkType =>
+  value === 'media_tension' || value === 'baja_tension' || value === 'datos';
+
+export const normalizePipeConduits = (
+  value: unknown,
+  legacy?: Partial<Pick<PipeConduit, 'networkType' | 'configuration' | 'meters'>>,
+): PipeConduit[] => {
+  const candidates = Array.isArray(value) ? value : [];
+  const conduits = candidates.reduce<PipeConduit[]>((items, candidate, index) => {
+    if (!candidate || typeof candidate !== 'object') return items;
+    const item = candidate as Partial<PipeConduit>;
+    if (!isPipeNetworkType(item.networkType)) return items;
+    const configuration = typeof item.configuration === 'string' && item.configuration.trim()
+      ? item.configuration.trim()
+      : getDefaultPipeConfiguration(item.networkType);
+    const meters = typeof item.meters === 'number' || (typeof item.meters === 'string' && item.meters.trim())
+      ? item.meters
+      : 0;
+    items.push({
+      id: typeof item.id === 'string' && item.id.trim() ? item.id : `${item.networkType}-${index + 1}`,
+      networkType: item.networkType,
+      configuration,
+      meters,
+    });
+    return items;
+  }, []);
+
+  if (conduits.length > 0 || !legacy || !isPipeNetworkType(legacy.networkType)) return conduits;
+  return [{
+    id: `${legacy.networkType}-1`,
+    networkType: legacy.networkType,
+    configuration: typeof legacy.configuration === 'string' && legacy.configuration.trim()
+      ? legacy.configuration.trim()
+      : getDefaultPipeConfiguration(legacy.networkType),
+    meters: legacy.meters ?? 0,
+  }];
+};
+
 export const PIPE_NETWORK_OPTIONS: ReadonlyArray<{
   value: PipeNetworkType;
   label: string;
@@ -90,6 +138,14 @@ export const getPipeNetworkOption = (value?: string) =>
   PIPE_NETWORK_OPTIONS.find((option) => option.value === value) || PIPE_NETWORK_OPTIONS[1];
 
 export type ActaLabelPosition = 'arriba' | 'abajo' | 'izquierda' | 'derecha';
+
+export interface ActaItem {
+  code: string;
+  description: string;
+  unit: string;
+  quantity: string;
+  section: string;
+}
 
 export type AppRole = 'admin' | 'inspector';
 
@@ -129,12 +185,14 @@ export interface InspectionPhoto {
   cameraCode?: CameraCode;
   cameraType?: CameraType;
   acta?: string;
+  actaItem?: ActaItem;
   showActaLabel?: boolean;
   actaLabelPosition?: ActaLabelPosition;
   tramo?: string;
   metraje?: number | string;
   pipeNetworkType?: PipeNetworkType;
   pipeColor?: string;
+  pipeConduits?: PipeConduit[];
   latitude?: number;
   longitude?: number;
   endLatitude?: number;

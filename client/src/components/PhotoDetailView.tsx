@@ -72,11 +72,16 @@ export const PhotoDetailView: React.FC<PhotoDetailViewProps> = ({
 
   const currentExecutionStatus = photo.executionStatus || 'En proceso';
   const elementType = getElementType(photo);
-  const galleryImages = Array.isArray(photo.imageUrls) && photo.imageUrls.length > 0
-    ? photo.imageUrls.filter((url): url is string => typeof url === 'string' && url.trim().length > 0)
-    : [photo.imageUrl];
-  const activeImageUrl = galleryImages[activeImageIndex] || galleryImages[0] || photo.imageUrl;
+  const galleryImages = Array.isArray(photo.imageUrls)
+    ? photo.imageUrls.filter((url): url is string => typeof url === 'string' && url.trim().length > 0 && !url.startsWith('data:image/svg+xml'))
+    : [];
+  const hasEvidence = galleryImages.length > 0;
+  const activeImageUrl = galleryImages[activeImageIndex] || galleryImages[0];
   const hasMultipleImages = galleryImages.length > 1;
+
+  useEffect(() => {
+    if (!hasEvidence) setIsFullscreen(false);
+  }, [hasEvidence]);
 
   useEffect(() => {
     setActiveImageIndex((current) => Math.min(current, Math.max(0, galleryImages.length - 1)));
@@ -105,6 +110,7 @@ export const PhotoDetailView: React.FC<PhotoDetailViewProps> = ({
   };
 
   const openImageFullscreen = (index: number) => {
+    if (!hasEvidence) return;
     setActiveImageIndex(index);
     setZoomLevel(1);
     setIsFullscreen(true);
@@ -165,22 +171,32 @@ export const PhotoDetailView: React.FC<PhotoDetailViewProps> = ({
         <div className="flex-1 bg-[#f3faff] border border-[#c2c6d4] rounded-xl overflow-hidden flex flex-col shadow-xs relative group min-h-[480px] lg:min-h-[640px]">
           {/* Image Area */}
           <div className="flex-1 relative bg-[#e6f6ff] flex items-center justify-center p-4 overflow-hidden select-none">
-            <button
-              type="button"
-              onClick={() => openImageFullscreen(activeImageIndex)}
-              aria-label={`Abrir foto ${activeImageIndex + 1} de ${galleryImages.length} a pantalla completa`}
-              className="w-full h-full flex items-center justify-center transition-transform duration-200"
-              style={{
-                transform: `scale(${zoomLevel})`,
-                cursor: zoomLevel > 1 ? 'grab' : 'zoom-in',
-              }}
-            >
-              <img
-                src={activeImageUrl}
-                alt={`${photo.name} — evidencia ${activeImageIndex + 1} de ${galleryImages.length}`}
-                className="w-full h-full object-contain max-h-[720px] rounded"
-              />
-            </button>
+            {hasEvidence ? (
+              <button
+                type="button"
+                onClick={() => openImageFullscreen(activeImageIndex)}
+                aria-label={`Abrir foto ${activeImageIndex + 1} de ${galleryImages.length} a pantalla completa`}
+                className="w-full h-full flex items-center justify-center transition-transform duration-200"
+                style={{
+                  transform: `scale(${zoomLevel})`,
+                  cursor: zoomLevel > 1 ? 'grab' : 'zoom-in',
+                }}
+              >
+                <img
+                  src={activeImageUrl}
+                  alt={`${photo.name} — evidencia ${activeImageIndex + 1} de ${galleryImages.length}`}
+                  className="w-full h-full object-contain max-h-[720px] rounded"
+                />
+              </button>
+            ) : (
+              <div className="flex h-full w-full flex-col items-center justify-center gap-3 rounded-lg border border-dashed border-[#a7c8da] bg-white/70 px-6 text-center" role="status">
+                <span className="material-symbols-outlined grid h-14 w-14 place-items-center rounded-full bg-[#e6f6ff] text-[30px] text-[#607d8b]">hide_image</span>
+                <div>
+                  <p className="text-sm font-bold uppercase tracking-wide text-[#355a70]">Sin evidencia</p>
+                  <p className="mt-1 text-xs leading-5 text-[#607d8b]">Este elemento no tiene fotos disponibles en su galería.</p>
+                </div>
+              </div>
+            )}
 
             {hasMultipleImages && (
               <>
@@ -194,7 +210,7 @@ export const PhotoDetailView: React.FC<PhotoDetailViewProps> = ({
             )}
 
             {/* Image Overlay Controls */}
-            <div className="absolute top-4 right-4 flex items-center gap-2 opacity-90 sm:opacity-0 group-hover:opacity-100 transition-opacity duration-200 bg-[#f3faff]/80 backdrop-blur-xs p-1 rounded-full border border-[#c2c6d4]">
+            {hasEvidence && <div className="absolute top-4 right-4 flex items-center gap-2 opacity-90 sm:opacity-0 group-hover:opacity-100 transition-opacity duration-200 bg-[#f3faff]/80 backdrop-blur-xs p-1 rounded-full border border-[#c2c6d4]">
               <button
                 type="button"
                 onClick={handleZoomIn}
@@ -231,15 +247,16 @@ export const PhotoDetailView: React.FC<PhotoDetailViewProps> = ({
               >
                 <span className="material-symbols-outlined text-[18px]">fullscreen</span>
               </button>
-            </div>
+            </div>}
           </div>
 
           <div className="border-t border-[#c2c6d4] bg-white px-3 py-2.5">
             <div className="mb-2 flex items-center justify-between gap-2">
-              <span className="font-mono text-[10px] font-bold tracking-wide text-[#527284]">EVIDENCIAS · {activeImageIndex + 1}/{galleryImages.length}</span>
+              <span className="font-mono text-[10px] font-bold tracking-wide text-[#527284]">{hasEvidence ? `EVIDENCIAS · ${activeImageIndex + 1}/${galleryImages.length}` : 'SIN EVIDENCIA'}</span>
               {hasMultipleImages && <span className="text-[10px] text-[#607d8b]">Selecciona una miniatura para ampliar</span>}
             </div>
             <div className="flex gap-2 overflow-x-auto pb-0.5">
+              {!hasEvidence && <span className="rounded-md border border-dashed border-[#a7c8da] bg-[#f3faff] px-2.5 py-2 text-[10px] font-medium text-[#607d8b]">No hay miniaturas disponibles.</span>}
               {galleryImages.map((imageUrl, index) => (
                 <button
                   key={`${imageUrl.slice(0, 32)}-${index}`}
@@ -635,7 +652,7 @@ export const PhotoDetailView: React.FC<PhotoDetailViewProps> = ({
       </div>
 
       {/* Fullscreen Lightbox Modal */}
-      {isFullscreen && (
+      {isFullscreen && hasEvidence && (
         <div className="fixed inset-0 z-50 bg-black/95 flex flex-col p-4 animate-in fade-in duration-200">
           <div className="flex justify-between items-center text-white pb-3 border-b border-white/20">
             <div>

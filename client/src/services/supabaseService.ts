@@ -1,5 +1,5 @@
 import { getSupabaseClient, isSupabaseConfigured, getActiveSupabaseConfig } from '../lib/supabase';
-import { InspectionPhoto, InspectorProfile, ActivityItem, InspectionCollection, AppSettings, AppModule, AppRole, UserAccess } from '../types';
+import { ActaItem, InspectionPhoto, InspectorProfile, ActivityItem, InspectionCollection, AppSettings, AppModule, AppRole, UserAccess, normalizePipeConduits } from '../types';
 import { ALL_OPERATIONAL_MODULES, createFallbackAccess, isPrimaryAdmin, normalizeModules } from '../lib/accessControl';
 
 const parseImageUrls = (value: unknown, fallback?: string): string[] => {
@@ -13,6 +13,38 @@ const parseImageUrls = (value: unknown, fallback?: string): string[] => {
     }
   }
   return fallback ? [fallback] : [];
+};
+
+const parsePipeConduits = (value: unknown) => {
+  if (Array.isArray(value)) return normalizePipeConduits(value);
+  if (typeof value !== 'string' || !value.trim()) return [];
+  try {
+    return normalizePipeConduits(JSON.parse(value));
+  } catch {
+    return [];
+  }
+};
+
+const parseActaItem = (value: unknown): ActaItem | undefined => {
+  if (!value) return undefined;
+  let candidate = value;
+  if (typeof value === 'string') {
+    try {
+      candidate = JSON.parse(value);
+    } catch {
+      return undefined;
+    }
+  }
+  if (!candidate || typeof candidate !== 'object' || Array.isArray(candidate)) return undefined;
+  const item = candidate as Partial<ActaItem>;
+  if (typeof item.code !== 'string' || typeof item.description !== 'string') return undefined;
+  return {
+    code: item.code,
+    description: item.description,
+    unit: typeof item.unit === 'string' ? item.unit : '',
+    quantity: typeof item.quantity === 'string' ? item.quantity : '',
+    section: typeof item.section === 'string' ? item.section : 'Sin categoría',
+  };
 };
 
 export interface SupabaseConnectionStatus {
@@ -227,12 +259,14 @@ export const supabaseService = {
         camera_code: photo.cameraCode || 'SB850',
         camera_type: photo.cameraType || 'MT',
         acta: photo.acta || null,
+        acta_item: photo.actaItem || null,
         show_acta_label: photo.showActaLabel ?? true,
         acta_label_position: photo.actaLabelPosition || 'derecha',
         tramo: photo.tramo || null,
-        metraje: photo.metraje ? String(photo.metraje) : null,
+        metraje: photo.metraje !== undefined ? String(photo.metraje) : null,
         pipe_network_type: photo.pipeNetworkType || null,
         pipe_color: photo.pipeColor || null,
+        pipe_conduits: photo.pipeConduits || [],
         plan_area: photo.planArea || 'civil',
         electrical_type: photo.electricalType || null,
         electrical_color: photo.electricalColor || null,
@@ -290,12 +324,14 @@ export const supabaseService = {
       camera_code: photo.cameraCode || 'SB850',
       camera_type: photo.cameraType || 'MT',
       acta: photo.acta || null,
+      acta_item: photo.actaItem || null,
       show_acta_label: photo.showActaLabel ?? true,
       acta_label_position: photo.actaLabelPosition || 'derecha',
       tramo: photo.tramo || null,
-      metraje: photo.metraje ? String(photo.metraje) : null,
+      metraje: photo.metraje !== undefined ? String(photo.metraje) : null,
       pipe_network_type: photo.pipeNetworkType || null,
       pipe_color: photo.pipeColor || null,
+      pipe_conduits: photo.pipeConduits || [],
       plan_area: photo.planArea || 'civil',
       electrical_type: photo.electricalType || null,
       electrical_color: photo.electricalColor || null,
@@ -370,6 +406,7 @@ export const supabaseService = {
         cameraCode: item.camera_code || 'SB850',
         cameraType: item.camera_type || 'MT',
         acta: item.acta || undefined,
+        actaItem: parseActaItem(item.acta_item),
         showActaLabel: item.show_acta_label !== false,
         actaLabelPosition: ['arriba', 'abajo', 'izquierda', 'derecha'].includes(item.acta_label_position)
           ? item.acta_label_position
@@ -382,6 +419,7 @@ export const supabaseService = {
         pipeColor: typeof item.pipe_color === 'string' && /^#[0-9a-fA-F]{6}$/.test(item.pipe_color)
           ? item.pipe_color
           : undefined,
+        pipeConduits: parsePipeConduits(item.pipe_conduits),
         planArea: item.plan_area === 'electrical_mt' || item.plan_area === 'electrical_bt' || item.plan_area === 'electrical_lighting'
           ? item.plan_area
           : item.plan_area === 'electrical' ? 'electrical_mt' : 'civil',
@@ -647,19 +685,21 @@ CREATE TABLE IF NOT EXISTS public.inspection_photos (
   date TEXT NOT NULL,
   date_raw TEXT,
   status TEXT NOT NULL DEFAULT 'Synced' CHECK (status IN ('Synced', 'In Progress', 'Flagged')),
-  execution_status TEXT NOT NULL DEFAULT 'En proceso' CHECK (execution_status IN ('En proceso', 'Terminado')),
+  execution_status TEXT NOT NULL DEFAULT 'No iniciado' CHECK (execution_status IN ('No iniciado', 'En proceso', 'Terminado')),
   category TEXT NOT NULL DEFAULT 'inspection',
   category_label TEXT NOT NULL DEFAULT 'Inspección General',
   location TEXT NOT NULL DEFAULT 'Bodega 1',
   camera_code TEXT DEFAULT 'SB850',
   camera_type TEXT DEFAULT 'MT',
   acta TEXT,
+  acta_item JSONB,
   show_acta_label BOOLEAN NOT NULL DEFAULT true,
   acta_label_position TEXT NOT NULL DEFAULT 'derecha' CHECK (acta_label_position IN ('arriba', 'abajo', 'izquierda', 'derecha')),
   tramo TEXT,
   metraje TEXT,
   pipe_network_type TEXT CHECK (pipe_network_type IS NULL OR pipe_network_type IN ('media_tension', 'baja_tension', 'datos')),
   pipe_color TEXT CHECK (pipe_color IS NULL OR pipe_color ~ '^#[0-9A-Fa-f]{6}$'),
+  pipe_conduits JSONB NOT NULL DEFAULT '[]'::jsonb,
   plan_area TEXT NOT NULL DEFAULT 'civil' CHECK (plan_area IN ('civil', 'electrical', 'electrical_mt', 'electrical_bt', 'electrical_lighting')),
   electrical_type TEXT,
   electrical_color TEXT CHECK (electrical_color IS NULL OR electrical_color ~ '^#[0-9A-Fa-f]{6}$'),
@@ -689,11 +729,13 @@ ALTER TABLE public.inspection_photos ADD COLUMN IF NOT EXISTS plan_y NUMERIC CHE
 ALTER TABLE public.inspection_photos ADD COLUMN IF NOT EXISTS plan_end_x NUMERIC CHECK (plan_end_x >= 0 AND plan_end_x <= 100);
 ALTER TABLE public.inspection_photos ADD COLUMN IF NOT EXISTS plan_end_y NUMERIC CHECK (plan_end_y >= 0 AND plan_end_y <= 100);
 ALTER TABLE public.inspection_photos ADD COLUMN IF NOT EXISTS acta TEXT;
+ALTER TABLE public.inspection_photos ADD COLUMN IF NOT EXISTS acta_item JSONB;
 ALTER TABLE public.inspection_photos ADD COLUMN IF NOT EXISTS image_urls TEXT;
 ALTER TABLE public.inspection_photos ADD COLUMN IF NOT EXISTS show_acta_label BOOLEAN NOT NULL DEFAULT true;
 ALTER TABLE public.inspection_photos ADD COLUMN IF NOT EXISTS acta_label_position TEXT NOT NULL DEFAULT 'derecha' CHECK (acta_label_position IN ('arriba', 'abajo', 'izquierda', 'derecha'));
 ALTER TABLE public.inspection_photos ADD COLUMN IF NOT EXISTS pipe_network_type TEXT CHECK (pipe_network_type IS NULL OR pipe_network_type IN ('media_tension', 'baja_tension', 'datos'));
 ALTER TABLE public.inspection_photos ADD COLUMN IF NOT EXISTS pipe_color TEXT CHECK (pipe_color IS NULL OR pipe_color ~ '^#[0-9A-Fa-f]{6}$');
+ALTER TABLE public.inspection_photos ADD COLUMN IF NOT EXISTS pipe_conduits JSONB NOT NULL DEFAULT '[]'::jsonb;
 ALTER TABLE public.inspection_photos ADD COLUMN IF NOT EXISTS cable_type TEXT CHECK (cable_type IS NULL OR cable_type IN ('media_tension', 'baja_tension', 'alumbrado'));
 ALTER TABLE public.inspection_photos ADD COLUMN IF NOT EXISTS cable_gauge TEXT CHECK (cable_gauge IS NULL OR cable_gauge IN ('350', '500', '2/0', '4/0', '12', '10', '8', '6'));
 ALTER TABLE public.inspection_photos ADD COLUMN IF NOT EXISTS cable_meters TEXT;

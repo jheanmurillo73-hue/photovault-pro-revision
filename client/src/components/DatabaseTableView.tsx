@@ -110,6 +110,9 @@ export const DatabaseTableView: React.FC<DatabaseTableViewProps> = ({
         const matchType = (photo.cameraType || '').toLowerCase().includes(query);
         const matchMetraje = String(photo.metraje || '').toLowerCase().includes(query);
         const matchCategory = (photo.categoryLabel || '').toLowerCase().includes(query);
+        const matchActaItem = [photo.actaItem?.code, photo.actaItem?.description, photo.actaItem?.section]
+          .filter(Boolean)
+          .some((value) => String(value).toLowerCase().includes(query));
 
         if (
           !matchCode &&
@@ -120,7 +123,8 @@ export const DatabaseTableView: React.FC<DatabaseTableViewProps> = ({
           !matchInspector &&
           !matchType &&
           !matchMetraje &&
-          !matchCategory
+          !matchCategory &&
+          !matchActaItem
         ) {
           return false;
         }
@@ -245,6 +249,10 @@ export const DatabaseTableView: React.FC<DatabaseTableViewProps> = ({
       'Código Cámara',
       'Tipo de Red',
       'Nombre Elemento',
+      'Ítem de Acta - Código',
+      'Ítem de Acta - Descripción',
+      'Ítem de Acta - Unidad',
+      'Ítem de Acta - Cantidad Contractual',
       'Tramo',
       'Metraje (m)',
       'Latitud',
@@ -265,6 +273,10 @@ export const DatabaseTableView: React.FC<DatabaseTableViewProps> = ({
       `"${p.cameraCode || 'N/A'}"`,
       `"${p.cameraType || 'MT'}"`,
       `"${(p.name || '').replace(/"/g, '""')}"`,
+      `"${(p.actaItem?.code || '').replace(/"/g, '""')}"`,
+      `"${(p.actaItem?.description || '').replace(/"/g, '""')}"`,
+      `"${(p.actaItem?.unit || '').replace(/"/g, '""')}"`,
+      `"${(p.actaItem?.quantity || '').replace(/"/g, '""')}"`,
       `"${(p.tramo || '').replace(/"/g, '""')}"`,
       `"${p.metraje || '0'}"`,
       `"${p.latitude || ''}"`,
@@ -716,6 +728,9 @@ export const DatabaseTableView: React.FC<DatabaseTableViewProps> = ({
                   </div>
                 </th>
 
+                {/* Ítem de acta */}
+                <th className="min-w-[250px] px-3 py-3.5">Ítem de acta</th>
+
                 {/* Tramo */}
                 <th
                   onClick={() => handleSort('tramo')}
@@ -802,7 +817,7 @@ export const DatabaseTableView: React.FC<DatabaseTableViewProps> = ({
             <tbody className="divide-y divide-[#c2c6d4]/60">
               {sortedPhotos.length === 0 ? (
                 <tr>
-                  <td colSpan={12} className="py-12 text-center text-[#727783]">
+                  <td colSpan={13} className="py-12 text-center text-[#727783]">
                     <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center mx-auto mb-3 text-slate-400">
                       <span className="material-symbols-outlined text-[28px]">search_off</span>
                     </div>
@@ -898,6 +913,21 @@ export const DatabaseTableView: React.FC<DatabaseTableViewProps> = ({
                           <span className="material-symbols-outlined text-[12px]">location_on</span>
                           <span className="truncate">{photo.location}</span>
                         </div>
+                      </td>
+
+                      {/* Ítem de acta */}
+                      <td className="px-3 py-3">
+                        {photo.actaItem ? (
+                          <div className="max-w-[260px]">
+                            <div className="flex items-center gap-1.5">
+                              <span className="rounded border border-cyan-200 bg-cyan-50 px-1.5 py-0.5 font-mono text-[10px] font-bold text-[#075a91]">{photo.actaItem.code}</span>
+                              {photo.actaItem.unit && <span className="text-[10px] font-bold text-[#547181]">{photo.actaItem.unit} · {photo.actaItem.quantity || '—'}</span>}
+                            </div>
+                            <p className="mt-1 line-clamp-2 text-[10px] leading-4 text-[#315c70]" title={photo.actaItem.description}>{photo.actaItem.description}</p>
+                          </div>
+                        ) : (
+                          <span className="text-xs text-slate-400">—</span>
+                        )}
                       </td>
 
                       {/* Tramo */}
