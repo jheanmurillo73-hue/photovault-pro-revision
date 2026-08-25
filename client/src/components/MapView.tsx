@@ -157,6 +157,18 @@ const PLAN_AREA_DETAILS: Record<'civil' | 'electrical_mt' | 'electrical_bt' | 'e
 };
 
 const QUICK_PLAN_AREAS = ['civil', 'electrical_mt', 'electrical_bt', 'electrical_lighting'] as const;
+type PlanFilter = 'all' | 'camara' | 'caja' | 'tuberia' | 'pending';
+type PlanAreaFilterState = Record<typeof QUICK_PLAN_AREAS[number], PlanFilter>;
+
+const DEFAULT_PLAN_AREA_FILTERS: PlanAreaFilterState = {
+  civil: 'all',
+  electrical_mt: 'all',
+  electrical_bt: 'all',
+  electrical_lighting: 'all',
+};
+
+const isPlanFilter = (value: unknown): value is PlanFilter =>
+  value === 'all' || value === 'camara' || value === 'caja' || value === 'tuberia' || value === 'pending';
 
 const elementLabel = (photo: InspectionPhoto) => {
   const type = getElementType(photo);
@@ -197,7 +209,17 @@ export const MapView: React.FC<MapViewProps> = ({
       return EMPTY_BLUEPRINT;
     }
   });
-  const [activeFilter, setActiveFilter] = useState<'all' | 'camara' | 'caja' | 'tuberia' | 'pending'>('all');
+  const [filtersByPlanArea, setFiltersByPlanArea] = useState<PlanAreaFilterState>(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem('photovault_plan_area_filters') || '{}') as Record<string, unknown>;
+      return QUICK_PLAN_AREAS.reduce<PlanAreaFilterState>((filters, area) => ({
+        ...filters,
+        [area]: isPlanFilter(saved[area]) ? saved[area] : 'all',
+      }), DEFAULT_PLAN_AREA_FILTERS);
+    } catch {
+      return DEFAULT_PLAN_AREA_FILTERS;
+    }
+  });
   const [selectedPlanArea, setSelectedPlanArea] = useState<PlanArea | null>(() => {
     const saved = localStorage.getItem('photovault_last_plan_area');
     return saved === 'civil' || saved === 'electrical_mt' || saved === 'electrical_bt' || saved === 'electrical_lighting'
@@ -247,6 +269,14 @@ export const MapView: React.FC<MapViewProps> = ({
   const blueprintStorageReadyRef = useRef(false);
   const dragTargetRef = useRef<DragTarget | null>(null);
   const panStartRef = useRef<{ clientX: number; clientY: number; offsetX: number; offsetY: number } | null>(null);
+  const activeFilter: PlanFilter = selectedPlanArea && selectedPlanArea !== 'electrical'
+    ? filtersByPlanArea[selectedPlanArea]
+    : 'all';
+
+  const setActiveFilter = (filter: PlanFilter) => {
+    if (!selectedPlanArea || selectedPlanArea === 'electrical') return;
+    setFiltersByPlanArea((previous) => ({ ...previous, [selectedPlanArea]: filter }));
+  };
 
   useEffect(() => {
     let active = true;
@@ -338,6 +368,14 @@ export const MapView: React.FC<MapViewProps> = ({
   }, [selectedPlanArea]);
 
   useEffect(() => {
+    try {
+      localStorage.setItem('photovault_plan_area_filters', JSON.stringify(filtersByPlanArea));
+    } catch {
+      // Los filtros permanecen disponibles durante la sesión si el navegador no permite persistirlos.
+    }
+  }, [filtersByPlanArea]);
+
+  useEffect(() => {
     if (!isPanelOpen) return;
     const closeOnEscape = (event: KeyboardEvent) => {
       if (event.key === 'Escape') setIsPanelOpen(false);
@@ -355,6 +393,16 @@ export const MapView: React.FC<MapViewProps> = ({
       return belongsToArea && (type === 'tuberia' || isCable(photo) ? !hasCompletePipe(photo) : !isPlaced(photo));
     }),
     [photos, selectedPlanArea],
+  );
+
+  const elementCountByPlanArea = useMemo(
+    () => QUICK_PLAN_AREAS.reduce<Record<typeof QUICK_PLAN_AREAS[number], number>>((counts, area) => {
+      counts[area] = photos.filter((photo) => area === 'civil'
+        ? !isElectricalPhoto(photo)
+        : getPhotoPlanArea(photo) === area).length;
+      return counts;
+    }, { civil: 0, electrical_mt: 0, electrical_bt: 0, electrical_lighting: 0 }),
+    [photos],
   );
 
   const visiblePhotos = useMemo(() => {
@@ -431,7 +479,6 @@ export const MapView: React.FC<MapViewProps> = ({
     setCalibrationDraft(null);
     setSelectedPlanPhotoId(null);
     exitMultipleSelection();
-    setActiveFilter('all');
     setSearchQuery('');
     setSelectedPlanArea(area);
   };
@@ -931,7 +978,7 @@ export const MapView: React.FC<MapViewProps> = ({
           <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
             <button
               type="button"
-              onClick={() => { setSelectedPlanArea('civil'); setActiveFilter('all'); }}
+              onClick={() => switchPlanArea('civil')}
               className="group overflow-hidden border border-[#9bc4d8] bg-white text-left shadow-[0_16px_34px_rgba(7,63,116,0.14)] transition hover:-translate-y-1 hover:border-[#0566aa] hover:shadow-[0_20px_42px_rgba(7,63,116,0.2)]"
             >
               <div className="flex items-center justify-between bg-[#eaf6fb] px-5 py-4">
@@ -949,7 +996,7 @@ export const MapView: React.FC<MapViewProps> = ({
             </button>
             <button
               type="button"
-              onClick={() => { setSelectedPlanArea('electrical_mt'); setActiveFilter('all'); }}
+              onClick={() => switchPlanArea('electrical_mt')}
               className="group overflow-hidden border border-[#ceb9f3] bg-white text-left shadow-[0_16px_34px_rgba(91,33,182,0.13)] transition hover:-translate-y-1 hover:border-[#7c3aed] hover:shadow-[0_20px_42px_rgba(91,33,182,0.2)]"
             >
               <div className="flex items-center justify-between bg-[#f4efff] px-5 py-4">
@@ -967,7 +1014,7 @@ export const MapView: React.FC<MapViewProps> = ({
             </button>
             <button
               type="button"
-              onClick={() => { setSelectedPlanArea('electrical_bt'); setActiveFilter('all'); }}
+              onClick={() => switchPlanArea('electrical_bt')}
               className="group overflow-hidden border border-[#a8cbe6] bg-white text-left shadow-[0_16px_34px_rgba(3,105,161,0.13)] transition hover:-translate-y-1 hover:border-[#0369a1] hover:shadow-[0_20px_42px_rgba(3,105,161,0.2)]"
             >
               <div className="flex items-center justify-between bg-[#eef7ff] px-5 py-4">
@@ -985,7 +1032,7 @@ export const MapView: React.FC<MapViewProps> = ({
             </button>
             <button
               type="button"
-              onClick={() => { setSelectedPlanArea('electrical_lighting'); setActiveFilter('all'); }}
+              onClick={() => switchPlanArea('electrical_lighting')}
               className="group overflow-hidden border border-[#ead28c] bg-white text-left shadow-[0_16px_34px_rgba(202,138,4,0.13)] transition hover:-translate-y-1 hover:border-[#ca8a04] hover:shadow-[0_20px_42px_rgba(202,138,4,0.2)]"
             >
               <div className="flex items-center justify-between bg-[#fff8e5] px-5 py-4">
@@ -1111,10 +1158,13 @@ export const MapView: React.FC<MapViewProps> = ({
                 className={`inline-flex h-7 items-center gap-1 rounded-md border px-2 text-[10px] font-bold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0566aa] focus-visible:ring-offset-1 ${isActive ? 'text-white shadow-sm' : 'border-transparent bg-[#f4f9fb] text-[#466473] hover:bg-[#e5f4fb]'}`}
                 style={isActive ? { backgroundColor: details.color, borderColor: details.color } : undefined}
                 aria-pressed={isActive}
-                title={`Cambiar a ${details.label}`}
+                title={`Cambiar a ${details.label}: ${elementCountByPlanArea[area]} elementos guardados`}
               >
                 <span className="material-symbols-outlined text-[14px]">{details.icon}</span>
                 {details.shortLabel}
+                <span className={`ml-0.5 inline-grid min-w-4 place-items-center rounded-full px-1 py-0.5 font-mono text-[9px] leading-none ${isActive ? 'bg-white/20 text-white' : 'bg-[#dbeaf1] text-[#315364]'}`} aria-label={`${elementCountByPlanArea[area]} elementos guardados`}>
+                  {elementCountByPlanArea[area]}
+                </span>
               </button>
             );
           })}

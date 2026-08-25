@@ -78,3 +78,5 @@
 - [x] Añadir un carrusel de fotos en la vista de detalle de cada elemento.
 - [x] Abrir las miniaturas del detalle en un visor de imágenes a pantalla completa.
 - [x] Añadir un menú de acceso rápido para alternar entre Obras Civiles, MT, BT y Alumbrado desde el plano.
+- [x] Recordar el filtro aplicado de manera independiente en cada capa del plano.
+- [x] Mostrar el total de elementos guardados en cada acceso rápido de capa.
