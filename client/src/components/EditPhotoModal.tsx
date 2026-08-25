@@ -3,7 +3,7 @@
  * objeto seleccionado; una tubería nunca guarda datos de cámara, y viceversa.
  */
 import React, { useRef, useState } from 'react';
-import { InspectionPhoto, ExecutionStatus, CameraCode, CameraType, ElementType, ActaLabelPosition, getElementType, getPipeNetworkOption, PIPE_NETWORK_OPTIONS, PipeNetworkType } from '../types';
+import { CableGauge, CableType, CABLE_TYPE_OPTIONS, getCableGaugeOptionsForPlanArea, InspectionPhoto, ExecutionStatus, CameraCode, CameraType, ElementType, ActaLabelPosition, getElectricalElementOption, getElectricalPlanArea, getElementType, getPipeNetworkOption, PIPE_NETWORK_OPTIONS, PipeNetworkType } from '../types';
 import { WAREHOUSE_LOCATIONS, CAMERA_CODES, CAMERA_TYPES } from '../data/mockData';
 import { compressImageForDevice } from '../services/deviceStorageService';
 import { TramoSelector } from './TramoSelector';
@@ -53,36 +53,63 @@ export const EditPhotoModal: React.FC<EditPhotoModalProps> = ({
   const [tramo, setTramo] = useState<string>(photo.tramo || '3x4"');
   const [metraje, setMetraje] = useState<string>(photo.metraje !== undefined ? String(photo.metraje) : '');
   const [pipeNetworkType, setPipeNetworkType] = useState<PipeNetworkType>(getPipeNetworkOption(photo.pipeNetworkType).value);
+  const [cableType, setCableType] = useState<CableType>(photo.cableType || (photo.planArea === 'electrical_lighting' ? 'alumbrado' : photo.planArea === 'electrical_bt' ? 'baja_tension' : 'media_tension'));
+  const [cableGauge, setCableGauge] = useState<CableGauge>(() => {
+    const availableGauges = getCableGaugeOptionsForPlanArea(photo.planArea);
+    return availableGauges.includes(photo.cableGauge as CableGauge) ? photo.cableGauge as CableGauge : availableGauges[0];
+  });
+  const [cableMeters, setCableMeters] = useState<string>(photo.cableMeters !== undefined ? String(photo.cableMeters) : '');
   const [fieldNotes, setFieldNotes] = useState(photo.fieldNotes ?? '');
   const [executionStatus, setExecutionStatus] = useState<ExecutionStatus>(photo.executionStatus || 'En proceso');
   const [requiresImmediateAction, setRequiresImmediateAction] = useState(photo.requiresImmediateAction ?? false);
   const [verified, setVerified] = useState(photo.verified ?? false);
-  const [imageUrl, setImageUrl] = useState(photo.imageUrl ?? '');
+  const [imageUrls, setImageUrls] = useState<string[]>(() => {
+    const existing = Array.isArray(photo.imageUrls) ? photo.imageUrls.filter(Boolean) : [];
+    return existing.length > 0 ? existing : photo.imageUrl ? [photo.imageUrl] : [];
+  });
   const [imageSize, setImageSize] = useState(photo.fileSize ?? '');
   const [isProcessingImage, setIsProcessingImage] = useState(false);
   const [imageError, setImageError] = useState<string | null>(null);
+  const [photoIndexPendingRemoval, setPhotoIndexPendingRemoval] = useState<number | null>(null);
+  const [draggedPhotoIndex, setDraggedPhotoIndex] = useState<number | null>(null);
+  const [dragOverPhotoIndex, setDragOverPhotoIndex] = useState<number | null>(null);
   const galleryInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
+  const electricalOption = getElectricalElementOption(photo.electricalType);
+  const electricalArea = getElectricalPlanArea(photo.electricalType);
+  const cableGaugeOptions = getCableGaugeOptionsForPlanArea(photo.planArea);
 
   if (!isOpen) return null;
 
   const handlePhotoChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-    if (!file.type.startsWith('image/')) {
+    const selectedFiles = Array.from(event.target.files || []);
+    if (selectedFiles.length === 0) return;
+    const validFiles = selectedFiles.filter((file) => file.type.startsWith('image/'));
+    if (validFiles.length === 0) {
       setImageError('Selecciona una imagen válida en formato JPG, PNG, WebP o HEIC.');
+      return;
+    }
+
+    const remainingSlots = Math.max(0, 6 - imageUrls.length);
+    if (remainingSlots === 0) {
+      setImageError('Cada elemento puede conservar hasta 6 fotos de evidencia. Elimina una para agregar otra.');
+      event.target.value = '';
       return;
     }
 
     setImageError(null);
     setIsProcessingImage(true);
     try {
-      const optimizedImage = await compressImageForDevice(file, 1280, 960, 0.76);
-      const originalSize = file.size > 1024 * 1024
-        ? `${(file.size / (1024 * 1024)).toFixed(1)} MB`
-        : `${Math.max(1, Math.round(file.size / 1024))} KB`;
-      setImageUrl(optimizedImage);
-      setImageSize(originalSize);
+      const filesToProcess = validFiles.slice(0, remainingSlots);
+      const optimizedImages = await Promise.all(filesToProcess.map((file) => compressImageForDevice(file, 1280, 960, 0.76)));
+      const originalSize = filesToProcess.reduce((total, file) => total + file.size, 0);
+      setImageUrls((previous) => [...previous, ...optimizedImages].slice(0, 6));
+      setImageSize(originalSize > 1024 * 1024
+        ? `${(originalSize / (1024 * 1024)).toFixed(1)} MB`
+        : `${Math.max(1, Math.round(originalSize / 1024))} KB`);
+      if (filesToProcess.length < selectedFiles.length) {
+        setImageError('Se agregaron las fotos disponibles hasta el máximo de 6 por elemento.');
+      }
     } catch {
       setImageError('No se pudo optimizar la foto. Intenta con otro archivo.');
     } finally {
@@ -91,16 +118,43 @@ export const EditPhotoModal: React.FC<EditPhotoModalProps> = ({
     }
   };
 
+  const requestPhotoRemoval = (index: number) => {
+    if (imageUrls.length <= 1) {
+      setImageError('El elemento debe conservar una foto de portada. Agrega otra evidencia antes de eliminar esta foto.');
+      return;
+    }
+    setImageError(null);
+    setPhotoIndexPendingRemoval(index);
+  };
+
+  const confirmPhotoRemoval = () => {
+    if (photoIndexPendingRemoval === null) return;
+    setImageUrls((previous) => previous.filter((_, index) => index !== photoIndexPendingRemoval));
+    setPhotoIndexPendingRemoval(null);
+  };
+
+  const movePhoto = (fromIndex: number, toIndex: number) => {
+    if (fromIndex === toIndex) return;
+    setImageUrls((previous) => {
+      const reordered = [...previous];
+      const [movedPhoto] = reordered.splice(fromIndex, 1);
+      reordered.splice(toIndex, 0, movedPhoto);
+      return reordered;
+    });
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    const savedImageUrls = imageUrls.length > 0 ? imageUrls : [photo.imageUrl];
     onSave({
       ...photo,
       name: isAdmin ? name.trim() || photo.name : photo.name,
       type: type.trim() || photo.type,
       location: location.trim() || photo.location,
-      imageUrl: imageUrl || photo.imageUrl,
+      imageUrl: savedImageUrls[0] || photo.imageUrl,
+      imageUrls: savedImageUrls,
       fileSize: imageSize || photo.fileSize,
-      resolution: imageUrl !== photo.imageUrl ? 'Foto adjunta desde propiedades' : photo.resolution,
+      resolution: JSON.stringify(savedImageUrls) !== JSON.stringify(photo.imageUrls || [photo.imageUrl]) ? 'Fotos adjuntas desde propiedades' : photo.resolution,
       elementType: isAdmin ? elementType : photo.elementType,
       cameraCode: elementType === 'camara' ? cameraCode : undefined,
       cameraType: isAdmin ? (elementType === 'camara' ? cameraType : undefined) : photo.cameraType,
@@ -110,6 +164,9 @@ export const EditPhotoModal: React.FC<EditPhotoModalProps> = ({
       metraje: elementType === 'tuberia' ? metraje.trim() || undefined : undefined,
       pipeNetworkType: elementType === 'tuberia' ? pipeNetworkType : undefined,
       pipeColor: elementType === 'tuberia' ? getPipeNetworkOption(pipeNetworkType).color : undefined,
+      cableType: photo.electricalType === 'cableado' ? cableType : undefined,
+      cableGauge: photo.electricalType === 'cableado' ? cableGauge : undefined,
+      cableMeters: photo.electricalType === 'cableado' ? cableMeters.trim() || undefined : undefined,
       fieldNotes: fieldNotes.trim(),
       executionStatus,
       requiresImmediateAction,
@@ -182,22 +239,52 @@ export const EditPhotoModal: React.FC<EditPhotoModalProps> = ({
           <div className="rounded-xl border border-[#b7d5e4] bg-[#f8fbfd] p-3">
             <div className="mb-2 flex items-center justify-between gap-3">
               <div>
-                <p className="font-['Inter'] text-[13px] font-bold text-[#071e27]">Foto de evidencia</p>
-                <p className="mt-0.5 text-[11px] text-[#607d8b]">Elige una foto de la galería o tómala directamente con la cámara del dispositivo.</p>
+                <p className="font-['Inter'] text-[13px] font-bold text-[#071e27]">Fotos de evidencia</p>
+                <p className="mt-0.5 text-[11px] text-[#607d8b]">Agrega hasta 6 fotos desde la galería o la cámara. La primera es la portada del elemento.</p>
               </div>
               <span className="material-symbols-outlined text-[21px] text-[#0566aa]">add_a_photo</span>
             </div>
-            <div className="flex items-center gap-3">
-              <div className="h-16 w-20 shrink-0 overflow-hidden rounded-lg border border-[#c2c6d4] bg-[#e6f6ff]">
-                {imageUrl ? (
-                  <img src={imageUrl} alt="Vista previa de la foto del elemento" className="h-full w-full object-cover" />
-                ) : (
-                  <div className="flex h-full w-full items-center justify-center text-[#527284]">
-                    <span className="material-symbols-outlined text-[22px]">image</span>
+            <div className="space-y-3">
+              <div className="grid grid-cols-3 gap-2 sm:grid-cols-6">
+                {imageUrls.map((url, index) => (
+                  <div
+                    key={`${url.slice(0, 32)}-${index}`}
+                    draggable={imageUrls.length > 1}
+                    onDragStart={(event) => {
+                      event.dataTransfer.effectAllowed = 'move';
+                      event.dataTransfer.setData('text/plain', String(index));
+                      setDraggedPhotoIndex(index);
+                    }}
+                    onDragOver={(event) => {
+                      event.preventDefault();
+                      event.dataTransfer.dropEffect = 'move';
+                      if (draggedPhotoIndex !== null && draggedPhotoIndex !== index) setDragOverPhotoIndex(index);
+                    }}
+                    onDragLeave={() => setDragOverPhotoIndex((current) => current === index ? null : current)}
+                    onDrop={(event) => {
+                      event.preventDefault();
+                      if (draggedPhotoIndex !== null) movePhoto(draggedPhotoIndex, index);
+                      setDraggedPhotoIndex(null);
+                      setDragOverPhotoIndex(null);
+                    }}
+                    onDragEnd={() => {
+                      setDraggedPhotoIndex(null);
+                      setDragOverPhotoIndex(null);
+                    }}
+                    className={`group relative aspect-square overflow-hidden rounded-lg border bg-[#e6f6ff] transition ${draggedPhotoIndex === index ? 'scale-95 border-[#0566aa] opacity-55' : dragOverPhotoIndex === index ? 'border-[#0566aa] ring-2 ring-cyan-300 ring-offset-1' : 'border-[#a7c8da]'} ${imageUrls.length > 1 ? 'cursor-grab active:cursor-grabbing' : ''}`}
+                  >
+                    <button type="button" onClick={() => setImageUrls((previous) => [previous[index], ...previous.filter((_, itemIndex) => itemIndex !== index)])} className="h-full w-full" title={index === 0 ? 'Foto de portada' : 'Usar como foto de portada'}>
+                      <img src={url} alt={`Foto de evidencia ${index + 1}`} className="h-full w-full object-cover" />
+                    </button>
+                    {index === 0 && <span className="absolute left-1 top-1 rounded bg-[#073f74] px-1 py-0.5 text-[8px] font-bold text-white">PORTADA</span>}
+                    {imageUrls.length > 1 && <span className="pointer-events-none absolute bottom-1 left-1 grid h-5 w-5 place-items-center rounded-full bg-[#073f74]/85 text-white" title="Arrastra para reordenar"><span className="material-symbols-outlined text-[13px]">drag_indicator</span></span>}
+                    <button type="button" onClick={() => requestPhotoRemoval(index)} className={`absolute right-1 top-1 grid h-5 w-5 place-items-center rounded-full text-white shadow-sm transition ${imageUrls.length > 1 ? 'bg-[#8b1d1d] hover:bg-[#6f1515]' : 'bg-[#607d8b] hover:bg-[#466473]'}`} title={imageUrls.length > 1 ? `Eliminar foto ${index + 1}` : 'Agrega otra foto antes de eliminar la portada'} aria-label={imageUrls.length > 1 ? `Eliminar foto ${index + 1}` : 'La foto de portada no puede eliminarse todavía'}>
+                      <span className="material-symbols-outlined text-[13px]">delete</span>
+                    </button>
                   </div>
-                )}
+                ))}
               </div>
-              <div className="min-w-0 flex-1">
+              <div className="min-w-0">
                 <div className="flex flex-wrap gap-2">
                   <button
                     type="button"
@@ -218,13 +305,29 @@ export const EditPhotoModal: React.FC<EditPhotoModalProps> = ({
                   {isProcessingImage ? 'Optimizando…' : 'Tomar foto'}
                 </button>
                 </div>
-                <p className="mt-1.5 truncate text-[10px] text-[#607d8b]">{imageSize ? `Archivo original: ${imageSize}` : 'Se optimiza antes de guardarse.'}</p>
+                <p className="mt-1.5 text-[10px] text-[#607d8b]">{imageUrls.length}/6 fotos. {imageUrls.length > 1 ? 'Arrastra las miniaturas para ordenarlas; la primera es la portada. ' : ''}{imageSize ? `Última carga original: ${imageSize}.` : 'Cada imagen se optimiza antes de guardarse.'}</p>
               </div>
             </div>
             {imageError && <p className="mt-2 text-[11px] font-medium text-[#ba1a1a]">{imageError}</p>}
-            <input ref={galleryInputRef} type="file" accept="image/*" onChange={handlePhotoChange} className="hidden" />
+            <input ref={galleryInputRef} type="file" accept="image/*" multiple onChange={handlePhotoChange} className="hidden" />
             <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" onChange={handlePhotoChange} className="hidden" />
           </div>
+
+          {photoIndexPendingRemoval !== null && (
+            <div className="rounded-xl border border-[#e6b4b0] bg-[#fff8f7] p-3 shadow-sm">
+              <div className="flex items-start gap-2">
+                <span className="material-symbols-outlined mt-0.5 text-[19px] text-[#a52d27]">warning</span>
+                <div className="min-w-0 flex-1">
+                  <p className="text-[13px] font-bold text-[#7f1d1d]">¿Eliminar la foto {photoIndexPendingRemoval + 1}?</p>
+                  <p className="mt-0.5 text-[11px] leading-4 text-[#7f3a35]">La foto se retirará de la galería cuando guardes las propiedades del elemento.</p>
+                  <div className="mt-2 flex justify-end gap-2">
+                    <button type="button" onClick={() => setPhotoIndexPendingRemoval(null)} className="rounded-md border border-[#d5b6b2] bg-white px-2.5 py-1.5 text-[11px] font-bold text-[#6e4944] hover:bg-[#fff1ef]">Cancelar</button>
+                    <button type="button" onClick={confirmPhotoRemoval} className="rounded-md bg-[#a52d27] px-2.5 py-1.5 text-[11px] font-bold text-white hover:bg-[#861f1b]">Eliminar foto</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
 
           <div>
             <label className="block font-['Inter'] font-bold text-[13px] text-[#071e27] mb-1">
@@ -377,7 +480,51 @@ export const EditPhotoModal: React.FC<EditPhotoModalProps> = ({
             )}
           </div>
 
-          <div className="rounded-xl border border-[#c2c6d4] bg-[#f8fbfd] p-3">
+          {elementType === 'electrico' && (
+            <div className="rounded-xl border border-[#d8c3fb] bg-[#faf7ff] p-3">
+              <p className="font-['Inter'] text-[13px] font-bold text-[#3b1b75]">Activo eléctrico del plano</p>
+              <div className="mt-2 flex items-center gap-3 rounded-lg border border-[#e5d9fa] bg-white p-3">
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-white" style={{ backgroundColor: photo.electricalColor || electricalOption.color }}>
+                  <span className="material-symbols-outlined text-[21px]">{electricalOption.icon}</span>
+                </span>
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-bold text-[#3b1b75]">{electricalOption.label}</p>
+                  <p className="mt-0.5 text-[11px] text-[#6b5a85]">
+                    {electricalArea === 'electrical_mt' ? 'Obras Eléctricas MT' : electricalArea === 'electrical_bt' ? 'Obras Eléctricas BT' : 'Obras Eléctricas Alumbrado'}
+                  </p>
+                </div>
+              </div>
+              <p className="mt-2 text-[11px] leading-5 text-[#6b5a85]">El activo y su capa se definen en el plano. Aquí solo se actualizan propiedades operativas permitidas.</p>
+            </div>
+          )}
+
+          {photo.electricalType === 'cableado' && (
+            <div className="rounded-xl border border-[#c7d9ec] bg-[#f6fbff] p-3">
+              <p className="font-['Inter'] text-[13px] font-bold text-[#0c4a6e]">Propiedades del cableado</p>
+              <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                <div>
+                  <label className="block text-[12px] font-bold text-[#173f58]">Tipo de cable</label>
+                  <select value={cableType} onChange={(event) => setCableType(event.target.value as CableType)} className="mt-1.5 w-full rounded-lg border border-[#bcd4e6] bg-white p-2 text-[13px] text-[#173f58] outline-none focus:border-[#0369a1]">
+                    {CABLE_TYPE_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[12px] font-bold text-[#173f58]">Calibre del cable</label>
+                  <div className="mt-1.5 grid grid-cols-4 gap-1.5">
+                    {cableGaugeOptions.map((gauge) => (
+                      <button key={gauge} type="button" onClick={() => setCableGauge(gauge)} className={`rounded-md border px-1 py-2 text-[11px] font-bold ${cableGauge === gauge ? 'border-[#0369a1] bg-[#0369a1] text-white' : 'border-[#bcd4e6] bg-white text-[#36576e]'}`}>{gauge}</button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+              <div className="mt-3">
+                <label className="block text-[12px] font-bold text-[#173f58]">Medida del cable en metros</label>
+                <input type="number" min="0" step="0.01" value={cableMeters} onChange={(event) => setCableMeters(event.target.value)} placeholder="Ej. 125.50" className="mt-1.5 w-full rounded-lg border border-[#bcd4e6] bg-white p-2 text-[13px] text-[#173f58] outline-none focus:border-[#0369a1]" />
+              </div>
+            </div>
+          )}
+
+          <div className={elementType === 'electrico' ? 'hidden' : 'rounded-xl border border-[#c2c6d4] bg-[#f8fbfd] p-3'}>
             <label className="mb-2 block font-['Inter'] text-[13px] font-bold text-[#071e27]">Tipo de elemento en el plano</label>
             <div className="grid grid-cols-3 gap-2">
               {([

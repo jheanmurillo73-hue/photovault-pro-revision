@@ -4,7 +4,7 @@
  * relativos al plano, nunca como coordenadas de un proveedor cartográfico.
  */
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { ActaLabelPosition, BlueprintCalibration, BlueprintOverlay, ElectricalElementType, ELECTRICAL_ELEMENT_OPTIONS, getElectricalElementOption, getElementType, getPipeNetworkOption, InspectionPhoto, InspectorProfile, isElectricalElementType, PIPE_NETWORK_OPTIONS, PipeNetworkType, PlanArea } from '../types';
+import { ActaLabelPosition, BlueprintCalibration, BlueprintOverlay, ElectricalElementType, ELECTRICAL_ELEMENT_OPTIONS, getCableTypeOption, getElectricalElementOption, getElectricalPlanArea, getElementType, getPipeNetworkOption, InspectionPhoto, InspectorProfile, isElectricalElementType, PIPE_NETWORK_OPTIONS, PipeNetworkType, PlanArea } from '../types';
 import { compressImageForDevice } from '../services/deviceStorageService';
 import { isQuotaExceededError, loadBlueprintImage, saveBlueprintImage } from '../services/blueprintStorageService';
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from './ui/breadcrumb';
@@ -24,6 +24,7 @@ interface MapViewProps {
     position: Pick<InspectionPhoto, 'planX' | 'planY' | 'planEndX' | 'planEndY'>,
     initialMetraje?: number,
     electricalType?: ElectricalElementType,
+    electricalArea?: PlanArea,
   ) => InspectionPhoto;
   onUpdatePhotoPosition: (
     photoId: string,
@@ -138,8 +139,36 @@ const hasCompletePipe = (photo: InspectionPhoto) =>
   && typeof photo.planEndX === 'number'
   && typeof photo.planEndY === 'number';
 
+const isCable = (photo: InspectionPhoto) => photo.electricalType === 'cableado';
+
 const isElectricalPhoto = (photo: InspectionPhoto) =>
-  photo.planArea === 'electrical' && isElectricalElementType(photo.electricalType);
+  photo.planArea !== 'civil' && isElectricalElementType(photo.electricalType);
+
+const getPhotoPlanArea = (photo: InspectionPhoto): PlanArea =>
+  photo.planArea === 'electrical'
+    ? getElectricalPlanArea(photo.electricalType)
+    : photo.planArea || 'civil';
+
+const PLAN_AREA_DETAILS: Record<'civil' | 'electrical_mt' | 'electrical_bt' | 'electrical_lighting', { label: string; shortLabel: string; icon: string; color: string; panel: string }> = {
+  civil: { label: 'Obras Civiles', shortLabel: 'CIVIL', icon: 'architecture', color: '#073f74', panel: 'bg-[#eaf6fb]' },
+  electrical_mt: { label: 'Obras Eléctricas MT', shortLabel: 'ELÉCTRICA MT', icon: 'bolt', color: '#6d28d9', panel: 'bg-[#f4efff]' },
+  electrical_bt: { label: 'Obras Eléctricas BT', shortLabel: 'ELÉCTRICA BT', icon: 'electric_bolt', color: '#0369A1', panel: 'bg-[#eef7ff]' },
+  electrical_lighting: { label: 'Obras Eléctricas Alumbrado', shortLabel: 'ALUMBRADO', icon: 'light', color: '#CA8A04', panel: 'bg-[#fff8e5]' },
+};
+
+const QUICK_PLAN_AREAS = ['civil', 'electrical_mt', 'electrical_bt', 'electrical_lighting'] as const;
+type PlanFilter = 'all' | 'camara' | 'caja' | 'tuberia' | 'pending';
+type PlanAreaFilterState = Record<typeof QUICK_PLAN_AREAS[number], PlanFilter>;
+
+const DEFAULT_PLAN_AREA_FILTERS: PlanAreaFilterState = {
+  civil: 'all',
+  electrical_mt: 'all',
+  electrical_bt: 'all',
+  electrical_lighting: 'all',
+};
+
+const isPlanFilter = (value: unknown): value is PlanFilter =>
+  value === 'all' || value === 'camara' || value === 'caja' || value === 'tuberia' || value === 'pending';
 
 const elementLabel = (photo: InspectionPhoto) => {
   const type = getElementType(photo);
@@ -180,10 +209,22 @@ export const MapView: React.FC<MapViewProps> = ({
       return EMPTY_BLUEPRINT;
     }
   });
-  const [activeFilter, setActiveFilter] = useState<'all' | 'camara' | 'caja' | 'tuberia' | 'pending'>('all');
+  const [filtersByPlanArea, setFiltersByPlanArea] = useState<PlanAreaFilterState>(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem('photovault_plan_area_filters') || '{}') as Record<string, unknown>;
+      return QUICK_PLAN_AREAS.reduce<PlanAreaFilterState>((filters, area) => ({
+        ...filters,
+        [area]: isPlanFilter(saved[area]) ? saved[area] : 'all',
+      }), DEFAULT_PLAN_AREA_FILTERS);
+    } catch {
+      return DEFAULT_PLAN_AREA_FILTERS;
+    }
+  });
   const [selectedPlanArea, setSelectedPlanArea] = useState<PlanArea | null>(() => {
     const saved = localStorage.getItem('photovault_last_plan_area');
-    return saved === 'civil' || saved === 'electrical' ? saved : null;
+    return saved === 'civil' || saved === 'electrical_mt' || saved === 'electrical_bt' || saved === 'electrical_lighting'
+      ? saved
+      : saved === 'electrical' ? 'electrical_mt' : null;
   });
   const [hasPendingPlanChanges, setHasPendingPlanChanges] = useState(false);
   const [isLeaveConfirmOpen, setIsLeaveConfirmOpen] = useState(false);
@@ -200,6 +241,7 @@ export const MapView: React.FC<MapViewProps> = ({
   const [calibrationMeters, setCalibrationMeters] = useState('10');
   const [isCalibrationDialogOpen, setIsCalibrationDialogOpen] = useState(false);
   const [selectedPlanPhotoId, setSelectedPlanPhotoId] = useState<string | null>(null);
+  const [hoveredPlanPhotoId, setHoveredPlanPhotoId] = useState<string | null>(null);
   const [isMultipleSelectionMode, setIsMultipleSelectionMode] = useState(false);
   const [selectedPlanPhotoIds, setSelectedPlanPhotoIds] = useState<string[]>([]);
   const [photosPendingDeletion, setPhotosPendingDeletion] = useState<InspectionPhoto[]>([]);
@@ -210,11 +252,11 @@ export const MapView: React.FC<MapViewProps> = ({
   const [panOffset, setPanOffset] = useState({ x: 0, y: 0 });
   const [iconScale, setIconScale] = useState<number>(() => {
     const saved = Number(localStorage.getItem('photovault_plan_icon_scale'));
-    return Number.isFinite(saved) ? clampScale(saved, 0.4, 1.8) : 1;
+    return Number.isFinite(saved) ? clampScale(saved, 0.2, 1.8) : 1;
   });
   const [textScale, setTextScale] = useState<number>(() => {
     const saved = Number(localStorage.getItem('photovault_plan_text_scale'));
-    return Number.isFinite(saved) ? clampScale(saved, 0.5, 1.8) : 1;
+    return Number.isFinite(saved) ? clampScale(saved, 0.25, 1.8) : 1;
   });
   const [areActaLabelsVisible, setAreActaLabelsVisible] = useState<boolean>(() =>
     localStorage.getItem('photovault_plan_acta_labels_visible') !== 'false',
@@ -227,6 +269,14 @@ export const MapView: React.FC<MapViewProps> = ({
   const blueprintStorageReadyRef = useRef(false);
   const dragTargetRef = useRef<DragTarget | null>(null);
   const panStartRef = useRef<{ clientX: number; clientY: number; offsetX: number; offsetY: number } | null>(null);
+  const activeFilter: PlanFilter = selectedPlanArea && selectedPlanArea !== 'electrical'
+    ? filtersByPlanArea[selectedPlanArea]
+    : 'all';
+
+  const setActiveFilter = (filter: PlanFilter) => {
+    if (!selectedPlanArea || selectedPlanArea === 'electrical') return;
+    setFiltersByPlanArea((previous) => ({ ...previous, [selectedPlanArea]: filter }));
+  };
 
   useEffect(() => {
     let active = true;
@@ -318,6 +368,14 @@ export const MapView: React.FC<MapViewProps> = ({
   }, [selectedPlanArea]);
 
   useEffect(() => {
+    try {
+      localStorage.setItem('photovault_plan_area_filters', JSON.stringify(filtersByPlanArea));
+    } catch {
+      // Los filtros permanecen disponibles durante la sesión si el navegador no permite persistirlos.
+    }
+  }, [filtersByPlanArea]);
+
+  useEffect(() => {
     if (!isPanelOpen) return;
     const closeOnEscape = (event: KeyboardEvent) => {
       if (event.key === 'Escape') setIsPanelOpen(false);
@@ -329,21 +387,31 @@ export const MapView: React.FC<MapViewProps> = ({
   const pendingPhotos = useMemo(
     () => photos.filter((photo) => {
       const type = getElementType(photo);
-      const belongsToArea = selectedPlanArea === 'electrical'
-        ? isElectricalPhoto(photo)
-        : !isElectricalPhoto(photo);
-      return belongsToArea && (type === 'tuberia' ? !hasCompletePipe(photo) : !isPlaced(photo));
+      const belongsToArea = selectedPlanArea === 'civil'
+        ? !isElectricalPhoto(photo)
+        : getPhotoPlanArea(photo) === selectedPlanArea;
+      return belongsToArea && (type === 'tuberia' || isCable(photo) ? !hasCompletePipe(photo) : !isPlaced(photo));
     }),
     [photos, selectedPlanArea],
+  );
+
+  const elementCountByPlanArea = useMemo(
+    () => QUICK_PLAN_AREAS.reduce<Record<typeof QUICK_PLAN_AREAS[number], number>>((counts, area) => {
+      counts[area] = photos.filter((photo) => area === 'civil'
+        ? !isElectricalPhoto(photo)
+        : getPhotoPlanArea(photo) === area).length;
+      return counts;
+    }, { civil: 0, electrical_mt: 0, electrical_bt: 0, electrical_lighting: 0 }),
+    [photos],
   );
 
   const visiblePhotos = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
     return photos.filter((photo) => {
       const type = getElementType(photo);
-      const belongsToArea = selectedPlanArea === 'electrical'
-        ? isElectricalPhoto(photo)
-        : !isElectricalPhoto(photo);
+      const belongsToArea = selectedPlanArea === 'civil'
+        ? !isElectricalPhoto(photo)
+        : getPhotoPlanArea(photo) === selectedPlanArea;
       if (!belongsToArea) return false;
       if (activeFilter === 'pending' && !pendingPhotos.some((pending) => pending.id === photo.id)) return false;
       if (activeFilter !== 'all' && activeFilter !== 'pending' && type !== activeFilter) return false;
@@ -357,6 +425,15 @@ export const MapView: React.FC<MapViewProps> = ({
   const positionedPhotos = useMemo(
     () => visiblePhotos.filter((photo) => isPlaced(photo)),
     [visiblePhotos],
+  );
+  const hoveredPlanPhoto = useMemo(
+    () => positionedPhotos.find((photo) => photo.id === hoveredPlanPhotoId) || null,
+    [hoveredPlanPhotoId, positionedPhotos],
+  );
+
+  const electricalOptionsForArea = useMemo(
+    () => ELECTRICAL_ELEMENT_OPTIONS.filter((option) => option.value === 'cableado' || getElectricalPlanArea(option.value) === selectedPlanArea),
+    [selectedPlanArea],
   );
 
   const totalPipelineMeters = useMemo(
@@ -388,6 +465,22 @@ export const MapView: React.FC<MapViewProps> = ({
       return;
     }
     setSelectedPlanArea(null);
+  };
+
+  const switchPlanArea = (area: typeof QUICK_PLAN_AREAS[number]) => {
+    if (selectedPlanArea === area) return;
+    setPlacement(null);
+    setCreationMode(null);
+    setPipeStart(null);
+    setPipePreview(null);
+    setCalibrationMode(false);
+    setCalibrationStart(null);
+    setCalibrationPreview(null);
+    setCalibrationDraft(null);
+    setSelectedPlanPhotoId(null);
+    exitMultipleSelection();
+    setSearchQuery('');
+    setSelectedPlanArea(area);
   };
 
   const confirmReturnToAreas = () => {
@@ -655,8 +748,30 @@ export const MapView: React.FC<MapViewProps> = ({
       ? creationMode as ElectricalElementType
       : undefined;
 
+    if (electricalCreationType === 'cableado') {
+      if (!pipeStart) {
+        setPipeStart({ planX, planY });
+        return;
+      }
+      const alignedEnd = alignPipeEnd(pipeStart, { planX, planY }, pipeAlignment);
+      const created = onCreatePhoto('electrico', {
+        planX: pipeStart.planX,
+        planY: pipeStart.planY,
+        planEndX: alignedEnd.planX,
+        planEndY: alignedEnd.planY,
+      }, roundMeters(getMetersFromPlanPoints(pipeStart, alignedEnd, blueprint.calibration) ?? 0), 'cableado', selectedPlanArea ?? undefined);
+      setHasPendingPlanChanges(true);
+      setActiveFilter('all');
+      setSelectedPlanPhotoId(created.id);
+      setPipeStart(null);
+      setPipePreview(null);
+      setPipeAlignment('libre');
+      setCreationMode(null);
+      return;
+    }
+
     if (electricalCreationType) {
-      const created = onCreatePhoto('electrico', { planX, planY }, undefined, electricalCreationType);
+      const created = onCreatePhoto('electrico', { planX, planY }, undefined, electricalCreationType, selectedPlanArea ?? undefined);
       setHasPendingPlanChanges(true);
       setSelectedPlanPhotoId(created.id);
       setCreationMode(null);
@@ -696,12 +811,12 @@ export const MapView: React.FC<MapViewProps> = ({
       setCalibrationPreview(getPlanPosition(bounds, event.clientX, event.clientY));
       return;
     }
-    if (creationMode !== 'tuberia' || !pipeStart) return;
+    if ((creationMode !== 'tuberia' && creationMode !== 'cableado') || !pipeStart) return;
     setPipePreview(alignPipeEnd(pipeStart, getPlanPosition(bounds, event.clientX, event.clientY), pipeAlignment));
   };
 
   const handleCanvasMouseLeave = () => {
-    if (creationMode === 'tuberia') setPipePreview(null);
+    if (creationMode === 'tuberia' || creationMode === 'cableado') setPipePreview(null);
     if (calibrationMode) setCalibrationPreview(null);
   };
 
@@ -740,15 +855,16 @@ export const MapView: React.FC<MapViewProps> = ({
     const { planX, planY } = getPlanPosition(bounds, event.clientX, event.clientY);
     const { photo, source } = activeDrag;
     const type = getElementType(photo);
+    const isLongitudinalElement = type === 'tuberia' || isCable(photo);
 
     if (source === 'palette') {
       setHasPendingPlanChanges(true);
       placeTargetAt(
-        { photo, stage: type === 'tuberia' ? (isPlaced(photo) ? 'pipe-end' : 'pipe-start') : 'point' },
+        { photo, stage: isLongitudinalElement ? (isPlaced(photo) ? 'pipe-end' : 'pipe-start') : 'point' },
         planX,
         planY,
       );
-    } else if (type === 'tuberia' && hasCompletePipe(photo)) {
+    } else if (isLongitudinalElement && hasCompletePipe(photo)) {
       setHasPendingPlanChanges(true);
       const midpointX = (photo.planX! + photo.planEndX!) / 2;
       const midpointY = (photo.planY! + photo.planEndY!) / 2;
@@ -764,6 +880,7 @@ export const MapView: React.FC<MapViewProps> = ({
       onUpdatePhotoPosition(photo.id, {
         ...position,
         ...(metraje !== null ? { metraje: roundMeters(metraje) } : {}),
+        ...(isCable(photo) && metraje !== null ? { cableMeters: roundMeters(metraje) } : {}),
       });
     } else {
       setHasPendingPlanChanges(true);
@@ -782,18 +899,18 @@ export const MapView: React.FC<MapViewProps> = ({
     setDragTarget(target);
   };
 
-  const planScale = clampScale(Number(blueprint.scale) || 1, 0.6, 1.8);
+  const planScale = clampScale(Number(blueprint.scale) || 1, 0.45, 3);
   const adjustPlanScale = (difference: number) => {
     setBlueprint((previous) => ({
       ...previous,
-      scale: clampScale((Number(previous.scale) || 1) + difference, 0.6, 1.8),
+      scale: clampScale((Number(previous.scale) || 1) + difference, 0.45, 3),
     }));
   };
   const adjustIconScale = (difference: number) => {
-    setIconScale((previous) => clampScale(previous + difference, 0.4, 1.8));
+    setIconScale((previous) => clampScale(previous + difference, 0.2, 1.8));
   };
   const adjustTextScale = (difference: number) => {
-    setTextScale((previous) => clampScale(previous + difference, 0.5, 1.8));
+    setTextScale((previous) => clampScale(previous + difference, 0.25, 1.8));
   };
 
   const pipePreviewDistance = useMemo(() => {
@@ -829,6 +946,10 @@ export const MapView: React.FC<MapViewProps> = ({
       ? pipeStart
         ? `Haz clic para definir el final del nuevo tramo. Guía actual: ${pipePreviewMeters !== null ? `${pipePreviewMeters.toFixed(2)} m` : `${pipePreviewDistance?.toFixed(1) ?? '0.0'}% del plano`}.`
         : 'Haz clic para definir el inicio del nuevo tramo de tubería.'
+      : creationMode === 'cableado'
+        ? pipeStart
+          ? `Haz clic para definir el final del cableado. Guía actual: ${pipePreviewMeters !== null ? `${pipePreviewMeters.toFixed(2)} m` : `${pipePreviewDistance?.toFixed(1) ?? '0.0'}% del plano`}.`
+          : 'Haz clic para definir el inicio del tramo de cableado.'
       : placement
     ? placement.stage === 'pipe-start'
       ? `Haz clic para ubicar el inicio de ${elementLabel(placement.photo)}.`
@@ -837,9 +958,15 @@ export const MapView: React.FC<MapViewProps> = ({
         : `Haz clic para ubicar ${elementLabel(placement.photo)}.`
     : null;
 
+  const activeAreaDetails = selectedPlanArea && selectedPlanArea !== 'electrical'
+    ? PLAN_AREA_DETAILS[selectedPlanArea]
+    : PLAN_AREA_DETAILS.electrical_mt;
+
   if (!selectedPlanArea) {
     const civilCount = photos.filter((photo) => !isElectricalPhoto(photo)).length;
-    const electricalCount = photos.filter(isElectricalPhoto).length;
+    const electricalMtCount = photos.filter((photo) => getPhotoPlanArea(photo) === 'electrical_mt').length;
+    const electricalBtCount = photos.filter((photo) => getPhotoPlanArea(photo) === 'electrical_bt').length;
+    const electricalLightingCount = photos.filter((photo) => getPhotoPlanArea(photo) === 'electrical_lighting').length;
     return (
       <section className="flex h-full min-h-[560px] w-full items-center justify-center overflow-auto bg-[#e7edf1] p-5 font-['Roboto',sans-serif]">
         <div className="w-full max-w-5xl">
@@ -848,10 +975,10 @@ export const MapView: React.FC<MapViewProps> = ({
             <h1 className="mt-2 text-2xl font-bold text-[#0b2940] sm:text-3xl">Selecciona el área de actualización</h1>
             <p className="mx-auto mt-2 max-w-2xl text-sm leading-6 text-[#547181]">Ambas áreas usan el mismo plano JPG como base, pero sus elementos se guardan y visualizan de forma independiente.</p>
           </div>
-          <div className="grid gap-5 md:grid-cols-2">
+          <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
             <button
               type="button"
-              onClick={() => { setSelectedPlanArea('civil'); setActiveFilter('all'); }}
+              onClick={() => switchPlanArea('civil')}
               className="group overflow-hidden border border-[#9bc4d8] bg-white text-left shadow-[0_16px_34px_rgba(7,63,116,0.14)] transition hover:-translate-y-1 hover:border-[#0566aa] hover:shadow-[0_20px_42px_rgba(7,63,116,0.2)]"
             >
               <div className="flex items-center justify-between bg-[#eaf6fb] px-5 py-4">
@@ -869,19 +996,55 @@ export const MapView: React.FC<MapViewProps> = ({
             </button>
             <button
               type="button"
-              onClick={() => { setSelectedPlanArea('electrical'); setActiveFilter('all'); }}
+              onClick={() => switchPlanArea('electrical_mt')}
               className="group overflow-hidden border border-[#ceb9f3] bg-white text-left shadow-[0_16px_34px_rgba(91,33,182,0.13)] transition hover:-translate-y-1 hover:border-[#7c3aed] hover:shadow-[0_20px_42px_rgba(91,33,182,0.2)]"
             >
               <div className="flex items-center justify-between bg-[#f4efff] px-5 py-4">
                 <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-[#6d28d9] text-white shadow-sm"><span className="material-symbols-outlined text-[26px]">bolt</span></span>
-                <span className="font-mono text-[10px] font-bold tracking-[0.12em] text-[#5b21b6]">CAPA 02 / ELÉCTRICA</span>
+                <span className="font-mono text-[10px] font-bold tracking-[0.12em] text-[#5b21b6]">CAPA 02 / ELÉCTRICA MT</span>
               </div>
               <div className="p-5">
-                <h2 className="text-xl font-bold text-[#3b1b75]">Obras Eléctricas</h2>
-                <p className="mt-2 text-sm leading-6 text-[#6b5a85]">Transformadores, tableros, barrajes, mallas a tierra, postes y reconectadores sobre el mismo plano base.</p>
+                <h2 className="text-xl font-bold text-[#3b1b75]">Obras Eléctricas MT</h2>
+                <p className="mt-2 text-sm leading-6 text-[#6b5a85]">Transformadores, barrajes, postes de media tensión y reconectadores.</p>
                 <div className="mt-5 flex items-center justify-between border-t border-[#e4d9f6] pt-4">
-                  <span className="text-xs font-bold text-[#6d28d9]">{electricalCount} elemento{electricalCount === 1 ? '' : 's'}</span>
+                  <span className="text-xs font-bold text-[#6d28d9]">{electricalMtCount} elemento{electricalMtCount === 1 ? '' : 's'}</span>
                   <span className="inline-flex items-center gap-1 text-sm font-bold text-[#6d28d9]">Abrir plano <span className="material-symbols-outlined text-[18px]">arrow_forward</span></span>
+                </div>
+              </div>
+            </button>
+            <button
+              type="button"
+              onClick={() => switchPlanArea('electrical_bt')}
+              className="group overflow-hidden border border-[#a8cbe6] bg-white text-left shadow-[0_16px_34px_rgba(3,105,161,0.13)] transition hover:-translate-y-1 hover:border-[#0369a1] hover:shadow-[0_20px_42px_rgba(3,105,161,0.2)]"
+            >
+              <div className="flex items-center justify-between bg-[#eef7ff] px-5 py-4">
+                <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-[#0369a1] text-white shadow-sm"><span className="material-symbols-outlined text-[26px]">electric_bolt</span></span>
+                <span className="font-mono text-[10px] font-bold tracking-[0.12em] text-[#0369a1]">CAPA 03 / ELÉCTRICA BT</span>
+              </div>
+              <div className="p-5">
+                <h2 className="text-xl font-bold text-[#0c4a6e]">Obras Eléctricas BT</h2>
+                <p className="mt-2 text-sm leading-6 text-[#527284]">Tableros de baja tensión, tableros de distribución y mallas a tierra.</p>
+                <div className="mt-5 flex items-center justify-between border-t border-[#d6e5ec] pt-4">
+                  <span className="text-xs font-bold text-[#0369a1]">{electricalBtCount} elemento{electricalBtCount === 1 ? '' : 's'}</span>
+                  <span className="inline-flex items-center gap-1 text-sm font-bold text-[#0369a1]">Abrir plano <span className="material-symbols-outlined text-[18px]">arrow_forward</span></span>
+                </div>
+              </div>
+            </button>
+            <button
+              type="button"
+              onClick={() => switchPlanArea('electrical_lighting')}
+              className="group overflow-hidden border border-[#ead28c] bg-white text-left shadow-[0_16px_34px_rgba(202,138,4,0.13)] transition hover:-translate-y-1 hover:border-[#ca8a04] hover:shadow-[0_20px_42px_rgba(202,138,4,0.2)]"
+            >
+              <div className="flex items-center justify-between bg-[#fff8e5] px-5 py-4">
+                <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-[#ca8a04] text-white shadow-sm"><span className="material-symbols-outlined text-[26px]">light</span></span>
+                <span className="font-mono text-[10px] font-bold tracking-[0.12em] text-[#a16207]">CAPA 04 / ALUMBRADO</span>
+              </div>
+              <div className="p-5">
+                <h2 className="text-xl font-bold text-[#854d0e]">Obras Eléctricas Alumbrado</h2>
+                <p className="mt-2 text-sm leading-6 text-[#7c6a45]">Postes y activos de alumbrado vinculados al plano de obra.</p>
+                <div className="mt-5 flex items-center justify-between border-t border-[#f1e2b6] pt-4">
+                  <span className="text-xs font-bold text-[#a16207]">{electricalLightingCount} elemento{electricalLightingCount === 1 ? '' : 's'}</span>
+                  <span className="inline-flex items-center gap-1 text-sm font-bold text-[#a16207]">Abrir plano <span className="material-symbols-outlined text-[18px]">arrow_forward</span></span>
                 </div>
               </div>
             </button>
@@ -910,12 +1073,12 @@ export const MapView: React.FC<MapViewProps> = ({
 
       <header className="relative z-30 flex shrink-0 flex-col gap-3 border-b border-[#c7d7df] bg-white/95 px-4 py-3 shadow-sm backdrop-blur xl:flex-row xl:items-center xl:justify-between">
         <div className="flex min-w-0 items-center gap-3">
-          <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-white shadow-sm ${selectedPlanArea === 'electrical' ? 'bg-[#6d28d9]' : 'bg-[#073f74]'}`}>
-            <span className="material-symbols-outlined text-[21px]">{selectedPlanArea === 'electrical' ? 'bolt' : 'architecture'}</span>
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-white shadow-sm" style={{ backgroundColor: activeAreaDetails.color }}>
+            <span className="material-symbols-outlined text-[21px]">{activeAreaDetails.icon}</span>
           </div>
           <div className="min-w-0">
             <Breadcrumb className="mb-1">
-              <BreadcrumbList className={`gap-1 text-[10px] font-bold tracking-[0.1em] ${selectedPlanArea === 'electrical' ? 'text-[#6d28d9]' : 'text-[#527284]'}`}>
+              <BreadcrumbList className="gap-1 text-[10px] font-bold tracking-[0.1em]" style={{ color: activeAreaDetails.color }}>
                 <BreadcrumbItem>
                   <BreadcrumbLink asChild>
                     <button
@@ -932,8 +1095,8 @@ export const MapView: React.FC<MapViewProps> = ({
                 </BreadcrumbItem>
                 <BreadcrumbSeparator className="text-[#86a0ad]" />
                 <BreadcrumbItem>
-                  <BreadcrumbPage className={`font-mono text-[10px] font-bold tracking-[0.1em] ${selectedPlanArea === 'electrical' ? 'text-[#6d28d9]' : 'text-[#527284]'}`}>
-                    {selectedPlanArea === 'electrical' ? 'Obras eléctricas' : 'Obras civiles'}
+                  <BreadcrumbPage className="font-mono text-[10px] font-bold tracking-[0.1em]" style={{ color: activeAreaDetails.color }}>
+                    {activeAreaDetails.label}
                   </BreadcrumbPage>
                 </BreadcrumbItem>
               </BreadcrumbList>
@@ -982,7 +1145,32 @@ export const MapView: React.FC<MapViewProps> = ({
 
       <div className="relative z-20 shrink-0 overflow-x-auto border-b border-[#c7d7df] bg-[#f7fbfd]/95 px-4 py-2 shadow-sm">
       <div className="flex min-w-max items-center gap-2 pr-4">
-        {(selectedPlanArea === 'electrical'
+        <div className="mr-1 inline-flex items-center gap-1 rounded-lg border border-[#b9d0db] bg-white p-1 shadow-xs" aria-label="Acceso rápido a capas de obra" role="group">
+          <span className="px-1.5 font-mono text-[9px] font-bold tracking-[0.12em] text-[#66808d]">CAPAS</span>
+          {QUICK_PLAN_AREAS.map((area) => {
+            const details = PLAN_AREA_DETAILS[area];
+            const isActive = selectedPlanArea === area;
+            return (
+              <button
+                key={area}
+                type="button"
+                onClick={() => switchPlanArea(area)}
+                className={`inline-flex h-7 items-center gap-1 rounded-md border px-2 text-[10px] font-bold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0566aa] focus-visible:ring-offset-1 ${isActive ? 'text-white shadow-sm' : 'border-transparent bg-[#f4f9fb] text-[#466473] hover:bg-[#e5f4fb]'}`}
+                style={isActive ? { backgroundColor: details.color, borderColor: details.color } : undefined}
+                aria-pressed={isActive}
+                title={`Cambiar a ${details.label}: ${elementCountByPlanArea[area]} elementos guardados`}
+              >
+                <span className="material-symbols-outlined text-[14px]">{details.icon}</span>
+                {details.shortLabel}
+                <span className={`ml-0.5 inline-grid min-w-4 place-items-center rounded-full px-1 py-0.5 font-mono text-[9px] leading-none ${isActive ? 'bg-white/20 text-white' : 'bg-[#dbeaf1] text-[#315364]'}`} aria-label={`${elementCountByPlanArea[area]} elementos guardados`}>
+                  {elementCountByPlanArea[area]}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+        <span className="hidden h-6 w-px bg-[#b8ced9] sm:block" aria-hidden="true" />
+        {(selectedPlanArea !== 'civil'
           ? [['all', 'Todos', 'bolt'], ['pending', 'Sin ubicar', 'location_off']]
           : [['all', 'Todos', 'layers'], ['camara', 'Cámaras', 'videocam'], ['caja', 'Cajas', 'inventory_2'], ['tuberia', 'Tuberías', 'timeline'], ['pending', 'Sin ubicar', 'location_off']]
         ).map(([filter, label, icon]) => (
@@ -1008,7 +1196,7 @@ export const MapView: React.FC<MapViewProps> = ({
             <button type="button" onClick={() => activateCreation('tuberia')} className={`inline-flex h-8 items-center gap-1.5 rounded-full border px-3 text-[11px] font-bold shadow-sm transition ${creationMode === 'tuberia' ? 'border-[#073f74] bg-[#073f74] text-white' : 'border-[#9fb5c5] bg-white text-[#173f58] hover:bg-[#eaf3f8]'}`} title="Agregar tramo de tubería directamente al plano"><span className="material-symbols-outlined text-[16px]">timeline</span>Tubería</button>
           </>
         ) : (
-          ELECTRICAL_ELEMENT_OPTIONS.map((element) => (
+          electricalOptionsForArea.map((element) => (
             <button key={element.value} type="button" onClick={() => activateCreation(element.value)} className={`inline-flex h-8 items-center gap-1.5 rounded-full border px-3 text-[11px] font-bold shadow-sm transition ${creationMode === element.value ? 'border-[#5b21b6] bg-[#5b21b6] text-white' : 'border-[#d8c3fb] bg-white text-[#5b21b6] hover:bg-[#f5f0ff]'}`} title={`Agregar ${element.label.toLowerCase()} al plano eléctrico`}><span className="material-symbols-outlined text-[16px]">{element.icon}</span>{element.shortLabel}</button>
           ))
         ))}
@@ -1111,13 +1299,17 @@ export const MapView: React.FC<MapViewProps> = ({
                 </linearGradient>
               </defs>
               {positionedPhotos.map((photo) => {
-                if (getElementType(photo) !== 'tuberia' || !hasCompletePipe(photo)) return null;
-                const pipeStroke = photo.pipeColor || getPipeNetworkOption(photo.pipeNetworkType).color;
+                const pipeline = getElementType(photo) === 'tuberia';
+                const cable = isCable(photo);
+                if ((!pipeline && !cable) || !hasCompletePipe(photo)) return null;
+                const pipeStroke = cable
+                  ? getCableTypeOption(photo.cableType).color
+                  : photo.pipeColor || getPipeNetworkOption(photo.pipeNetworkType).color;
                 const isSelected = !isMultipleSelectionMode && selectedPlanPhotoId === photo.id;
                 return (
                   <g key={`line-${photo.id}`}>
                     <line x1={photo.planX} y1={photo.planY} x2={photo.planEndX} y2={photo.planEndY} stroke="rgba(255,255,255,0.82)" strokeWidth="2.2" strokeLinecap="round" />
-                    <line x1={photo.planX} y1={photo.planY} x2={photo.planEndX} y2={photo.planEndY} stroke={pipeStroke} strokeWidth="1.1" strokeLinecap="round" />
+                    <line x1={photo.planX} y1={photo.planY} x2={photo.planEndX} y2={photo.planEndY} stroke={pipeStroke} strokeWidth={cable ? '1.35' : '1.1'} strokeDasharray={cable ? '1.1 0.8' : undefined} strokeLinecap="round" />
                     {isSelected && (
                       <>
                         <circle cx={photo.planX} cy={photo.planY} r="1.55" fill="#ffffff" stroke="#073f74" strokeWidth="0.7" />
@@ -1127,16 +1319,16 @@ export const MapView: React.FC<MapViewProps> = ({
                   </g>
                 );
               })}
-              {creationMode === 'tuberia' && pipeStart && (
+              {(creationMode === 'tuberia' || creationMode === 'cableado') && pipeStart && (
                 <>
                   {pipePreview && (
                     <>
                       <line x1={pipeStart.planX} y1={pipeStart.planY} x2={pipePreview.planX} y2={pipePreview.planY} stroke="rgba(255,255,255,0.92)" strokeWidth="2.8" strokeLinecap="round" />
-                      <line x1={pipeStart.planX} y1={pipeStart.planY} x2={pipePreview.planX} y2={pipePreview.planY} stroke="#073f74" strokeWidth="1.3" strokeDasharray="2.2 1.4" strokeLinecap="round" />
+                      <line x1={pipeStart.planX} y1={pipeStart.planY} x2={pipePreview.planX} y2={pipePreview.planY} stroke={creationMode === 'cableado' ? getCableTypeOption(selectedPlanArea === 'electrical_lighting' ? 'alumbrado' : selectedPlanArea === 'electrical_bt' ? 'baja_tension' : 'media_tension').color : '#073f74'} strokeWidth="1.3" strokeDasharray="2.2 1.4" strokeLinecap="round" />
                       <circle cx={pipePreview.planX} cy={pipePreview.planY} r="1.25" fill="#eab308" stroke="white" strokeWidth="0.65" />
                     </>
                   )}
-                  <circle cx={pipeStart.planX} cy={pipeStart.planY} r="1.6" fill="#073f74" stroke="white" strokeWidth="0.7" />
+                  <circle cx={pipeStart.planX} cy={pipeStart.planY} r="1.6" fill={creationMode === 'cableado' ? getCableTypeOption(selectedPlanArea === 'electrical_lighting' ? 'alumbrado' : selectedPlanArea === 'electrical_bt' ? 'baja_tension' : 'media_tension').color : '#073f74'} stroke="white" strokeWidth="0.7" />
                 </>
               )}
               {calibrationMode && calibrationStart && (
@@ -1180,13 +1372,43 @@ export const MapView: React.FC<MapViewProps> = ({
               </div>
             )}
 
+            {hoveredPlanPhoto && !placement && !creationMode && (() => {
+              const isLongitudinal = getElementType(hoveredPlanPhoto) === 'tuberia' || isCable(hoveredPlanPhoto);
+              const anchorX = isLongitudinal && hasCompletePipe(hoveredPlanPhoto)
+                ? (hoveredPlanPhoto.planX! + hoveredPlanPhoto.planEndX!) / 2
+                : hoveredPlanPhoto.planX!;
+              const anchorY = isLongitudinal && hasCompletePipe(hoveredPlanPhoto)
+                ? (hoveredPlanPhoto.planY! + hoveredPlanPhoto.planEndY!) / 2
+                : hoveredPlanPhoto.planY!;
+              const photoCount = hoveredPlanPhoto.imageUrls?.length || 1;
+              return (
+                <div
+                  id={`element-preview-${hoveredPlanPhoto.id}`}
+                  className="pointer-events-none absolute z-30 w-44 overflow-hidden rounded-lg border border-[#9fc2d2] bg-white shadow-[0_12px_28px_rgba(5,39,67,0.28)]"
+                  style={{ left: `${anchorX}%`, top: `${anchorY}%`, transform: `translate(12px, calc(-100% - 10px)) scale(${Math.min(1, Math.max(0.72, iconScale))})`, transformOrigin: 'left bottom' }}
+                  role="status"
+                  aria-live="polite"
+                >
+                  <img src={hoveredPlanPhoto.imageUrl} alt={`Miniatura de ${elementLabel(hoveredPlanPhoto)}`} className="h-24 w-full object-cover" />
+                  <div className="flex items-center justify-between gap-2 px-2 py-1.5">
+                    <span className="truncate font-mono text-[9px] font-bold text-[#073f74]">{elementLabel(hoveredPlanPhoto)}</span>
+                    <span className="inline-flex shrink-0 items-center gap-0.5 text-[9px] font-bold text-[#527284]">
+                      <span className="material-symbols-outlined text-[12px]">photo_library</span>{photoCount}
+                    </span>
+                  </div>
+                </div>
+              );
+            })()}
+
             {positionedPhotos.map((photo) => {
               const type = getElementType(photo);
-              if (type === 'tuberia') {
+              if (type === 'tuberia' || isCable(photo)) {
                 if (!hasCompletePipe(photo)) return null;
                 const midpointX = (photo.planX! + photo.planEndX!) / 2;
                 const midpointY = (photo.planY! + photo.planEndY!) / 2;
                 const actaName = photo.acta?.trim();
+                const cable = isCable(photo);
+                const longitudinalMarkerColor = cable ? getCableTypeOption(photo.cableType).color : '#073f74';
                 return (
                   <React.Fragment key={photo.id}>
                     <button
@@ -1197,6 +1419,10 @@ export const MapView: React.FC<MapViewProps> = ({
                         dragTargetRef.current = null;
                         setDragTarget(null);
                       }}
+                      onMouseEnter={() => setHoveredPlanPhotoId(photo.id)}
+                      onMouseLeave={() => setHoveredPlanPhotoId((current) => current === photo.id ? null : current)}
+                      onFocus={() => setHoveredPlanPhotoId(photo.id)}
+                      onBlur={() => setHoveredPlanPhotoId((current) => current === photo.id ? null : current)}
                       onClick={(event) => {
                         event.stopPropagation();
                         if (placement || creationMode) return;
@@ -1206,12 +1432,13 @@ export const MapView: React.FC<MapViewProps> = ({
                           setSelectedPlanPhotoId(photo.id);
                         }
                       }}
-                      style={{ left: `${midpointX}%`, top: `${midpointY}%`, transform: `translate(-50%, -50%) scale(${iconScale})` }}
-                      className={`absolute z-10 flex h-8 w-8 items-center justify-center rounded-full border-2 border-white bg-[#073f74] text-white shadow-lg transition hover:scale-110 active:cursor-grabbing ${placement || creationMode ? 'pointer-events-none' : isMultipleSelectionMode ? 'cursor-pointer' : 'cursor-grab'} ${(isMultipleSelectionMode ? selectedPlanPhotoIds.includes(photo.id) : selectedPlanPhotoId === photo.id) ? 'ring-4 ring-cyan-300 ring-offset-2' : ''}`}
+                      style={{ left: `${midpointX}%`, top: `${midpointY}%`, backgroundColor: longitudinalMarkerColor, transform: `translate(-50%, -50%) scale(${iconScale})` }}
+                      className={`absolute z-10 flex h-8 w-8 items-center justify-center rounded-full border-2 border-white text-white shadow-lg transition hover:scale-110 active:cursor-grabbing ${placement || creationMode ? 'pointer-events-none' : isMultipleSelectionMode ? 'cursor-pointer' : 'cursor-grab'} ${(isMultipleSelectionMode ? selectedPlanPhotoIds.includes(photo.id) : selectedPlanPhotoId === photo.id) ? 'ring-4 ring-cyan-300 ring-offset-2' : ''}`}
                       title={isMultipleSelectionMode ? `Seleccionar ${elementLabel(photo)}` : `Abrir o mover ${elementLabel(photo)}`}
                       aria-label={isMultipleSelectionMode ? `Seleccionar ${elementLabel(photo)}` : `Abrir o mover ${elementLabel(photo)}`}
+                      aria-describedby={hoveredPlanPhotoId === photo.id ? `element-preview-${photo.id}` : undefined}
                     >
-                      <span className="material-symbols-outlined text-[18px]">timeline</span>
+                      <span className="material-symbols-outlined text-[18px]">{cable ? 'cable' : 'timeline'}</span>
                     </button>
                     {actaName && areActaLabelsVisible && photo.showActaLabel !== false && (
                       <span
@@ -1251,6 +1478,10 @@ export const MapView: React.FC<MapViewProps> = ({
                       dragTargetRef.current = null;
                       setDragTarget(null);
                     }}
+                    onMouseEnter={() => setHoveredPlanPhotoId(photo.id)}
+                    onMouseLeave={() => setHoveredPlanPhotoId((current) => current === photo.id ? null : current)}
+                    onFocus={() => setHoveredPlanPhotoId(photo.id)}
+                    onBlur={() => setHoveredPlanPhotoId((current) => current === photo.id ? null : current)}
                     onClick={(event) => {
                       event.stopPropagation();
                       if (placement || creationMode) return;
@@ -1264,6 +1495,7 @@ export const MapView: React.FC<MapViewProps> = ({
                     className={`absolute z-10 flex h-9 w-9 items-center justify-center rounded-full border-2 border-white text-white shadow-[0_3px_10px_rgba(6,36,58,0.35)] transition hover:scale-110 active:cursor-grabbing ${placement || creationMode ? 'pointer-events-none' : isMultipleSelectionMode ? 'cursor-pointer' : 'cursor-grab'} ${(isMultipleSelectionMode ? selectedPlanPhotoIds.includes(photo.id) : selectedPlanPhotoId === photo.id) ? 'ring-4 ring-cyan-300 ring-offset-2' : ''}`}
                     title={isMultipleSelectionMode ? `Seleccionar ${elementLabel(photo)}` : `Abrir o mover ${elementLabel(photo)}`}
                     aria-label={isMultipleSelectionMode ? `Seleccionar ${elementLabel(photo)}` : `Abrir o mover ${elementLabel(photo)}`}
+                    aria-describedby={hoveredPlanPhotoId === photo.id ? `element-preview-${photo.id}` : undefined}
                   >
                     <span className="material-symbols-outlined text-[18px]">{electrical ? electricalOption.icon : isCamera ? 'videocam' : 'inventory_2'}</span>
                   </button>
@@ -1626,7 +1858,7 @@ export const MapView: React.FC<MapViewProps> = ({
         <div className="absolute bottom-5 left-1/2 z-30 flex w-[min(92vw,560px)] -translate-x-1/2 items-center gap-3 rounded-xl border border-[#73b7d4] bg-[#073f74] px-4 py-3 text-sm text-white shadow-xl">
           <span className="material-symbols-outlined text-[21px] text-cyan-200">ads_click</span>
           <p className="flex-1 font-medium">{placementInstruction}</p>
-          {creationMode === 'tuberia' && pipeStart && (
+          {(creationMode === 'tuberia' || creationMode === 'cableado') && pipeStart && (
             <div className="flex shrink-0 overflow-hidden rounded-md border border-cyan-100/35 bg-white/10 text-[10px] font-bold">
               {([
                 ['libre', 'Libre'],
@@ -1657,17 +1889,17 @@ export const MapView: React.FC<MapViewProps> = ({
             <div className="flex items-center gap-1.5 px-2 py-1.5">
               <span className="material-symbols-outlined text-[16px] text-[#0566aa]">zoom_in</span>
               <span className="font-mono text-[10px] font-bold text-[#355c70]">PLANO {Math.round(planScale * 100)}%</span>
-              <button type="button" onClick={() => adjustPlanScale(-0.1)} disabled={planScale <= 0.6} className="flex h-6 w-6 items-center justify-center rounded text-[#285b72] transition hover:bg-[#eaf6fb] disabled:cursor-not-allowed disabled:opacity-35" aria-label="Reducir tamaño del plano" title="Reducir plano">
+              <button type="button" onClick={() => adjustPlanScale(-0.1)} disabled={planScale <= 0.45} className="flex h-6 w-6 items-center justify-center rounded text-[#285b72] transition hover:bg-[#eaf6fb] disabled:cursor-not-allowed disabled:opacity-35" aria-label="Reducir tamaño del plano" title="Reducir plano">
                 <span className="material-symbols-outlined text-[16px]">remove</span>
               </button>
-              <button type="button" onClick={() => adjustPlanScale(0.1)} disabled={planScale >= 1.8} className="flex h-6 w-6 items-center justify-center rounded text-[#285b72] transition hover:bg-[#eaf6fb] disabled:cursor-not-allowed disabled:opacity-35" aria-label="Aumentar tamaño del plano" title="Aumentar plano">
+              <button type="button" onClick={() => adjustPlanScale(0.1)} disabled={planScale >= 3} className="flex h-6 w-6 items-center justify-center rounded text-[#285b72] transition hover:bg-[#eaf6fb] disabled:cursor-not-allowed disabled:opacity-35" aria-label="Aumentar tamaño del plano" title="Aumentar plano hasta 300%">
                 <span className="material-symbols-outlined text-[16px]">add</span>
               </button>
             </div>
             <div className="flex items-center gap-1.5 px-2 py-1.5">
               <span className="material-symbols-outlined text-[16px] text-[#b77812]">ads_click</span>
               <span className="font-mono text-[10px] font-bold text-[#355c70]">ICONOS {Math.round(iconScale * 100)}%</span>
-              <button type="button" onClick={() => adjustIconScale(-0.1)} disabled={iconScale <= 0.4} className="flex h-6 w-6 items-center justify-center rounded text-[#285b72] transition hover:bg-[#eaf6fb] disabled:cursor-not-allowed disabled:opacity-35" aria-label="Reducir tamaño de los iconos" title="Reducir iconos">
+              <button type="button" onClick={() => adjustIconScale(-0.1)} disabled={iconScale <= 0.2} className="flex h-6 w-6 items-center justify-center rounded text-[#285b72] transition hover:bg-[#eaf6fb] disabled:cursor-not-allowed disabled:opacity-35" aria-label="Reducir tamaño de los iconos" title="Reducir iconos hasta 20%">
                 <span className="material-symbols-outlined text-[16px]">remove</span>
               </button>
               <button type="button" onClick={() => adjustIconScale(0.1)} disabled={iconScale >= 1.8} className="flex h-6 w-6 items-center justify-center rounded text-[#285b72] transition hover:bg-[#eaf6fb] disabled:cursor-not-allowed disabled:opacity-35" aria-label="Aumentar tamaño de los iconos" title="Aumentar iconos">
@@ -1677,7 +1909,7 @@ export const MapView: React.FC<MapViewProps> = ({
             <div className="flex items-center gap-1.5 px-2 py-1.5">
               <span className="material-symbols-outlined text-[16px] text-[#0b5d8c]">text_fields</span>
               <span className="font-mono text-[10px] font-bold text-[#355c70]">TEXTOS {Math.round(textScale * 100)}%</span>
-              <button type="button" onClick={() => adjustTextScale(-0.1)} disabled={textScale <= 0.5} className="flex h-6 w-6 items-center justify-center rounded text-[#285b72] transition hover:bg-[#eaf6fb] disabled:cursor-not-allowed disabled:opacity-35" aria-label="Reducir tamaño de los textos del plano" title="Reducir textos">
+              <button type="button" onClick={() => adjustTextScale(-0.1)} disabled={textScale <= 0.25} className="flex h-6 w-6 items-center justify-center rounded text-[#285b72] transition hover:bg-[#eaf6fb] disabled:cursor-not-allowed disabled:opacity-35" aria-label="Reducir tamaño de los textos del plano" title="Reducir textos hasta 25%">
                 <span className="material-symbols-outlined text-[16px]">remove</span>
               </button>
               <button type="button" onClick={() => adjustTextScale(0.1)} disabled={textScale >= 1.8} className="flex h-6 w-6 items-center justify-center rounded text-[#285b72] transition hover:bg-[#eaf6fb] disabled:cursor-not-allowed disabled:opacity-35" aria-label="Aumentar tamaño de los textos del plano" title="Aumentar textos">
