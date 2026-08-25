@@ -10,7 +10,58 @@ export type CameraCode = 'SB850' | 'SB851' | 'SB858' | string;
 
 export type CameraType = 'MT' | 'BT' | 'Datos' | string;
 
-export type ElementType = 'caja' | 'camara' | 'tuberia';
+export type ElementType = 'caja' | 'camara' | 'tuberia' | 'electrico';
+
+export type PlanArea = 'civil' | 'electrical';
+
+export type ElectricalElementType =
+  | 'transformador'
+  | 'tablero_baja_tension'
+  | 'tablero_distribucion'
+  | 'barrajes_elastomericos'
+  | 'malla_tierra'
+  | 'poste_media_tension'
+  | 'poste_alumbrado'
+  | 'reconectador';
+
+export const ELECTRICAL_ELEMENT_OPTIONS: ReadonlyArray<{
+  value: ElectricalElementType;
+  label: string;
+  shortLabel: string;
+  icon: string;
+  color: string;
+}> = [
+  { value: 'transformador', label: 'Transformador', shortLabel: 'Transformador', icon: 'transform', color: '#7C3AED' },
+  { value: 'tablero_baja_tension', label: 'Tablero de baja tensión', shortLabel: 'Tablero BT', icon: 'developer_board', color: '#0369A1' },
+  { value: 'tablero_distribucion', label: 'Tablero de distribución', shortLabel: 'Tablero distribución', icon: 'switch', color: '#075985' },
+  { value: 'barrajes_elastomericos', label: 'Barrajes elastoméricos', shortLabel: 'Barrajes', icon: 'splitscreen', color: '#C2410C' },
+  { value: 'malla_tierra', label: 'Malla a tierra', shortLabel: 'Malla a tierra', icon: 'grid_4x4', color: '#15803D' },
+  { value: 'poste_media_tension', label: 'Poste de media tensión', shortLabel: 'Poste MT', icon: 'cell_tower', color: '#B91C1C' },
+  { value: 'poste_alumbrado', label: 'Poste de alumbrado', shortLabel: 'Poste alumbrado', icon: 'light', color: '#CA8A04' },
+  { value: 'reconectador', label: 'Reconectador', shortLabel: 'Reconectador', icon: 'power', color: '#9F1239' },
+];
+
+export const getElectricalElementOption = (value?: string) =>
+  ELECTRICAL_ELEMENT_OPTIONS.find((option) => option.value === value) || ELECTRICAL_ELEMENT_OPTIONS[0];
+
+export const isElectricalElementType = (value?: string): value is ElectricalElementType =>
+  ELECTRICAL_ELEMENT_OPTIONS.some((option) => option.value === value);
+
+export type PipeNetworkType = 'media_tension' | 'baja_tension' | 'datos';
+
+export const PIPE_NETWORK_OPTIONS: ReadonlyArray<{
+  value: PipeNetworkType;
+  label: string;
+  color: string;
+  icon: string;
+}> = [
+  { value: 'media_tension', label: 'Media tensión', color: '#DC2626', icon: 'bolt' },
+  { value: 'baja_tension', label: 'Baja tensión', color: '#EAB308', icon: 'electric_bolt' },
+  { value: 'datos', label: 'Datos', color: '#0D9FC6', icon: 'lan' },
+];
+
+export const getPipeNetworkOption = (value?: string) =>
+  PIPE_NETWORK_OPTIONS.find((option) => option.value === value) || PIPE_NETWORK_OPTIONS[1];
 
 export type ActaLabelPosition = 'arriba' | 'abajo' | 'izquierda' | 'derecha';
 
@@ -55,6 +106,7 @@ export interface InspectionPhoto {
   actaLabelPosition?: ActaLabelPosition;
   tramo?: string;
   metraje?: number | string;
+  pipeNetworkType?: PipeNetworkType;
   pipeColor?: string;
   latitude?: number;
   longitude?: number;
@@ -64,6 +116,9 @@ export interface InspectionPhoto {
   planY?: number;
   planEndX?: number;
   planEndY?: number;
+  planArea?: PlanArea;
+  electricalType?: ElectricalElementType;
+  electricalColor?: string;
   inspectorName: string;
   inspectorId: string;
   inspectorAvatar: string;
@@ -81,8 +136,8 @@ export interface InspectionPhoto {
  * tramo se interpretan como tubería; el resto conserva el comportamiento de caja.
  */
 export const getElementType = (
-  element: Pick<InspectionPhoto, 'elementType' | 'tramo' | 'metraje'>,
-): ElementType => element.elementType || (element.tramo || element.metraje ? 'tuberia' : 'caja');
+  element: Pick<InspectionPhoto, 'elementType' | 'tramo' | 'metraje' | 'electricalType' | 'planArea'>,
+): ElementType => element.elementType || (element.electricalType || element.planArea === 'electrical' ? 'electrico' : element.tramo || element.metraje ? 'tuberia' : 'caja');
 
 export interface BlueprintOverlay {
   id: string;

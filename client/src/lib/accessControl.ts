@@ -17,7 +17,7 @@ export const MODULE_DEFINITIONS: Array<{ id: AppModule; label: string; icon: str
 ];
 
 export const ALL_OPERATIONAL_MODULES = MODULE_DEFINITIONS.map((module) => module.id);
-export const DEFAULT_INSPECTOR_MODULES: AppModule[] = ['dashboard', 'map', 'upload', 'history'];
+export const DEFAULT_INSPECTOR_MODULES: AppModule[] = ['dashboard', 'map', 'history'];
 
 export const isPrimaryAdmin = (email?: string) =>
   email?.trim().toLowerCase() === PRIMARY_ADMIN_EMAIL;
@@ -40,4 +40,4 @@ export const createFallbackAccess = (profile: Pick<UserAccess, 'id' | 'email' | 
 };
 
 export const canAccessModule = (access: UserAccess, module: AppModule) =>
-  access.role === 'admin' || access.allowedModules.includes(module);
+  access.role === 'admin' || (module !== 'upload' && access.allowedModules.includes(module));

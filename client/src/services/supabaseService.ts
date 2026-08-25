@@ -217,7 +217,11 @@ export const supabaseService = {
         acta_label_position: photo.actaLabelPosition || 'derecha',
         tramo: photo.tramo || null,
         metraje: photo.metraje ? String(photo.metraje) : null,
+        pipe_network_type: photo.pipeNetworkType || null,
         pipe_color: photo.pipeColor || null,
+        plan_area: photo.planArea || 'civil',
+        electrical_type: photo.electricalType || null,
+        electrical_color: photo.electricalColor || null,
         inspector_name: photo.inspectorName,
         inspector_id: photo.inspectorId,
         inspector_avatar: photo.inspectorAvatar,
@@ -272,7 +276,11 @@ export const supabaseService = {
       acta_label_position: photo.actaLabelPosition || 'derecha',
       tramo: photo.tramo || null,
       metraje: photo.metraje ? String(photo.metraje) : null,
+      pipe_network_type: photo.pipeNetworkType || null,
       pipe_color: photo.pipeColor || null,
+      plan_area: photo.planArea || 'civil',
+      electrical_type: photo.electricalType || null,
+      electrical_color: photo.electricalColor || null,
       inspector_name: photo.inspectorName,
       inspector_id: photo.inspectorId,
       inspector_avatar: photo.inspectorAvatar,
@@ -344,8 +352,19 @@ export const supabaseService = {
           : 'derecha',
         tramo: item.tramo || undefined,
         metraje: item.metraje || undefined,
+        pipeNetworkType: ['media_tension', 'baja_tension', 'datos'].includes(item.pipe_network_type)
+          ? item.pipe_network_type
+          : undefined,
         pipeColor: typeof item.pipe_color === 'string' && /^#[0-9a-fA-F]{6}$/.test(item.pipe_color)
           ? item.pipe_color
+          : undefined,
+        planArea: item.plan_area === 'electrical' ? 'electrical' : 'civil',
+        electricalType: [
+          'transformador', 'tablero_baja_tension', 'tablero_distribucion', 'barrajes_elastomericos',
+          'malla_tierra', 'poste_media_tension', 'poste_alumbrado', 'reconectador',
+        ].includes(item.electrical_type) ? item.electrical_type : undefined,
+        electricalColor: typeof item.electrical_color === 'string' && /^#[0-9a-fA-F]{6}$/.test(item.electrical_color)
+          ? item.electrical_color
           : undefined,
         inspectorName: item.inspector_name || 'Inspector',
         inspectorId: item.inspector_id || '8842',
@@ -398,7 +417,15 @@ export const supabaseService = {
       const { error } = await client.rpc('reset_inspection_data');
       if (error) {
         console.warn('Error resetting operational data in Supabase:', error.message);
-        return { success: false, remote: true, error: error.message };
+        const wasBlockedForUnfilteredDelete =
+          error.code === '21000' && /DELETE requires a WHERE clause/i.test(error.message);
+        return {
+          success: false,
+          remote: true,
+          error: wasBlockedForUnfilteredDelete
+            ? 'Supabase bloqueó el restablecimiento porque la función instalada aún usa eliminaciones sin condición. No se eliminaron datos. Actualiza el Script SQL de Supabase y vuelve a intentarlo.'
+            : error.message,
+        };
       }
       return { success: true, remote: true };
     } catch (err) {
@@ -596,7 +623,11 @@ CREATE TABLE IF NOT EXISTS public.inspection_photos (
   acta_label_position TEXT NOT NULL DEFAULT 'derecha' CHECK (acta_label_position IN ('arriba', 'abajo', 'izquierda', 'derecha')),
   tramo TEXT,
   metraje TEXT,
+  pipe_network_type TEXT CHECK (pipe_network_type IS NULL OR pipe_network_type IN ('media_tension', 'baja_tension', 'datos')),
   pipe_color TEXT CHECK (pipe_color IS NULL OR pipe_color ~ '^#[0-9A-Fa-f]{6}$'),
+  plan_area TEXT NOT NULL DEFAULT 'civil' CHECK (plan_area IN ('civil', 'electrical')),
+  electrical_type TEXT,
+  electrical_color TEXT CHECK (electrical_color IS NULL OR electrical_color ~ '^#[0-9A-Fa-f]{6}$'),
   inspector_name TEXT NOT NULL,
   inspector_id TEXT NOT NULL,
   inspector_avatar TEXT DEFAULT '',
@@ -622,7 +653,11 @@ ALTER TABLE public.inspection_photos ADD COLUMN IF NOT EXISTS plan_end_y NUMERIC
 ALTER TABLE public.inspection_photos ADD COLUMN IF NOT EXISTS acta TEXT;
 ALTER TABLE public.inspection_photos ADD COLUMN IF NOT EXISTS show_acta_label BOOLEAN NOT NULL DEFAULT true;
 ALTER TABLE public.inspection_photos ADD COLUMN IF NOT EXISTS acta_label_position TEXT NOT NULL DEFAULT 'derecha' CHECK (acta_label_position IN ('arriba', 'abajo', 'izquierda', 'derecha'));
+ALTER TABLE public.inspection_photos ADD COLUMN IF NOT EXISTS pipe_network_type TEXT CHECK (pipe_network_type IS NULL OR pipe_network_type IN ('media_tension', 'baja_tension', 'datos'));
 ALTER TABLE public.inspection_photos ADD COLUMN IF NOT EXISTS pipe_color TEXT CHECK (pipe_color IS NULL OR pipe_color ~ '^#[0-9A-Fa-f]{6}$');
+ALTER TABLE public.inspection_photos ADD COLUMN IF NOT EXISTS plan_area TEXT NOT NULL DEFAULT 'civil' CHECK (plan_area IN ('civil', 'electrical'));
+ALTER TABLE public.inspection_photos ADD COLUMN IF NOT EXISTS electrical_type TEXT;
+ALTER TABLE public.inspection_photos ADD COLUMN IF NOT EXISTS electrical_color TEXT CHECK (electrical_color IS NULL OR electrical_color ~ '^#[0-9A-Fa-f]{6}$');
 
 -- 3. TABLA DE REGISTRO DE ACTIVIDADES Y AUDITORÍA (inspection_activities)
 CREATE TABLE IF NOT EXISTS public.inspection_activities (
@@ -813,9 +848,12 @@ BEGIN
     RAISE EXCEPTION 'Solo un administrador puede restablecer los datos de inspección.';
   END IF;
 
-  DELETE FROM public.inspection_collections;
-  DELETE FROM public.inspection_activities;
-  DELETE FROM public.inspection_photos;
+  -- La condición explícita conserva la compatibilidad con la protección
+  -- del proyecto que bloquea DELETE sin WHERE. id es la clave primaria de
+  -- estas tres tablas, por lo que no excluye ningún registro operativo.
+  DELETE FROM public.inspection_collections WHERE id IS NOT NULL;
+  DELETE FROM public.inspection_activities WHERE id IS NOT NULL;
+  DELETE FROM public.inspection_photos WHERE id IS NOT NULL;
 END;
 $$;
 
