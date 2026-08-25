@@ -4,7 +4,7 @@
  * relativos al plano, nunca como coordenadas de un proveedor cartográfico.
  */
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { ActaLabelPosition, BlueprintCalibration, BlueprintOverlay, ElectricalElementType, ELECTRICAL_ELEMENT_OPTIONS, getCableTypeOption, getElectricalElementOption, getElectricalPlanArea, getElementType, getPipeNetworkOption, InspectionPhoto, InspectorProfile, isElectricalElementType, PIPE_NETWORK_OPTIONS, PipeNetworkType, PlanArea } from '../types';
+import { ActaLabelPosition, BlueprintCalibration, BlueprintOverlay, ElectricalElementType, ELECTRICAL_ELEMENT_OPTIONS, getCableTypeOption, getElectricalElementOption, getElectricalPlanArea, getElementType, getPipeNetworkOption, InspectionPhoto, InspectorProfile, isElectricalElementType, PlanArea } from '../types';
 import { compressImageForDevice } from '../services/deviceStorageService';
 import { isQuotaExceededError, loadBlueprintImage, saveBlueprintImage } from '../services/blueprintStorageService';
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from './ui/breadcrumb';
@@ -31,6 +31,8 @@ interface MapViewProps {
     position: Pick<InspectionPhoto, 'planX' | 'planY' | 'planEndX' | 'planEndY'> & Partial<Pick<InspectionPhoto, 'metraje'>>,
   ) => void;
   onUpdatePipelineMeasurements: (measurements: Array<Pick<InspectionPhoto, 'id' | 'metraje'>>) => void;
+  focusElementId?: string | null;
+  onFocusElementHandled?: () => void;
 }
 
 type PlacementStage = 'point' | 'pipe-start' | 'pipe-end';
@@ -56,6 +58,14 @@ interface CalibrationDraft {
   referenceDistancePlanUnits: number;
   referenceDistancePercent: number;
   aspectRatio: number;
+}
+
+type PipeGeometry = Required<Pick<InspectionPhoto, 'planX' | 'planY' | 'planEndX' | 'planEndY'>>;
+
+interface PipeDimensionHistoryEntry {
+  photoId: string;
+  before: PipeGeometry;
+  after: PipeGeometry;
 }
 
 const EMPTY_BLUEPRINT: BlueprintOverlay = {
@@ -140,6 +150,8 @@ const hasCompletePipe = (photo: InspectionPhoto) =>
   && typeof photo.planEndY === 'number';
 
 const isCable = (photo: InspectionPhoto) => photo.electricalType === 'cableado';
+const NO_STARTED_MARKER_COLOR = '#64748b';
+const isNotStarted = (photo: InspectionPhoto) => photo.executionStatus === 'No iniciado';
 
 const isElectricalPhoto = (photo: InspectionPhoto) =>
   photo.planArea !== 'civil' && isElectricalElementType(photo.electricalType);
@@ -157,7 +169,7 @@ const PLAN_AREA_DETAILS: Record<'civil' | 'electrical_mt' | 'electrical_bt' | 'e
 };
 
 const QUICK_PLAN_AREAS = ['civil', 'electrical_mt', 'electrical_bt', 'electrical_lighting'] as const;
-type PlanFilter = 'all' | 'camara' | 'caja' | 'tuberia' | 'pending';
+type PlanFilter = 'all' | 'camara' | 'caja' | 'tuberia' | 'pending' | 'not_started';
 type PlanAreaFilterState = Record<typeof QUICK_PLAN_AREAS[number], PlanFilter>;
 
 const DEFAULT_PLAN_AREA_FILTERS: PlanAreaFilterState = {
@@ -168,7 +180,7 @@ const DEFAULT_PLAN_AREA_FILTERS: PlanAreaFilterState = {
 };
 
 const isPlanFilter = (value: unknown): value is PlanFilter =>
-  value === 'all' || value === 'camara' || value === 'caja' || value === 'tuberia' || value === 'pending';
+  value === 'all' || value === 'camara' || value === 'caja' || value === 'tuberia' || value === 'pending' || value === 'not_started';
 
 const elementLabel = (photo: InspectionPhoto) => {
   const type = getElementType(photo);
@@ -192,6 +204,8 @@ export const MapView: React.FC<MapViewProps> = ({
   onCreatePhoto,
   onUpdatePhotoPosition,
   onUpdatePipelineMeasurements,
+  focusElementId,
+  onFocusElementHandled,
 }) => {
   const [blueprint, setBlueprint] = useState<BlueprintOverlay>(() => {
     const saved = localStorage.getItem('photovault_blueprint');
@@ -240,7 +254,11 @@ export const MapView: React.FC<MapViewProps> = ({
   const [calibrationDraft, setCalibrationDraft] = useState<CalibrationDraft | null>(null);
   const [calibrationMeters, setCalibrationMeters] = useState('10');
   const [isCalibrationDialogOpen, setIsCalibrationDialogOpen] = useState(false);
+  const [pipeDimensionPercent, setPipeDimensionPercent] = useState('10');
+  const [pipeDimensionUndoStack, setPipeDimensionUndoStack] = useState<PipeDimensionHistoryEntry[]>([]);
+  const [pipeDimensionRedoStack, setPipeDimensionRedoStack] = useState<PipeDimensionHistoryEntry[]>([]);
   const [selectedPlanPhotoId, setSelectedPlanPhotoId] = useState<string | null>(null);
+  const [focusedPlanPhotoId, setFocusedPlanPhotoId] = useState<string | null>(null);
   const [hoveredPlanPhotoId, setHoveredPlanPhotoId] = useState<string | null>(null);
   const [isMultipleSelectionMode, setIsMultipleSelectionMode] = useState(false);
   const [selectedPlanPhotoIds, setSelectedPlanPhotoIds] = useState<string[]>([]);
@@ -277,6 +295,34 @@ export const MapView: React.FC<MapViewProps> = ({
     if (!selectedPlanArea || selectedPlanArea === 'electrical') return;
     setFiltersByPlanArea((previous) => ({ ...previous, [selectedPlanArea]: filter }));
   };
+
+  useEffect(() => {
+    if (!focusElementId) return;
+    const photo = photos.find((item) => item.id === focusElementId);
+    if (!photo) {
+      onFocusElementHandled?.();
+      return;
+    }
+
+    const targetArea = getPhotoPlanArea(photo);
+    setSelectedPlanArea(targetArea);
+    setFiltersByPlanArea((previous) => ({ ...previous, [targetArea]: 'all' }));
+    setSearchQuery('');
+    setSelectedPlanPhotoId(null);
+    setSelectedPlanPhotoIds([]);
+    setHoveredPlanPhotoId(null);
+    setFocusedPlanPhotoId(photo.id);
+    onFocusElementHandled?.();
+
+    const frame = window.requestAnimationFrame(() => {
+      document.getElementById(`plan-marker-${photo.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' });
+    });
+    const clearFocus = window.setTimeout(() => setFocusedPlanPhotoId(null), 2600);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      window.clearTimeout(clearFocus);
+    };
+  }, [focusElementId]);
 
   useEffect(() => {
     let active = true;
@@ -414,7 +460,8 @@ export const MapView: React.FC<MapViewProps> = ({
         : getPhotoPlanArea(photo) === selectedPlanArea;
       if (!belongsToArea) return false;
       if (activeFilter === 'pending' && !pendingPhotos.some((pending) => pending.id === photo.id)) return false;
-      if (activeFilter !== 'all' && activeFilter !== 'pending' && type !== activeFilter) return false;
+      if (activeFilter === 'not_started' && !isNotStarted(photo)) return false;
+      if (activeFilter !== 'all' && activeFilter !== 'pending' && activeFilter !== 'not_started' && type !== activeFilter) return false;
       if (!query) return true;
       return [photo.name, photo.cameraCode, photo.tramo, photo.location, photo.metraje]
         .filter(Boolean)
@@ -585,20 +632,66 @@ export const MapView: React.FC<MapViewProps> = ({
   const updatePipeGeometry = (
     photo: InspectionPhoto,
     changes: Partial<Pick<InspectionPhoto, 'planX' | 'planY' | 'planEndX' | 'planEndY'>>,
+    options: { recordHistory?: boolean } = {},
   ) => {
     if (getElementType(photo) !== 'tuberia' || !hasCompletePipe(photo)) return;
     setHasPendingPlanChanges(true);
+    const before: PipeGeometry = {
+      planX: photo.planX!,
+      planY: photo.planY!,
+      planEndX: photo.planEndX!,
+      planEndY: photo.planEndY!,
+    };
     const position = {
       planX: clampPercent(changes.planX ?? photo.planX!),
       planY: clampPercent(changes.planY ?? photo.planY!),
       planEndX: clampPercent(changes.planEndX ?? photo.planEndX!),
       planEndY: clampPercent(changes.planEndY ?? photo.planEndY!),
     };
+    const hasGeometryChanged = Object.keys(before).some((key) => before[key as keyof PipeGeometry] !== position[key as keyof PipeGeometry]);
+    if (options.recordHistory !== false && hasGeometryChanged) {
+      const entry: PipeDimensionHistoryEntry = { photoId: photo.id, before, after: position };
+      setPipeDimensionUndoStack((previous) => [...previous.slice(-19), entry]);
+      setPipeDimensionRedoStack([]);
+    }
     const metraje = getCalibratedMeters(position);
     onUpdatePhotoPosition(photo.id, {
       ...position,
       ...(metraje !== null ? { metraje: roundMeters(metraje) } : {}),
     });
+  };
+
+  const adjustPipeLength = (photo: InspectionPhoto, factor: number) => {
+    if (!hasCompletePipe(photo) || factor <= 0) return;
+    updatePipeGeometry(photo, {
+      planEndX: photo.planX! + (photo.planEndX! - photo.planX!) * factor,
+      planEndY: photo.planY! + (photo.planEndY! - photo.planY!) * factor,
+    });
+  };
+
+  const getPipeDimensionAdjustment = () => {
+    const parsed = Number.parseFloat(pipeDimensionPercent.replace(',', '.'));
+    return clampScale(Number.isFinite(parsed) ? parsed : 10, 1, 75) / 100;
+  };
+
+  const undoPipeDimension = () => {
+    const entry = pipeDimensionUndoStack.at(-1);
+    if (!entry) return;
+    const photo = photos.find((item) => item.id === entry.photoId);
+    if (!photo) return;
+    setPipeDimensionUndoStack((previous) => previous.slice(0, -1));
+    setPipeDimensionRedoStack((previous) => [...previous.slice(-19), entry]);
+    updatePipeGeometry(photo, entry.before, { recordHistory: false });
+  };
+
+  const redoPipeDimension = () => {
+    const entry = pipeDimensionRedoStack.at(-1);
+    if (!entry) return;
+    const photo = photos.find((item) => item.id === entry.photoId);
+    if (!photo) return;
+    setPipeDimensionRedoStack((previous) => previous.slice(0, -1));
+    setPipeDimensionUndoStack((previous) => [...previous.slice(-19), entry]);
+    updatePipeGeometry(photo, entry.after, { recordHistory: false });
   };
 
   const saveCalibration = (event: React.FormEvent) => {
@@ -899,11 +992,11 @@ export const MapView: React.FC<MapViewProps> = ({
     setDragTarget(target);
   };
 
-  const planScale = clampScale(Number(blueprint.scale) || 1, 0.45, 3);
+  const planScale = clampScale(Number(blueprint.scale) || 1, 0.45, 8);
   const adjustPlanScale = (difference: number) => {
     setBlueprint((previous) => ({
       ...previous,
-      scale: clampScale((Number(previous.scale) || 1) + difference, 0.45, 3),
+      scale: clampScale((Number(previous.scale) || 1) + difference, 0.45, 8),
     }));
   };
   const adjustIconScale = (difference: number) => {
@@ -1171,16 +1264,16 @@ export const MapView: React.FC<MapViewProps> = ({
         </div>
         <span className="hidden h-6 w-px bg-[#b8ced9] sm:block" aria-hidden="true" />
         {(selectedPlanArea !== 'civil'
-          ? [['all', 'Todos', 'bolt'], ['pending', 'Sin ubicar', 'location_off']]
-          : [['all', 'Todos', 'layers'], ['camara', 'Cámaras', 'videocam'], ['caja', 'Cajas', 'inventory_2'], ['tuberia', 'Tuberías', 'timeline'], ['pending', 'Sin ubicar', 'location_off']]
+          ? [['all', 'Todos', 'bolt'], ['not_started', 'No iniciado', 'schedule'], ['pending', 'Sin ubicar', 'location_off']]
+          : [['all', 'Todos', 'layers'], ['camara', 'Cámaras', 'videocam'], ['caja', 'Cajas', 'inventory_2'], ['tuberia', 'Tuberías', 'timeline'], ['not_started', 'No iniciado', 'schedule'], ['pending', 'Sin ubicar', 'location_off']]
         ).map(([filter, label, icon]) => (
           <button
             key={filter}
             type="button"
-            onClick={() => setActiveFilter(filter as 'all' | 'camara' | 'caja' | 'tuberia' | 'pending')}
+            onClick={() => setActiveFilter(filter as PlanFilter)}
             className={`inline-flex h-8 items-center gap-1.5 rounded-full border px-3 text-[11px] font-bold shadow-sm transition ${
               activeFilter === filter
-                ? 'border-[#0566aa] bg-[#e5f4fb] text-[#004d84]'
+                ? filter === 'not_started' ? 'border-[#64748b] bg-[#eef2f7] text-[#334155]' : 'border-[#0566aa] bg-[#e5f4fb] text-[#004d84]'
                 : 'border-[#c7d7df] bg-white text-[#466473] hover:bg-[#f4fafc]'
             }`}
           >
@@ -1302,14 +1395,49 @@ export const MapView: React.FC<MapViewProps> = ({
                 const pipeline = getElementType(photo) === 'tuberia';
                 const cable = isCable(photo);
                 if ((!pipeline && !cable) || !hasCompletePipe(photo)) return null;
-                const pipeStroke = cable
-                  ? getCableTypeOption(photo.cableType).color
-                  : photo.pipeColor || getPipeNetworkOption(photo.pipeNetworkType).color;
+                const pipeConduits = pipeline && photo.pipeConduits?.length
+                  ? photo.pipeConduits
+                  : pipeline ? [{
+                    id: `legacy-${photo.id}`,
+                    networkType: getPipeNetworkOption(photo.pipeNetworkType).value,
+                    configuration: photo.tramo || '',
+                    meters: photo.metraje ?? 0,
+                  }] : [];
+                const lineDeltaX = photo.planEndX! - photo.planX!;
+                const lineDeltaY = photo.planEndY! - photo.planY!;
+                const lineLength = Math.hypot(lineDeltaX, lineDeltaY) || 1;
+                const parallelOffset = (index: number) => (index - (pipeConduits.length - 1) / 2) * 0.72;
+                const offsetPoint = (x: number, y: number, offset: number) => ({
+                  x: x + (-lineDeltaY / lineLength) * offset,
+                  y: y + (lineDeltaX / lineLength) * offset,
+                });
                 const isSelected = !isMultipleSelectionMode && selectedPlanPhotoId === photo.id;
                 return (
                   <g key={`line-${photo.id}`}>
                     <line x1={photo.planX} y1={photo.planY} x2={photo.planEndX} y2={photo.planEndY} stroke="rgba(255,255,255,0.82)" strokeWidth="2.2" strokeLinecap="round" />
-                    <line x1={photo.planX} y1={photo.planY} x2={photo.planEndX} y2={photo.planEndY} stroke={pipeStroke} strokeWidth={cable ? '1.35' : '1.1'} strokeDasharray={cable ? '1.1 0.8' : undefined} strokeLinecap="round" />
+                    {cable && (
+                      <line x1={photo.planX} y1={photo.planY} x2={photo.planEndX} y2={photo.planEndY} stroke={isNotStarted(photo) ? NO_STARTED_MARKER_COLOR : getCableTypeOption(photo.cableType).color} strokeWidth="1.35" strokeDasharray="1.1 0.8" strokeLinecap="round" />
+                    )}
+                    {pipeline && isNotStarted(photo) && (
+                      <line x1={photo.planX} y1={photo.planY} x2={photo.planEndX} y2={photo.planEndY} stroke={NO_STARTED_MARKER_COLOR} strokeWidth="1.35" strokeLinecap="round" />
+                    )}
+                    {pipeline && !isNotStarted(photo) && pipeConduits.map((conduit, index) => {
+                      const offset = parallelOffset(index);
+                      const start = offsetPoint(photo.planX!, photo.planY!, offset);
+                      const end = offsetPoint(photo.planEndX!, photo.planEndY!, offset);
+                      return (
+                        <line
+                          key={conduit.id}
+                          x1={start.x}
+                          y1={start.y}
+                          x2={end.x}
+                          y2={end.y}
+                          stroke={getPipeNetworkOption(conduit.networkType).color}
+                          strokeWidth="1.35"
+                          strokeLinecap="round"
+                        />
+                      );
+                    })}
                     {isSelected && (
                       <>
                         <circle cx={photo.planX} cy={photo.planY} r="1.55" fill="#ffffff" stroke="#073f74" strokeWidth="0.7" />
@@ -1408,7 +1536,9 @@ export const MapView: React.FC<MapViewProps> = ({
                 const midpointY = (photo.planY! + photo.planEndY!) / 2;
                 const actaName = photo.acta?.trim();
                 const cable = isCable(photo);
-                const longitudinalMarkerColor = cable ? getCableTypeOption(photo.cableType).color : '#073f74';
+                const longitudinalMarkerColor = isNotStarted(photo)
+                  ? NO_STARTED_MARKER_COLOR
+                  : cable ? getCableTypeOption(photo.cableType).color : '#073f74';
                 return (
                   <React.Fragment key={photo.id}>
                     <button
@@ -1433,7 +1563,8 @@ export const MapView: React.FC<MapViewProps> = ({
                         }
                       }}
                       style={{ left: `${midpointX}%`, top: `${midpointY}%`, backgroundColor: longitudinalMarkerColor, transform: `translate(-50%, -50%) scale(${iconScale})` }}
-                      className={`absolute z-10 flex h-8 w-8 items-center justify-center rounded-full border-2 border-white text-white shadow-lg transition hover:scale-110 active:cursor-grabbing ${placement || creationMode ? 'pointer-events-none' : isMultipleSelectionMode ? 'cursor-pointer' : 'cursor-grab'} ${(isMultipleSelectionMode ? selectedPlanPhotoIds.includes(photo.id) : selectedPlanPhotoId === photo.id) ? 'ring-4 ring-cyan-300 ring-offset-2' : ''}`}
+                      id={`plan-marker-${photo.id}`}
+                      className={`absolute z-10 flex h-8 w-8 items-center justify-center rounded-full border-2 border-white text-white shadow-lg transition hover:scale-110 active:cursor-grabbing ${placement || creationMode ? 'pointer-events-none' : isMultipleSelectionMode ? 'cursor-pointer' : 'cursor-grab'} ${(isMultipleSelectionMode ? selectedPlanPhotoIds.includes(photo.id) : selectedPlanPhotoId === photo.id) ? 'ring-4 ring-cyan-300 ring-offset-2' : focusedPlanPhotoId === photo.id ? 'ring-4 ring-amber-300 ring-offset-2 animate-pulse' : ''}`}
                       title={isMultipleSelectionMode ? `Seleccionar ${elementLabel(photo)}` : `Abrir o mover ${elementLabel(photo)}`}
                       aria-label={isMultipleSelectionMode ? `Seleccionar ${elementLabel(photo)}` : `Abrir o mover ${elementLabel(photo)}`}
                       aria-describedby={hoveredPlanPhotoId === photo.id ? `element-preview-${photo.id}` : undefined}
@@ -1457,7 +1588,7 @@ export const MapView: React.FC<MapViewProps> = ({
               const isCamera = type === 'camara';
               const electrical = isElectricalPhoto(photo);
               const electricalOption = getElectricalElementOption(photo.electricalType);
-              const markerColor = electrical
+              const baseMarkerColor = electrical
                 ? photo.electricalColor || electricalOption.color
                 : !isCamera
                   ? '#b77812'
@@ -1466,6 +1597,7 @@ export const MapView: React.FC<MapViewProps> = ({
                   : photo.cameraType === 'Datos'
                     ? '#f97316'
                     : '#0566aa';
+              const markerColor = isNotStarted(photo) ? NO_STARTED_MARKER_COLOR : baseMarkerColor;
               const actaName = photo.acta?.trim();
               const cameraName = isCamera ? cameraNameLabel(photo) : null;
               return (
@@ -1492,7 +1624,8 @@ export const MapView: React.FC<MapViewProps> = ({
                       }
                     }}
                     style={{ left: `${photo.planX}%`, top: `${photo.planY}%`, backgroundColor: markerColor, transform: `translate(-50%, -50%) scale(${iconScale})` }}
-                    className={`absolute z-10 flex h-9 w-9 items-center justify-center rounded-full border-2 border-white text-white shadow-[0_3px_10px_rgba(6,36,58,0.35)] transition hover:scale-110 active:cursor-grabbing ${placement || creationMode ? 'pointer-events-none' : isMultipleSelectionMode ? 'cursor-pointer' : 'cursor-grab'} ${(isMultipleSelectionMode ? selectedPlanPhotoIds.includes(photo.id) : selectedPlanPhotoId === photo.id) ? 'ring-4 ring-cyan-300 ring-offset-2' : ''}`}
+                    id={`plan-marker-${photo.id}`}
+                    className={`absolute z-10 flex h-9 w-9 items-center justify-center rounded-full border-2 border-white text-white shadow-[0_3px_10px_rgba(6,36,58,0.35)] transition hover:scale-110 active:cursor-grabbing ${placement || creationMode ? 'pointer-events-none' : isMultipleSelectionMode ? 'cursor-pointer' : 'cursor-grab'} ${(isMultipleSelectionMode ? selectedPlanPhotoIds.includes(photo.id) : selectedPlanPhotoId === photo.id) ? 'ring-4 ring-cyan-300 ring-offset-2' : focusedPlanPhotoId === photo.id ? 'ring-4 ring-amber-300 ring-offset-2 animate-pulse' : ''}`}
                     title={isMultipleSelectionMode ? `Seleccionar ${elementLabel(photo)}` : `Abrir o mover ${elementLabel(photo)}`}
                     aria-label={isMultipleSelectionMode ? `Seleccionar ${elementLabel(photo)}` : `Abrir o mover ${elementLabel(photo)}`}
                     aria-describedby={hoveredPlanPhotoId === photo.id ? `element-preview-${photo.id}` : undefined}
@@ -1591,58 +1724,31 @@ export const MapView: React.FC<MapViewProps> = ({
                 <span className="font-mono text-sm font-bold text-[#0b5d8c]">{Number.parseFloat(String(selectedPlanPhoto.metraje ?? 0)).toFixed(2)} m</span>
               </div>
               <div className="mt-3 border border-[#b7d5e4] bg-white p-2.5">
-                <p className="font-mono text-[9px] font-bold tracking-[0.12em] text-[#0b5d8c]">TIPO DE RED</p>
-                <p className="mt-0.5 text-[10px] text-[#547181]">La red aplica un color automático al tramo.</p>
-                <div className="mt-2 grid grid-cols-3 gap-1.5">
-                  {PIPE_NETWORK_OPTIONS.map((option) => (
-                    <button
-                      key={option.value}
-                      type="button"
-                      onClick={() => onUpdatePhoto({
-                        ...selectedPlanPhoto,
-                        pipeNetworkType: option.value as PipeNetworkType,
-                        pipeColor: option.color,
-                      })}
-                      className={`flex min-h-12 flex-col items-center justify-center gap-1 border px-1 text-[9px] font-bold transition hover:bg-[#f4fbfe] ${
-                        selectedPlanPhoto.pipeNetworkType === option.value
-                          ? 'border-[#073f74] bg-[#f4fbfe] text-[#073f74] ring-1 ring-cyan-300'
-                          : 'border-[#c7dce7] bg-white text-[#547181]'
-                      }`}
-                    >
-                      <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: option.color }} />
-                      {option.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              <div className="mt-3 border border-[#b7d5e4] bg-white p-2.5">
-                <div className="flex items-center justify-between gap-2">
+                <div className="flex items-start justify-between gap-3">
                   <div>
-                    <p className="font-mono text-[9px] font-bold tracking-[0.12em] text-[#0b5d8c]">COLOR DEL TRAMO</p>
-                    <p className="mt-0.5 text-[10px] text-[#547181]">Puedes ajustar el color automático cuando necesites una convención particular.</p>
+                    <p className="font-mono text-[9px] font-bold tracking-[0.12em] text-[#0b5d8c]">CONDUCCIONES DEL TRAMO</p>
+                    <p className="mt-0.5 text-[10px] text-[#547181]">Los colores corresponden a cada red. Configura o agrega conducciones desde Propiedades.</p>
                   </div>
-                  <label className="relative flex h-9 w-12 shrink-0 cursor-pointer overflow-hidden border-2 border-white shadow-[0_0_0_1px_#8bb5c9]" title="Elegir color personalizado">
-                    <input
-                      type="color"
-                      value={selectedPlanPhoto.pipeColor || '#0d9fc6'}
-                      onChange={(event) => onUpdatePhoto({ ...selectedPlanPhoto, pipeColor: event.currentTarget.value.toUpperCase() })}
-                      className="absolute -inset-2 h-16 w-16 cursor-pointer border-0 bg-transparent p-0"
-                      aria-label="Elegir color del tramo"
-                    />
-                  </label>
+                  <span className="material-symbols-outlined text-[17px] text-[#075a91]">account_tree</span>
                 </div>
-                <div className="mt-2 flex flex-wrap gap-1.5">
-                  {['#0D9FC6', '#0566AA', '#16A34A', '#EAB308', '#EA580C', '#DC2626', '#7C3AED', '#1F2937'].map((color) => (
-                    <button
-                      key={color}
-                      type="button"
-                      onClick={() => onUpdatePhoto({ ...selectedPlanPhoto, pipeColor: color })}
-                      className={`h-6 w-6 border-2 transition hover:scale-110 ${selectedPlanPhoto.pipeColor?.toUpperCase() === color ? 'border-[#073f74] ring-2 ring-cyan-300 ring-offset-1' : 'border-white shadow-[0_0_0_1px_#b4cbd8]'}`}
-                      style={{ backgroundColor: color }}
-                      title={`Asignar color ${color}`}
-                      aria-label={`Asignar color ${color}`}
-                    />
-                  ))}
+                <div className="mt-2 space-y-1.5">
+                  {(selectedPlanPhoto.pipeConduits?.length ? selectedPlanPhoto.pipeConduits : [{
+                    id: `legacy-${selectedPlanPhoto.id}`,
+                    networkType: getPipeNetworkOption(selectedPlanPhoto.pipeNetworkType).value,
+                    configuration: selectedPlanPhoto.tramo || 'sin medida',
+                    meters: selectedPlanPhoto.metraje ?? 0,
+                  }]).map((conduit) => {
+                    const option = getPipeNetworkOption(conduit.networkType);
+                    return (
+                      <div key={conduit.id} className="flex items-center justify-between gap-2 border border-[#d7e6ee] bg-[#f8fcfe] px-2 py-1.5">
+                        <span className="inline-flex min-w-0 items-center gap-1.5 text-[11px] font-bold text-[#173f58]">
+                          <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: option.color }} />
+                          {option.label} · {conduit.configuration || 'sin calibre'}
+                        </span>
+                        <span className="shrink-0 font-mono text-[10px] font-bold text-[#0b5d8c]">{conduit.meters || '0'} m</span>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
               <div className="mt-3 border border-[#b7d5e4] bg-[#f7fcfe] p-2.5">
@@ -1675,6 +1781,68 @@ export const MapView: React.FC<MapViewProps> = ({
                       />
                     </label>
                   ))}
+                </div>
+                <div className="mt-2 border border-[#c7dce7] bg-white px-2 py-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="font-mono text-[8px] font-bold tracking-[0.1em] text-[#547181]">DIMENSIÓN DEL TRAMO</p>
+                    <label className="flex items-center gap-1 text-[9px] font-semibold text-[#607d8b]">
+                      Ajuste
+                      <input
+                        type="number"
+                        min="1"
+                        max="75"
+                        step="1"
+                        inputMode="decimal"
+                        value={pipeDimensionPercent}
+                        onChange={(event) => setPipeDimensionPercent(event.target.value)}
+                        className="h-6 w-10 border border-[#b4cbd8] bg-white px-1 text-center font-mono text-[10px] font-bold text-[#173f58] outline-none focus:border-[#0566aa]"
+                        aria-label="Porcentaje para aumentar o disminuir la longitud del tramo"
+                      />
+                      %
+                    </label>
+                  </div>
+                  <div className="mt-1.5 grid grid-cols-2 gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => adjustPipeLength(selectedPlanPhoto, Math.max(0.01, 1 - getPipeDimensionAdjustment()))}
+                      className="inline-flex h-8 items-center justify-center gap-1 border border-[#b4cbd8] bg-white px-2 text-[10px] font-bold text-[#315c70] transition hover:bg-[#eaf6fb]"
+                      title="Disminuir la longitud visual del tramo usando el porcentaje indicado"
+                    >
+                      <span className="material-symbols-outlined text-[14px]">remove</span>
+                      Disminuir
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => adjustPipeLength(selectedPlanPhoto, 1 + getPipeDimensionAdjustment())}
+                      className="inline-flex h-8 items-center justify-center gap-1 border border-[#0566aa] bg-[#f4fbfe] px-2 text-[10px] font-bold text-[#075a91] transition hover:bg-[#e6f6ff]"
+                      title="Aumentar la longitud visual del tramo usando el porcentaje indicado"
+                    >
+                      <span className="material-symbols-outlined text-[14px]">add</span>
+                      Aumentar
+                    </button>
+                  </div>
+                  <div className="mt-1.5 grid grid-cols-2 gap-1.5 border-t border-[#e0ebf0] pt-1.5">
+                    <button
+                      type="button"
+                      onClick={undoPipeDimension}
+                      disabled={pipeDimensionUndoStack.at(-1)?.photoId !== selectedPlanPhoto.id}
+                      className="inline-flex h-7 items-center justify-center gap-1 border border-[#b4cbd8] bg-white px-2 text-[10px] font-bold text-[#315c70] transition hover:bg-[#eaf6fb] disabled:cursor-not-allowed disabled:opacity-40"
+                      title="Deshacer el último cambio de dimensión de este tramo"
+                    >
+                      <span className="material-symbols-outlined text-[14px]">undo</span>
+                      Deshacer
+                    </button>
+                    <button
+                      type="button"
+                      onClick={redoPipeDimension}
+                      disabled={pipeDimensionRedoStack.at(-1)?.photoId !== selectedPlanPhoto.id}
+                      className="inline-flex h-7 items-center justify-center gap-1 border border-[#b4cbd8] bg-white px-2 text-[10px] font-bold text-[#315c70] transition hover:bg-[#eaf6fb] disabled:cursor-not-allowed disabled:opacity-40"
+                      title="Rehacer el último cambio de dimensión de este tramo"
+                    >
+                      <span className="material-symbols-outlined text-[14px]">redo</span>
+                      Rehacer
+                    </button>
+                  </div>
                 </div>
                 <div className="mt-2 grid grid-cols-3 gap-1.5">
                   <button type="button" onClick={() => updatePipeGeometry(selectedPlanPhoto, { planEndY: selectedPlanPhoto.planY })} className="h-8 border border-[#9ec7d8] bg-white px-1 text-[10px] font-bold text-[#075a91] transition hover:bg-[#eaf6fb]">Horizontal</button>
@@ -1889,10 +2057,10 @@ export const MapView: React.FC<MapViewProps> = ({
             <div className="flex items-center gap-1.5 px-2 py-1.5">
               <span className="material-symbols-outlined text-[16px] text-[#0566aa]">zoom_in</span>
               <span className="font-mono text-[10px] font-bold text-[#355c70]">PLANO {Math.round(planScale * 100)}%</span>
-              <button type="button" onClick={() => adjustPlanScale(-0.1)} disabled={planScale <= 0.45} className="flex h-6 w-6 items-center justify-center rounded text-[#285b72] transition hover:bg-[#eaf6fb] disabled:cursor-not-allowed disabled:opacity-35" aria-label="Reducir tamaño del plano" title="Reducir plano">
+              <button type="button" onClick={() => adjustPlanScale(-0.25)} disabled={planScale <= 0.45} className="flex h-6 w-6 items-center justify-center rounded text-[#285b72] transition hover:bg-[#eaf6fb] disabled:cursor-not-allowed disabled:opacity-35" aria-label="Reducir tamaño del plano" title="Reducir plano en incrementos de 25%">
                 <span className="material-symbols-outlined text-[16px]">remove</span>
               </button>
-              <button type="button" onClick={() => adjustPlanScale(0.1)} disabled={planScale >= 3} className="flex h-6 w-6 items-center justify-center rounded text-[#285b72] transition hover:bg-[#eaf6fb] disabled:cursor-not-allowed disabled:opacity-35" aria-label="Aumentar tamaño del plano" title="Aumentar plano hasta 300%">
+              <button type="button" onClick={() => adjustPlanScale(0.25)} disabled={planScale >= 8} className="flex h-6 w-6 items-center justify-center rounded text-[#285b72] transition hover:bg-[#eaf6fb] disabled:cursor-not-allowed disabled:opacity-35" aria-label="Aumentar tamaño del plano" title="Aumentar plano hasta 800%">
                 <span className="material-symbols-outlined text-[16px]">add</span>
               </button>
             </div>

@@ -3,13 +3,25 @@
  * objeto seleccionado; una tubería nunca guarda datos de cámara, y viceversa.
  */
 import React, { useRef, useState } from 'react';
-import { CableGauge, CableType, CABLE_TYPE_OPTIONS, getCableGaugeOptionsForPlanArea, InspectionPhoto, ExecutionStatus, CameraCode, CameraType, ElementType, ActaLabelPosition, getElectricalElementOption, getElectricalPlanArea, getElementType, getPipeNetworkOption, PIPE_NETWORK_OPTIONS, PipeNetworkType } from '../types';
+import { CableGauge, CableType, CABLE_TYPE_OPTIONS, getCableGaugeOptionsForPlanArea, InspectionPhoto, ExecutionStatus, CameraCode, CameraType, ElementType, ActaLabelPosition, getElectricalElementOption, getElectricalPlanArea, getElementType, getPipeNetworkOption, PIPE_NETWORK_OPTIONS, PipeConduit, PipeNetworkType, getDefaultPipeConfiguration, normalizePipeConduits } from '../types';
 import { WAREHOUSE_LOCATIONS, CAMERA_CODES, CAMERA_TYPES } from '../data/mockData';
+import { ACTA_ITEM_OPTIONS, getActaItemKey } from '../data/actaItems';
 import { compressImageForDevice } from '../services/deviceStorageService';
 import { TramoSelector } from './TramoSelector';
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from './ui/command';
 
 const ACTAS_STORAGE_KEY = 'photovault_actas_catalog';
 const DEFAULT_ACTAS = Array.from({ length: 10 }, (_, index) => `Acta ${index + 1}`);
+const PIPE_NETWORK_ORDER: PipeNetworkType[] = ['media_tension', 'baja_tension', 'datos'];
+const ACTA_ITEMS_BY_SECTION = ACTA_ITEM_OPTIONS.reduce<Record<string, typeof ACTA_ITEM_OPTIONS[number][]>>((groups, item) => {
+  (groups[item.section] ||= []).push(item);
+  return groups;
+}, {});
+
+const createPipeConduitId = (networkType: PipeNetworkType) =>
+  typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+    ? crypto.randomUUID()
+    : `${networkType}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
 const loadActas = (): string[] => {
   try {
@@ -45,14 +57,18 @@ export const EditPhotoModal: React.FC<EditPhotoModalProps> = ({
   const [cameraCode, setCameraCode] = useState<CameraCode>(photo.cameraCode || 'SB850');
   const [cameraType, setCameraType] = useState<CameraType>(photo.cameraType || 'MT');
   const [acta, setActa] = useState(photo.acta ?? '');
+  const [actaItemKey, setActaItemKey] = useState(() => photo.actaItem ? getActaItemKey(photo.actaItem) : '');
+  const [isActaItemPickerOpen, setIsActaItemPickerOpen] = useState(false);
   const [actaLabelPosition, setActaLabelPosition] = useState<ActaLabelPosition>(photo.actaLabelPosition || 'derecha');
   const [actas, setActas] = useState<string[]>(loadActas);
   const [newActa, setNewActa] = useState('');
   const [actaMessage, setActaMessage] = useState<string | null>(null);
   const [elementType, setElementType] = useState<ElementType>(() => getElementType(photo));
-  const [tramo, setTramo] = useState<string>(photo.tramo || '3x4"');
-  const [metraje, setMetraje] = useState<string>(photo.metraje !== undefined ? String(photo.metraje) : '');
-  const [pipeNetworkType, setPipeNetworkType] = useState<PipeNetworkType>(getPipeNetworkOption(photo.pipeNetworkType).value);
+  const [pipeConduits, setPipeConduits] = useState<PipeConduit[]>(() => normalizePipeConduits(photo.pipeConduits, {
+    networkType: getPipeNetworkOption(photo.pipeNetworkType).value,
+    configuration: photo.tramo,
+    meters: photo.metraje,
+  }));
   const [cableType, setCableType] = useState<CableType>(photo.cableType || (photo.planArea === 'electrical_lighting' ? 'alumbrado' : photo.planArea === 'electrical_bt' ? 'baja_tension' : 'media_tension'));
   const [cableGauge, setCableGauge] = useState<CableGauge>(() => {
     const availableGauges = getCableGaugeOptionsForPlanArea(photo.planArea);
@@ -64,8 +80,9 @@ export const EditPhotoModal: React.FC<EditPhotoModalProps> = ({
   const [requiresImmediateAction, setRequiresImmediateAction] = useState(photo.requiresImmediateAction ?? false);
   const [verified, setVerified] = useState(photo.verified ?? false);
   const [imageUrls, setImageUrls] = useState<string[]>(() => {
-    const existing = Array.isArray(photo.imageUrls) ? photo.imageUrls.filter(Boolean) : [];
-    return existing.length > 0 ? existing : photo.imageUrl ? [photo.imageUrl] : [];
+    return Array.isArray(photo.imageUrls)
+      ? photo.imageUrls.filter((url): url is string => Boolean(url) && !url.startsWith('data:image/svg+xml'))
+      : [];
   });
   const [imageSize, setImageSize] = useState(photo.fileSize ?? '');
   const [isProcessingImage, setIsProcessingImage] = useState(false);
@@ -78,6 +95,32 @@ export const EditPhotoModal: React.FC<EditPhotoModalProps> = ({
   const electricalOption = getElectricalElementOption(photo.electricalType);
   const electricalArea = getElectricalPlanArea(photo.electricalType);
   const cableGaugeOptions = getCableGaugeOptionsForPlanArea(photo.planArea);
+  const selectedActaItem = ACTA_ITEM_OPTIONS.find((item) => getActaItemKey(item) === actaItemKey);
+
+  const orderedPipeConduits = [...pipeConduits].sort(
+    (left, right) => PIPE_NETWORK_ORDER.indexOf(left.networkType) - PIPE_NETWORK_ORDER.indexOf(right.networkType),
+  );
+
+  const addPipeConduit = (networkType: PipeNetworkType) => {
+    if (pipeConduits.some((conduit) => conduit.networkType === networkType)) return;
+    setPipeConduits((previous) => [...previous, {
+      id: createPipeConduitId(networkType),
+      networkType,
+      configuration: getDefaultPipeConfiguration(networkType),
+      meters: 0,
+    }]);
+  };
+
+  const updatePipeConduit = (id: string, changes: Partial<Pick<PipeConduit, 'configuration' | 'meters'>>) => {
+    setPipeConduits((previous) => previous.map((conduit) => (
+      conduit.id === id ? { ...conduit, ...changes } : conduit
+    )));
+  };
+
+  const removePipeConduit = (id: string) => {
+    if (pipeConduits.length <= 1) return;
+    setPipeConduits((previous) => previous.filter((conduit) => conduit.id !== id));
+  };
 
   if (!isOpen) return null;
 
@@ -145,7 +188,9 @@ export const EditPhotoModal: React.FC<EditPhotoModalProps> = ({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    const savedImageUrls = imageUrls.length > 0 ? imageUrls : [photo.imageUrl];
+    const savedImageUrls = imageUrls;
+    const savedPipeConduits = orderedPipeConduits;
+    const primaryConduit = savedPipeConduits[0];
     onSave({
       ...photo,
       name: isAdmin ? name.trim() || photo.name : photo.name,
@@ -159,11 +204,13 @@ export const EditPhotoModal: React.FC<EditPhotoModalProps> = ({
       cameraCode: elementType === 'camara' ? cameraCode : undefined,
       cameraType: isAdmin ? (elementType === 'camara' ? cameraType : undefined) : photo.cameraType,
       acta: isAdmin ? acta || undefined : photo.acta,
+      actaItem: isAdmin ? selectedActaItem : photo.actaItem,
       actaLabelPosition: isAdmin ? (acta ? actaLabelPosition : undefined) : photo.actaLabelPosition,
-      tramo: elementType === 'tuberia' ? tramo.trim() || undefined : undefined,
-      metraje: elementType === 'tuberia' ? metraje.trim() || undefined : undefined,
-      pipeNetworkType: elementType === 'tuberia' ? pipeNetworkType : undefined,
-      pipeColor: elementType === 'tuberia' ? getPipeNetworkOption(pipeNetworkType).color : undefined,
+      tramo: elementType === 'tuberia' ? primaryConduit?.configuration : undefined,
+      metraje: elementType === 'tuberia' ? primaryConduit?.meters : undefined,
+      pipeNetworkType: elementType === 'tuberia' ? primaryConduit?.networkType : undefined,
+      pipeColor: elementType === 'tuberia' && primaryConduit ? getPipeNetworkOption(primaryConduit.networkType).color : undefined,
+      pipeConduits: elementType === 'tuberia' ? savedPipeConduits : undefined,
       cableType: photo.electricalType === 'cableado' ? cableType : undefined,
       cableGauge: photo.electricalType === 'cableado' ? cableGauge : undefined,
       cableMeters: photo.electricalType === 'cableado' ? cableMeters.trim() || undefined : undefined,
@@ -246,6 +293,15 @@ export const EditPhotoModal: React.FC<EditPhotoModalProps> = ({
             </div>
             <div className="space-y-3">
               <div className="grid grid-cols-3 gap-2 sm:grid-cols-6">
+                {imageUrls.length === 0 && (
+                  <div className="col-span-full flex min-h-24 items-center gap-3 rounded-lg border border-dashed border-[#a7c8da] bg-[#f3faff] px-3 py-3 text-[#466473]" role="status">
+                    <span className="material-symbols-outlined grid h-9 w-9 place-items-center rounded-full bg-white text-[20px] text-[#607d8b]">hide_image</span>
+                    <div>
+                      <p className="text-[12px] font-bold uppercase tracking-wide">Sin evidencia</p>
+                      <p className="mt-0.5 text-[11px] leading-4">Aún no hay fotos disponibles para este elemento.</p>
+                    </div>
+                  </div>
+                )}
                 {imageUrls.map((url, index) => (
                   <div
                     key={`${url.slice(0, 32)}-${index}`}
@@ -305,7 +361,7 @@ export const EditPhotoModal: React.FC<EditPhotoModalProps> = ({
                   {isProcessingImage ? 'Optimizando…' : 'Tomar foto'}
                 </button>
                 </div>
-                <p className="mt-1.5 text-[10px] text-[#607d8b]">{imageUrls.length}/6 fotos. {imageUrls.length > 1 ? 'Arrastra las miniaturas para ordenarlas; la primera es la portada. ' : ''}{imageSize ? `Última carga original: ${imageSize}.` : 'Cada imagen se optimiza antes de guardarse.'}</p>
+                <p className="mt-1.5 text-[10px] text-[#607d8b]">{imageUrls.length === 0 ? 'Sin evidencia cargada. Usa Galería o Tomar foto para adjuntarla. ' : `${imageUrls.length}/6 fotos. ${imageUrls.length > 1 ? 'Arrastra las miniaturas para ordenarlas; la primera es la portada. ' : ''}`}{imageSize ? `Última carga original: ${imageSize}.` : 'Cada imagen se optimiza antes de guardarse.'}</p>
               </div>
             </div>
             {imageError && <p className="mt-2 text-[11px] font-medium text-[#ba1a1a]">{imageError}</p>}
@@ -333,7 +389,19 @@ export const EditPhotoModal: React.FC<EditPhotoModalProps> = ({
             <label className="block font-['Inter'] font-bold text-[13px] text-[#071e27] mb-1">
               Estado de la Inspección
             </label>
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+              <button
+                type="button"
+                onClick={() => setExecutionStatus('No iniciado')}
+                className={`py-2.5 px-3 rounded-lg border font-['Inter'] font-bold text-[13px] flex items-center justify-center gap-2 transition-all ${
+                  executionStatus === 'No iniciado'
+                    ? 'bg-[#607d8b] text-white border-[#607d8b] shadow-xs'
+                    : 'bg-[#f3faff] text-[#424752] border-[#c2c6d4] hover:bg-[#e6f6ff]'
+                }`}
+              >
+                <span className="material-symbols-outlined text-[18px]">schedule</span>
+                No iniciado
+              </button>
               <button
                 type="button"
                 onClick={() => setExecutionStatus('En proceso')}
@@ -460,6 +528,70 @@ export const EditPhotoModal: React.FC<EditPhotoModalProps> = ({
               </button>
             </div>}
             {actaMessage && <p className="mt-2 text-[11px] font-medium text-[#075a91]" role="status">{actaMessage}</p>}
+            <div className="mt-3 border-t border-[#d6e4ea] pt-3">
+              <label htmlFor="inspection-acta-item-picker" className="block font-['Inter'] text-[12px] font-bold text-[#173f58]">Ítem de acta</label>
+              <p className="mt-0.5 text-[11px] text-[#607d8b]">Abre la lista y busca por código, capítulo o descripción para seleccionar rápidamente el ítem contractual.</p>
+              <button
+                id="inspection-acta-item-picker"
+                type="button"
+                onClick={() => isAdmin && setIsActaItemPickerOpen((open) => !open)}
+                disabled={!isAdmin}
+                aria-expanded={isActaItemPickerOpen}
+                className="mt-2 flex w-full items-center justify-between gap-2 rounded-lg border border-[#c2c6d4] bg-white p-2.5 text-left text-[12px] text-[#071e27] outline-none transition hover:bg-[#f8fbfd] focus:border-[#004d99] disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                <span className="min-w-0 truncate">{selectedActaItem ? `${selectedActaItem.code} · ${selectedActaItem.description}` : 'Buscar y seleccionar ítem de acta'}</span>
+                <span className="material-symbols-outlined shrink-0 text-[18px] text-[#0566aa]">{isActaItemPickerOpen ? 'expand_less' : 'search'}</span>
+              </button>
+              {isActaItemPickerOpen && (
+                <Command className="mt-2 overflow-hidden rounded-lg border border-[#9fc7d9] bg-white" shouldFilter>
+                  <CommandInput placeholder="Buscar por código, descripción o capítulo…" />
+                  <CommandList className="max-h-52">
+                    <CommandEmpty className="px-3 py-5 text-xs text-[#607d8b]">No hay ítems que coincidan con la búsqueda.</CommandEmpty>
+                    <CommandGroup heading="Selección actual">
+                      <CommandItem
+                        value="sin item de acta"
+                        onSelect={() => {
+                          setActaItemKey('');
+                          setIsActaItemPickerOpen(false);
+                        }}
+                        className="text-xs text-[#547181]"
+                      >
+                        <span className="material-symbols-outlined text-[15px]">block</span>
+                        Sin ítem de acta asignado
+                      </CommandItem>
+                    </CommandGroup>
+                    {Object.entries(ACTA_ITEMS_BY_SECTION).map(([section, items]) => (
+                      <CommandGroup key={section} heading={section}>
+                        {items.map((item) => (
+                          <CommandItem
+                            key={getActaItemKey(item)}
+                            value={`${item.code} ${item.description} ${item.section}`}
+                            onSelect={() => {
+                              setActaItemKey(getActaItemKey(item));
+                              setIsActaItemPickerOpen(false);
+                            }}
+                            className="items-start py-2"
+                          >
+                            <span className="mt-0.5 rounded border border-cyan-200 bg-cyan-50 px-1.5 py-0.5 font-mono text-[10px] font-bold text-[#075a91]">{item.code}</span>
+                            <span className="min-w-0 text-[11px] leading-4 text-[#315c70]">{item.description}</span>
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    ))}
+                  </CommandList>
+                </Command>
+              )}
+              {selectedActaItem && (
+                <div className="mt-2 rounded-md border border-[#cfe0e9] bg-white px-2.5 py-2 text-[10px] leading-4 text-[#315c70]" title={selectedActaItem.description}>
+                  <div className="flex items-center justify-between gap-2">
+                    <strong className="font-mono text-[#073f74]">Ítem {selectedActaItem.code}</strong>
+                    <span className="shrink-0 font-semibold text-[#547181]">{selectedActaItem.unit || 'Sin unidad'} · Cantidad {selectedActaItem.quantity || '—'}</span>
+                  </div>
+                  <p className="mt-1 line-clamp-2"><span className="font-semibold text-[#173f58]">Descripción: </span>{selectedActaItem.description}</p>
+                  <p className="mt-0.5 text-[9px] text-[#607d8b]">Pasa el cursor sobre esta ficha para consultar la descripción completa.</p>
+                </div>
+              )}
+            </div>
             {acta && (
               <div className="mt-3 border-t border-[#d6e4ea] pt-3">
                 <label htmlFor="inspection-acta-label-position" className="block font-['Inter'] text-[12px] font-bold text-[#173f58]">Posición del texto en el plano</label>
@@ -613,35 +745,78 @@ export const EditPhotoModal: React.FC<EditPhotoModalProps> = ({
           {elementType === 'tuberia' && (
             <>
           <div className="rounded-lg border border-[#b7d5e4] bg-[#f4fbfe] p-3">
-            <p className="font-['Inter'] text-[12px] font-bold text-[#173f58]">Tipo de red del tramo</p>
-            <p className="mt-0.5 text-[11px] text-[#607d8b]">El color se asigna automáticamente al guardar y se refleja en el plano.</p>
-            <div className="mt-2 grid grid-cols-3 gap-2">
-              {PIPE_NETWORK_OPTIONS.map((option) => (
-                <button
-                  key={option.value}
-                  type="button"
-                  onClick={() => setPipeNetworkType(option.value)}
-                  className={`flex min-h-14 flex-col items-center justify-center gap-1 border px-2 text-[11px] font-bold transition ${
-                    pipeNetworkType === option.value
-                      ? 'border-[#073f74] bg-white text-[#073f74] ring-2 ring-cyan-200'
-                      : 'border-[#c2dbe7] bg-white text-[#547181] hover:bg-[#eaf6fb]'
-                  }`}
-                >
-                  <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: option.color }} />
-                  <span>{option.label}</span>
-                </button>
-              ))}
+            <p className="font-['Inter'] text-[12px] font-bold text-[#173f58]">Conducciones dentro del tramo</p>
+            <p className="mt-0.5 text-[11px] text-[#607d8b]">Agrega MT, BT y Datos en el mismo trazado. Cada conducción conserva su propio calibre y metraje.</p>
+            <div className="mt-3 grid grid-cols-3 gap-2">
+              {PIPE_NETWORK_OPTIONS.map((option) => {
+                const isAdded = pipeConduits.some((conduit) => conduit.networkType === option.value);
+                return (
+                  <button
+                    key={option.value}
+                    type="button"
+                    onClick={() => addPipeConduit(option.value)}
+                    disabled={!isAdmin || isAdded}
+                    className={`flex min-h-14 flex-col items-center justify-center gap-1 border px-2 text-[11px] font-bold transition ${
+                      isAdded
+                        ? 'cursor-default border-[#073f74] bg-white text-[#073f74] ring-2 ring-cyan-200'
+                        : 'border-[#c2dbe7] bg-white text-[#547181] hover:bg-[#eaf6fb] disabled:cursor-not-allowed disabled:opacity-60'
+                    }`}
+                    title={isAdded ? `${option.label} ya está incluida` : `Agregar conducción de ${option.label}`}
+                  >
+                    <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: option.color }} />
+                    <span>{isAdded ? `${option.label} incluida` : `Agregar ${option.label}`}</span>
+                  </button>
+                );
+              })}
             </div>
           </div>
-          {/* Tramo de Tubería y Metraje (Cantidad x Dimensión + Metros Lineales) */}
-          <div>
-            <TramoSelector
-              tramo={tramo}
-              onTramoChange={setTramo}
-              metraje={metraje}
-              onMetrajeChange={setMetraje}
-              label="Propiedades de Tramo y Metraje de Tubería (4&quot;, 6&quot;, etc.)"
-            />
+          <div className="space-y-3">
+            {orderedPipeConduits.map((conduit, index) => {
+              const option = getPipeNetworkOption(conduit.networkType);
+              return (
+                <div key={conduit.id} className="rounded-lg border border-[#c7dce7] bg-white p-3 shadow-[0_1px_0_rgba(7,63,116,0.05)]">
+                  <div className="mb-2 flex items-start justify-between gap-3">
+                    <div className="flex items-center gap-2">
+                      <span className="h-3 w-3 shrink-0 rounded-full" style={{ backgroundColor: option.color }} />
+                      <div>
+                        <p className="font-['Inter'] text-[12px] font-bold text-[#173f58]">Tubería {option.label}</p>
+                        <p className="text-[10px] text-[#607d8b]">Conducción {index + 1} del tramo</p>
+                      </div>
+                    </div>
+                    {pipeConduits.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={() => removePipeConduit(conduit.id)}
+                        disabled={!isAdmin}
+                        className="flex h-7 w-7 items-center justify-center rounded-md border border-[#f3c5c5] text-[#b42318] transition hover:bg-[#fff1f1] disabled:cursor-not-allowed disabled:opacity-60"
+                        title={`Quitar conducción ${option.label}`}
+                        aria-label={`Quitar conducción ${option.label}`}
+                      >
+                        <span className="material-symbols-outlined text-[16px]">delete</span>
+                      </button>
+                    )}
+                  </div>
+                  <TramoSelector
+                    tramo={conduit.configuration}
+                    onTramoChange={(configuration) => updatePipeConduit(conduit.id, { configuration })}
+                    metraje={String(conduit.meters ?? '')}
+                    onMetrajeChange={(meters) => updatePipeConduit(conduit.id, { meters })}
+                    label={`Calibre y metraje · ${option.label}`}
+                  />
+                </div>
+              );
+            })}
+          </div>
+          <div className="rounded-lg border border-[#9fc7d9] bg-white px-3 py-2.5">
+            <p className="font-mono text-[10px] font-bold uppercase tracking-wide text-[#527284]">Resumen técnico</p>
+            <div className="mt-1 space-y-1">
+              {orderedPipeConduits.map((conduit) => (
+                <p key={conduit.id} className="text-[13px] font-bold text-[#073f74]">
+                  <span className="mr-1 inline-block h-2 w-2 rounded-full" style={{ backgroundColor: getPipeNetworkOption(conduit.networkType).color }} />
+                  Tubería {getPipeNetworkOption(conduit.networkType).label} {conduit.configuration || 'sin medida'} · {conduit.meters || '0'} m
+                </p>
+              ))}
+            </div>
           </div>
             </>
           )}

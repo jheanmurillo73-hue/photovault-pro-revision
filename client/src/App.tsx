@@ -14,6 +14,7 @@ import {
   UserAccess,
   getElementType,
   getPipeNetworkOption,
+  normalizePipeConduits,
   ElectricalElementType,
   getElectricalElementOption,
   getElectricalPlanArea,
@@ -44,7 +45,7 @@ import { AuthScreen } from './components/AuthScreen';
 import { SupabaseTablesModal } from './components/SupabaseTablesModal';
 import { UserManagementView } from './components/UserManagementView';
 import { supabaseService } from './services/supabaseService';
-import { clearBlueprintImage } from './services/blueprintStorageService';
+import { clearBlueprintImage, clearEvidenceImages, loadEvidenceImages, saveEvidenceImages } from './services/blueprintStorageService';
 import { canAccessModule, createFallbackAccess, MODULE_DEFINITIONS } from './lib/accessControl';
 import { Footer } from './components/Footer';
 import { Toast } from './components/Toast';
@@ -65,15 +66,30 @@ const normalizePlanCoordinate = (value: unknown): number | undefined => {
   return value >= 0 && value <= 100 ? value : undefined;
 };
 
+function isTechnicalPreview(imageUrl: string): boolean {
+  return imageUrl.startsWith('data:image/svg+xml');
+}
+
 const normalizeInspectionPhoto = (photo: InspectionPhoto): InspectionPhoto => {
-  const imageUrls = Array.isArray(photo.imageUrls)
+  const candidateEvidenceUrls = Array.isArray(photo.imageUrls)
     ? photo.imageUrls.filter((url): url is string => typeof url === 'string' && url.trim().length > 0)
     : photo.imageUrl ? [photo.imageUrl] : [];
+  const evidenceUrls = candidateEvidenceUrls.filter((url) => !isTechnicalPreview(url));
+  const imageUrl = evidenceUrls[0] || photo.imageUrl?.trim() || createMapElementPreview(getElementType(photo));
+  const isPipeline = getElementType(photo) === 'tuberia';
+  const pipeConduits = isPipeline
+    ? normalizePipeConduits(photo.pipeConduits, {
+      networkType: getPipeNetworkOption(photo.pipeNetworkType).value,
+      configuration: photo.tramo,
+      meters: photo.metraje,
+    })
+    : [];
+  const primaryConduit = pipeConduits[0];
 
   return {
     ...photo,
-    imageUrl: imageUrls[0] || photo.imageUrl,
-    imageUrls,
+    imageUrl,
+    imageUrls: evidenceUrls,
     name: photo.name ?? 'Inspección sin nombre',
     type: photo.type ?? '',
     location: photo.location ?? '',
@@ -87,13 +103,40 @@ const normalizeInspectionPhoto = (photo: InspectionPhoto): InspectionPhoto => {
       : photo.planArea || 'civil',
     electricalType: photo.electricalType,
     electricalColor: photo.electricalType ? getElectricalElementOption(photo.electricalType).color : undefined,
-    pipeNetworkType: getElementType(photo) === 'tuberia'
-      ? getPipeNetworkOption(photo.pipeNetworkType).value
+    tramo: isPipeline ? primaryConduit?.configuration : photo.tramo,
+    metraje: isPipeline ? primaryConduit?.meters : photo.metraje,
+    pipeNetworkType: isPipeline ? primaryConduit?.networkType : undefined,
+    pipeColor: isPipeline && primaryConduit
+      ? getPipeNetworkOption(primaryConduit.networkType).color
       : undefined,
+    pipeConduits: isPipeline ? pipeConduits : undefined,
     planX: normalizePlanCoordinate(photo.planX),
     planY: normalizePlanCoordinate(photo.planY),
     planEndX: normalizePlanCoordinate(photo.planEndX),
     planEndY: normalizePlanCoordinate(photo.planEndY),
+  };
+};
+
+const getEvidenceUrls = (photo: InspectionPhoto): string[] => {
+  const imageUrls = Array.isArray(photo.imageUrls)
+    ? photo.imageUrls.filter((url): url is string => typeof url === 'string' && url.trim().length > 0 && !isTechnicalPreview(url))
+    : [];
+  return imageUrls.length > 0 ? imageUrls : photo.imageUrl && !isTechnicalPreview(photo.imageUrl) ? [photo.imageUrl] : [];
+};
+
+const isLargeEmbeddedEvidence = (imageUrl: string) => (
+  imageUrl.startsWith('data:image/') && !imageUrl.startsWith('data:image/svg+xml')
+);
+
+const createLightweightPhotoCache = (photo: InspectionPhoto): InspectionPhoto => {
+  const remoteEvidence = getEvidenceUrls(photo).filter((imageUrl) => !isLargeEmbeddedEvidence(imageUrl));
+  const fallbackImageUrl = isLargeEmbeddedEvidence(photo.imageUrl)
+    ? createMapElementPreview(getElementType(photo))
+    : photo.imageUrl;
+  return {
+    ...photo,
+    imageUrl: remoteEvidence[0] || fallbackImageUrl || createMapElementPreview(getElementType(photo)),
+    imageUrls: remoteEvidence,
   };
 };
 
@@ -129,6 +172,7 @@ export default function App() {
       return INITIAL_PHOTOS;
     }
   });
+  const [isEvidenceStorageReady, setIsEvidenceStorageReady] = useState(false);
 
   const [inspector, setInspector] = useState<InspectorProfile>(() => {
     const saved = localStorage.getItem('photovault_inspector');
@@ -168,16 +212,57 @@ export default function App() {
   const [selectedPhotoId, setSelectedPhotoId] = useState<string | null>(null);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState<boolean>(false);
   const [editingPhoto, setEditingPhoto] = useState<InspectionPhoto | null>(null);
+  const [mapFocusElementId, setMapFocusElementId] = useState<string | null>(null);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState<boolean>(false);
   const [isSignOutModalOpen, setIsSignOutModalOpen] = useState<boolean>(false);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState<boolean>(false);
   const [isSupabaseModalOpen, setIsSupabaseModalOpen] = useState<boolean>(false);
   const [toast, setToast] = useState<{ message: string; type?: 'success' | 'info' | 'error' } | null>(null);
 
-  // Sync to local storage
+  // Las evidencias se hidratan desde IndexedDB para que localStorage contenga solo datos ligeros.
   useEffect(() => {
-    localStorage.setItem('photovault_photos', JSON.stringify(photos));
-  }, [photos]);
+    let active = true;
+    const hydrateEvidence = async () => {
+      try {
+        const hydratedPhotos = await Promise.all(photos.map(async (photo) => {
+          const cachedEvidence = await loadEvidenceImages(photo.id);
+          if (!cachedEvidence || cachedEvidence.length === 0) return photo;
+          return normalizeInspectionPhoto({ ...photo, imageUrl: cachedEvidence[0], imageUrls: cachedEvidence });
+        }));
+        if (active) setPhotos(hydratedPhotos);
+      } catch (error) {
+        console.warn('No se pudieron recuperar todas las evidencias locales:', error);
+      } finally {
+        if (active) setIsEvidenceStorageReady(true);
+      }
+    };
+
+    void hydrateEvidence();
+    return () => {
+      active = false;
+    };
+    // La hidratación se realiza una sola vez para no reemplazar cambios del usuario.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Sincroniza el registro ligero con localStorage y las evidencias completas con IndexedDB.
+  useEffect(() => {
+    try {
+      localStorage.setItem('photovault_photos', JSON.stringify(photos.map(createLightweightPhotoCache)));
+    } catch (error) {
+      console.warn('No se pudo actualizar el caché ligero de inspecciones:', error);
+    }
+
+    if (!isEvidenceStorageReady) return;
+    const persistEvidence = async () => {
+      try {
+        await Promise.all(photos.map((photo) => saveEvidenceImages(photo.id, getEvidenceUrls(photo))));
+      } catch (error) {
+        console.warn('No se pudieron actualizar algunas evidencias locales:', error);
+      }
+    };
+    void persistEvidence();
+  }, [isEvidenceStorageReady, photos]);
 
   useEffect(() => {
     localStorage.setItem('photovault_inspector', JSON.stringify(inspector));
@@ -283,6 +368,7 @@ export default function App() {
         ...updated,
         name: current.name,
         acta: current.acta,
+        actaItem: current.actaItem,
         actaLabelPosition: current.actaLabelPosition,
         cameraType: current.cameraType,
         elementType: current.elementType,
@@ -312,7 +398,13 @@ export default function App() {
     const currentPhoto = photos.find((photo) => photo.id === photoId);
     if (!currentPhoto) return;
 
-    const updated = normalizeInspectionPhoto({ ...currentPhoto, ...position });
+    const updated = normalizeInspectionPhoto({
+      ...currentPhoto,
+      ...position,
+      pipeConduits: position.metraje !== undefined && getElementType(currentPhoto) === 'tuberia'
+        ? currentPhoto.pipeConduits?.map((conduit) => ({ ...conduit, meters: position.metraje! }))
+        : currentPhoto.pipeConduits,
+    });
     setPhotos((previous) => previous.map((photo) => (photo.id === photoId ? updated : photo)));
     supabaseService.savePhoto(updated, inspector.id);
     addActivity('Ubicación actualizada en el plano', updated.name, updated.id, 'edit');
@@ -331,6 +423,7 @@ export default function App() {
       const updated = normalizeInspectionPhoto({
         ...photo,
         metraje,
+        pipeConduits: photo.pipeConduits?.map((conduit) => ({ ...conduit, meters: metraje })),
         ...(photo.electricalType === 'cableado' ? { cableMeters: metraje } : {}),
       });
       recordsToSync.push(updated);
@@ -386,10 +479,16 @@ export default function App() {
       cableMeters: isCable ? initialMetraje ?? 0 : undefined,
       cameraCode: isCamera ? 'SB850' : undefined,
       cameraType: isCamera ? 'MT' : undefined,
-      tramo: isPipeline ? '' : undefined,
+      tramo: isPipeline ? '2x6"' : undefined,
       metraje: isPipeline ? initialMetraje ?? 0 : undefined,
       pipeNetworkType: isPipeline ? 'baja_tension' : undefined,
       pipeColor: isPipeline ? getPipeNetworkOption('baja_tension').color : undefined,
+      pipeConduits: isPipeline ? [{
+        id: 'baja_tension-1',
+        networkType: 'baja_tension',
+        configuration: '2x6"',
+        meters: initialMetraje ?? 0,
+      }] : undefined,
       ...position,
       inspectorName: inspector.name,
       inspectorId: inspector.id,
@@ -491,9 +590,9 @@ export default function App() {
     ].forEach((key) => localStorage.removeItem(key));
 
     try {
-      await clearBlueprintImage();
+      await Promise.all([clearBlueprintImage(), clearEvidenceImages()]);
     } catch {
-      // El estado de la aplicación ya se limpió; la próxima carga no conservará metadatos del plano.
+      // El estado de la aplicación ya se limpió; la próxima carga no conservará los medios locales previos.
     }
 
   };
@@ -658,6 +757,8 @@ export default function App() {
                 onCreatePhoto={handleCreatePhotoFromPlan}
                 onEditPhoto={(photo) => setEditingPhoto(photo)}
                 onDeletePhotos={handleDeletePhotos}
+                focusElementId={mapFocusElementId}
+                onFocusElementHandled={() => setMapFocusElementId(null)}
               />
             ) : currentTab === 'database' ? (
               <DatabaseTableView
@@ -751,7 +852,13 @@ export default function App() {
           isOpen={!!editingPhoto}
           isAdmin={userAccess.role === 'admin'}
           onClose={() => setEditingPhoto(null)}
-          onSave={handleUpdatePhoto}
+          onSave={(updatedPhoto) => {
+            handleUpdatePhoto(updatedPhoto);
+            setEditingPhoto(null);
+            setSelectedPhotoId(updatedPhoto.id);
+            setCurrentTab('map');
+            setMapFocusElementId(updatedPhoto.id);
+          }}
         />
       )}
 

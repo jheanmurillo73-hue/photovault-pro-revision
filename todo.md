@@ -84,3 +84,24 @@
 - [x] Ampliar el zoom detallado del plano y reducir los mínimos de iconos y textos.
 - [x] Permitir reordenar fotos por arrastre desde las propiedades para cambiar su portada.
 - [x] Promover los cambios publicados a desarrollo, produccion y main mediante el flujo seguro de Git.
+- [x] Corregir el restablecimiento inesperado de la vista al guardar propiedades de un elemento.
+- [x] Evitar que las evidencias sin fuente válida rendericen un atributo src vacío.
+- [x] Mostrar una etiqueta visual de “Sin evidencia” en elementos sin fotos disponibles.
+- [x] Añadir el estado operativo No iniciado en las propiedades del elemento.
+- [x] Cerrar el modal de propiedades después de guardar los cambios correctamente.
+- [x] Añadir un filtro del plano para visualizar únicamente los elementos No iniciado.
+- [x] Diferenciar visualmente en el plano los elementos No iniciado mediante color de estado.
+- [x] Enfocar el plano en el elemento editado y cerrar Elemento seleccionado al guardar sus propiedades.
+- [x] Permitir configurar tipo constructivo y medida de cada tubería, además de su metraje.
+- [x] Permitir registrar varias conducciones MT, BT y Datos con configuración y metraje propios dentro de un tramo.
+- [x] Persistir las conducciones múltiples de cada tramo en Supabase.
+- [x] Ampliar al máximo útil el rango de zoom del plano.
+- [x] Incorporar el ítem de acta del catálogo adjunto en las propiedades de cada elemento.
+- [x] Mostrar el ítem de acta en la vista de base de datos y en las exportaciones CSV.
+- [x] Persistir el ítem de acta en Supabase mediante una migración SQL segura.
+- [x] Permitir aumentar o disminuir de forma precisa la dimensión visual de los tramos de tubería.
+- [x] Añadir búsqueda rápida dentro del selector de ítems de acta.
+- [x] Mostrar una consulta completa y compacta del ítem de acta seleccionado en propiedades.
+- [x] Permitir configurar el porcentaje de aumento o disminución de la longitud de un tramo.
+- [x] Añadir deshacer y rehacer para los cambios de dimensión de tuberías.
+- [ ] Promover los cambios validados a desarrollo, produccion y main en GitHub.
