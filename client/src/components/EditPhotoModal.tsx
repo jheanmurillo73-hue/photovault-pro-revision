@@ -3,7 +3,7 @@
  * objeto seleccionado; una tubería nunca guarda datos de cámara, y viceversa.
  */
 import React, { useRef, useState } from 'react';
-import { InspectionPhoto, ExecutionStatus, CameraCode, CameraType, ElementType, ActaLabelPosition, getElementType, getPipeNetworkOption, PIPE_NETWORK_OPTIONS, PipeNetworkType } from '../types';
+import { InspectionPhoto, ExecutionStatus, CameraCode, CameraType, ElementType, ActaLabelPosition, getElectricalElementOption, getElectricalPlanArea, getElementType, getPipeNetworkOption, PIPE_NETWORK_OPTIONS, PipeNetworkType } from '../types';
 import { WAREHOUSE_LOCATIONS, CAMERA_CODES, CAMERA_TYPES } from '../data/mockData';
 import { compressImageForDevice } from '../services/deviceStorageService';
 import { TramoSelector } from './TramoSelector';
@@ -63,6 +63,8 @@ export const EditPhotoModal: React.FC<EditPhotoModalProps> = ({
   const [imageError, setImageError] = useState<string | null>(null);
   const galleryInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
+  const electricalOption = getElectricalElementOption(photo.electricalType);
+  const electricalArea = getElectricalPlanArea(photo.electricalType);
 
   if (!isOpen) return null;
 
@@ -377,7 +379,25 @@ export const EditPhotoModal: React.FC<EditPhotoModalProps> = ({
             )}
           </div>
 
-          <div className="rounded-xl border border-[#c2c6d4] bg-[#f8fbfd] p-3">
+          {elementType === 'electrico' && (
+            <div className="rounded-xl border border-[#d8c3fb] bg-[#faf7ff] p-3">
+              <p className="font-['Inter'] text-[13px] font-bold text-[#3b1b75]">Activo eléctrico del plano</p>
+              <div className="mt-2 flex items-center gap-3 rounded-lg border border-[#e5d9fa] bg-white p-3">
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-white" style={{ backgroundColor: photo.electricalColor || electricalOption.color }}>
+                  <span className="material-symbols-outlined text-[21px]">{electricalOption.icon}</span>
+                </span>
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-bold text-[#3b1b75]">{electricalOption.label}</p>
+                  <p className="mt-0.5 text-[11px] text-[#6b5a85]">
+                    {electricalArea === 'electrical_mt' ? 'Obras Eléctricas MT' : electricalArea === 'electrical_bt' ? 'Obras Eléctricas BT' : 'Obras Eléctricas Alumbrado'}
+                  </p>
+                </div>
+              </div>
+              <p className="mt-2 text-[11px] leading-5 text-[#6b5a85]">El activo y su capa se definen en el plano. Aquí solo se actualizan propiedades operativas permitidas.</p>
+            </div>
+          )}
+
+          <div className={elementType === 'electrico' ? 'hidden' : 'rounded-xl border border-[#c2c6d4] bg-[#f8fbfd] p-3'}>
             <label className="mb-2 block font-['Inter'] text-[13px] font-bold text-[#071e27]">Tipo de elemento en el plano</label>
             <div className="grid grid-cols-3 gap-2">
               {([

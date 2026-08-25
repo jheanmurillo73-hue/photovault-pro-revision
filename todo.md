@@ -70,3 +70,4 @@
 - [x] Restringir la carga y estructura del plano al administrador, permitiendo al inspector editar solo propiedades autorizadas.
 - [x] Promover de forma segura los cambios publicados a las ramas de GitHub acordadas.
 - [x] Dividir Obras Eléctricas en las capas independientes MT, BT y Alumbrado.
+- [x] Limitar las propiedades de MT, BT y Alumbrado a sus activos eléctricos correspondientes.
