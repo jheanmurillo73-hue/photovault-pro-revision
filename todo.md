@@ -83,3 +83,4 @@
 - [x] Permitir eliminar de manera segura fotos individuales desde las propiedades de un elemento.
 - [x] Ampliar el zoom detallado del plano y reducir los mínimos de iconos y textos.
 - [x] Permitir reordenar fotos por arrastre desde las propiedades para cambiar su portada.
+- [ ] Promover los cambios publicados a desarrollo, produccion y main mediante el flujo seguro de Git.
