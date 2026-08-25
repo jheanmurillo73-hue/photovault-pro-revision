@@ -343,7 +343,19 @@ export const EditPhotoModal: React.FC<EditPhotoModalProps> = ({
             <label className="block font-['Inter'] font-bold text-[13px] text-[#071e27] mb-1">
               Estado de la Inspección
             </label>
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+              <button
+                type="button"
+                onClick={() => setExecutionStatus('No iniciado')}
+                className={`py-2.5 px-3 rounded-lg border font-['Inter'] font-bold text-[13px] flex items-center justify-center gap-2 transition-all ${
+                  executionStatus === 'No iniciado'
+                    ? 'bg-[#607d8b] text-white border-[#607d8b] shadow-xs'
+                    : 'bg-[#f3faff] text-[#424752] border-[#c2c6d4] hover:bg-[#e6f6ff]'
+                }`}
+              >
+                <span className="material-symbols-outlined text-[18px]">schedule</span>
+                No iniciado
+              </button>
               <button
                 type="button"
                 onClick={() => setExecutionStatus('En proceso')}

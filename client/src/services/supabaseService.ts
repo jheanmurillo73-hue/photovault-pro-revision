@@ -647,7 +647,7 @@ CREATE TABLE IF NOT EXISTS public.inspection_photos (
   date TEXT NOT NULL,
   date_raw TEXT,
   status TEXT NOT NULL DEFAULT 'Synced' CHECK (status IN ('Synced', 'In Progress', 'Flagged')),
-  execution_status TEXT NOT NULL DEFAULT 'En proceso' CHECK (execution_status IN ('En proceso', 'Terminado')),
+  execution_status TEXT NOT NULL DEFAULT 'No iniciado' CHECK (execution_status IN ('No iniciado', 'En proceso', 'Terminado')),
   category TEXT NOT NULL DEFAULT 'inspection',
   category_label TEXT NOT NULL DEFAULT 'Inspección General',
   location TEXT NOT NULL DEFAULT 'Bodega 1',

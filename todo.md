@@ -87,3 +87,5 @@
 - [x] Corregir el restablecimiento inesperado de la vista al guardar propiedades de un elemento.
 - [x] Evitar que las evidencias sin fuente válida rendericen un atributo src vacío.
 - [x] Mostrar una etiqueta visual de “Sin evidencia” en elementos sin fotos disponibles.
+- [x] Añadir el estado operativo No iniciado en las propiedades del elemento.
+- [x] Cerrar el modal de propiedades después de guardar los cambios correctamente.

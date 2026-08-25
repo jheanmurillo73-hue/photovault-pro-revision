@@ -4,7 +4,7 @@
  */
 export type SyncStatus = 'Synced' | 'In Progress' | 'Flagged';
 
-export type ExecutionStatus = 'En proceso' | 'Terminado';
+export type ExecutionStatus = 'No iniciado' | 'En proceso' | 'Terminado';
 
 export type CameraCode = 'SB850' | 'SB851' | 'SB858' | string;
 

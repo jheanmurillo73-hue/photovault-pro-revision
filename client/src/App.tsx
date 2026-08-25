@@ -821,7 +821,10 @@ export default function App() {
           isOpen={!!editingPhoto}
           isAdmin={userAccess.role === 'admin'}
           onClose={() => setEditingPhoto(null)}
-          onSave={handleUpdatePhoto}
+          onSave={(updatedPhoto) => {
+            handleUpdatePhoto(updatedPhoto);
+            setEditingPhoto(null);
+          }}
         />
       )}
 
