@@ -637,6 +637,14 @@ export const MapView: React.FC<MapViewProps> = ({
     });
   };
 
+  const adjustPipeLength = (photo: InspectionPhoto, factor: number) => {
+    if (!hasCompletePipe(photo) || factor <= 0) return;
+    updatePipeGeometry(photo, {
+      planEndX: photo.planX! + (photo.planEndX! - photo.planX!) * factor,
+      planEndY: photo.planY! + (photo.planEndY! - photo.planY!) * factor,
+    });
+  };
+
   const saveCalibration = (event: React.FormEvent) => {
     event.preventDefault();
     if (!calibrationDraft) return;
@@ -1724,6 +1732,32 @@ export const MapView: React.FC<MapViewProps> = ({
                       />
                     </label>
                   ))}
+                </div>
+                <div className="mt-2 border border-[#c7dce7] bg-white px-2 py-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="font-mono text-[8px] font-bold tracking-[0.1em] text-[#547181]">DIMENSIÓN DEL TRAMO</p>
+                    <span className="text-[9px] font-semibold text-[#607d8b]">Ajuste de 10%</span>
+                  </div>
+                  <div className="mt-1.5 grid grid-cols-2 gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => adjustPipeLength(selectedPlanPhoto, 0.9)}
+                      className="inline-flex h-8 items-center justify-center gap-1 border border-[#b4cbd8] bg-white px-2 text-[10px] font-bold text-[#315c70] transition hover:bg-[#eaf6fb]"
+                      title="Disminuir la longitud visual del tramo un 10% desde su extremo final"
+                    >
+                      <span className="material-symbols-outlined text-[14px]">remove</span>
+                      Disminuir
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => adjustPipeLength(selectedPlanPhoto, 1.1)}
+                      className="inline-flex h-8 items-center justify-center gap-1 border border-[#0566aa] bg-[#f4fbfe] px-2 text-[10px] font-bold text-[#075a91] transition hover:bg-[#e6f6ff]"
+                      title="Aumentar la longitud visual del tramo un 10% desde su extremo final"
+                    >
+                      <span className="material-symbols-outlined text-[14px]">add</span>
+                      Aumentar
+                    </button>
+                  </div>
                 </div>
                 <div className="mt-2 grid grid-cols-3 gap-1.5">
                   <button type="button" onClick={() => updatePipeGeometry(selectedPlanPhoto, { planEndY: selectedPlanPhoto.planY })} className="h-8 border border-[#9ec7d8] bg-white px-1 text-[10px] font-bold text-[#075a91] transition hover:bg-[#eaf6fb]">Horizontal</button>

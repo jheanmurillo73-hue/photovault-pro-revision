@@ -8,6 +8,7 @@ import { WAREHOUSE_LOCATIONS, CAMERA_CODES, CAMERA_TYPES } from '../data/mockDat
 import { ACTA_ITEM_OPTIONS, getActaItemKey } from '../data/actaItems';
 import { compressImageForDevice } from '../services/deviceStorageService';
 import { TramoSelector } from './TramoSelector';
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from './ui/command';
 
 const ACTAS_STORAGE_KEY = 'photovault_actas_catalog';
 const DEFAULT_ACTAS = Array.from({ length: 10 }, (_, index) => `Acta ${index + 1}`);
@@ -57,6 +58,7 @@ export const EditPhotoModal: React.FC<EditPhotoModalProps> = ({
   const [cameraType, setCameraType] = useState<CameraType>(photo.cameraType || 'MT');
   const [acta, setActa] = useState(photo.acta ?? '');
   const [actaItemKey, setActaItemKey] = useState(() => photo.actaItem ? getActaItemKey(photo.actaItem) : '');
+  const [isActaItemPickerOpen, setIsActaItemPickerOpen] = useState(false);
   const [actaLabelPosition, setActaLabelPosition] = useState<ActaLabelPosition>(photo.actaLabelPosition || 'derecha');
   const [actas, setActas] = useState<string[]>(loadActas);
   const [newActa, setNewActa] = useState('');
@@ -527,30 +529,67 @@ export const EditPhotoModal: React.FC<EditPhotoModalProps> = ({
             </div>}
             {actaMessage && <p className="mt-2 text-[11px] font-medium text-[#075a91]" role="status">{actaMessage}</p>}
             <div className="mt-3 border-t border-[#d6e4ea] pt-3">
-              <label htmlFor="inspection-acta-item" className="block font-['Inter'] text-[12px] font-bold text-[#173f58]">Ítem de acta</label>
-              <p className="mt-0.5 text-[11px] text-[#607d8b]">Selecciona el ítem contractual aplicable. La lista está agrupada por capítulo para mantener la vista compacta.</p>
-              <select
-                id="inspection-acta-item"
-                value={actaItemKey}
-                onChange={(event) => setActaItemKey(event.target.value)}
+              <label htmlFor="inspection-acta-item-picker" className="block font-['Inter'] text-[12px] font-bold text-[#173f58]">Ítem de acta</label>
+              <p className="mt-0.5 text-[11px] text-[#607d8b]">Abre la lista y busca por código, capítulo o descripción para seleccionar rápidamente el ítem contractual.</p>
+              <button
+                id="inspection-acta-item-picker"
+                type="button"
+                onClick={() => isAdmin && setIsActaItemPickerOpen((open) => !open)}
                 disabled={!isAdmin}
-                className="mt-2 w-full rounded-lg border border-[#c2c6d4] bg-white p-2.5 text-[12px] text-[#071e27] outline-none focus:border-[#004d99]"
+                aria-expanded={isActaItemPickerOpen}
+                className="mt-2 flex w-full items-center justify-between gap-2 rounded-lg border border-[#c2c6d4] bg-white p-2.5 text-left text-[12px] text-[#071e27] outline-none transition hover:bg-[#f8fbfd] focus:border-[#004d99] disabled:cursor-not-allowed disabled:opacity-60"
               >
-                <option value="">Sin ítem de acta asignado</option>
-                {Object.entries(ACTA_ITEMS_BY_SECTION).map(([section, items]) => (
-                  <optgroup key={section} label={section}>
-                    {items.map((item) => (
-                      <option key={getActaItemKey(item)} value={getActaItemKey(item)}>
-                        {item.code} · {item.description}
-                      </option>
+                <span className="min-w-0 truncate">{selectedActaItem ? `${selectedActaItem.code} · ${selectedActaItem.description}` : 'Buscar y seleccionar ítem de acta'}</span>
+                <span className="material-symbols-outlined shrink-0 text-[18px] text-[#0566aa]">{isActaItemPickerOpen ? 'expand_less' : 'search'}</span>
+              </button>
+              {isActaItemPickerOpen && (
+                <Command className="mt-2 overflow-hidden rounded-lg border border-[#9fc7d9] bg-white" shouldFilter>
+                  <CommandInput placeholder="Buscar por código, descripción o capítulo…" />
+                  <CommandList className="max-h-52">
+                    <CommandEmpty className="px-3 py-5 text-xs text-[#607d8b]">No hay ítems que coincidan con la búsqueda.</CommandEmpty>
+                    <CommandGroup heading="Selección actual">
+                      <CommandItem
+                        value="sin item de acta"
+                        onSelect={() => {
+                          setActaItemKey('');
+                          setIsActaItemPickerOpen(false);
+                        }}
+                        className="text-xs text-[#547181]"
+                      >
+                        <span className="material-symbols-outlined text-[15px]">block</span>
+                        Sin ítem de acta asignado
+                      </CommandItem>
+                    </CommandGroup>
+                    {Object.entries(ACTA_ITEMS_BY_SECTION).map(([section, items]) => (
+                      <CommandGroup key={section} heading={section}>
+                        {items.map((item) => (
+                          <CommandItem
+                            key={getActaItemKey(item)}
+                            value={`${item.code} ${item.description} ${item.section}`}
+                            onSelect={() => {
+                              setActaItemKey(getActaItemKey(item));
+                              setIsActaItemPickerOpen(false);
+                            }}
+                            className="items-start py-2"
+                          >
+                            <span className="mt-0.5 rounded border border-cyan-200 bg-cyan-50 px-1.5 py-0.5 font-mono text-[10px] font-bold text-[#075a91]">{item.code}</span>
+                            <span className="min-w-0 text-[11px] leading-4 text-[#315c70]">{item.description}</span>
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
                     ))}
-                  </optgroup>
-                ))}
-              </select>
+                  </CommandList>
+                </Command>
+              )}
               {selectedActaItem && (
-                <p className="mt-2 rounded-md border border-[#cfe0e9] bg-white px-2 py-1.5 text-[10px] leading-4 text-[#315c70]">
-                  <strong className="text-[#073f74]">{selectedActaItem.code}</strong> · {selectedActaItem.unit || 'Sin unidad'} · Cantidad contractual {selectedActaItem.quantity || '—'}
-                </p>
+                <div className="mt-2 rounded-md border border-[#cfe0e9] bg-white px-2.5 py-2 text-[10px] leading-4 text-[#315c70]" title={selectedActaItem.description}>
+                  <div className="flex items-center justify-between gap-2">
+                    <strong className="font-mono text-[#073f74]">Ítem {selectedActaItem.code}</strong>
+                    <span className="shrink-0 font-semibold text-[#547181]">{selectedActaItem.unit || 'Sin unidad'} · Cantidad {selectedActaItem.quantity || '—'}</span>
+                  </div>
+                  <p className="mt-1 line-clamp-2"><span className="font-semibold text-[#173f58]">Descripción: </span>{selectedActaItem.description}</p>
+                  <p className="mt-0.5 text-[9px] text-[#607d8b]">Pasa el cursor sobre esta ficha para consultar la descripción completa.</p>
+                </div>
               )}
             </div>
             {acta && (

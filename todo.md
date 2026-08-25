@@ -99,3 +99,6 @@
 - [x] Incorporar el ítem de acta del catálogo adjunto en las propiedades de cada elemento.
 - [x] Mostrar el ítem de acta en la vista de base de datos y en las exportaciones CSV.
 - [x] Persistir el ítem de acta en Supabase mediante una migración SQL segura.
+- [x] Permitir aumentar o disminuir de forma precisa la dimensión visual de los tramos de tubería.
+- [x] Añadir búsqueda rápida dentro del selector de ítems de acta.
+- [x] Mostrar una consulta completa y compacta del ítem de acta seleccionado en propiedades.
