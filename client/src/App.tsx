@@ -382,7 +382,7 @@ export default function App() {
       electricalType: isElectrical ? electricalType : undefined,
       electricalColor: isElectrical ? electricalOption.color : undefined,
       cableType: isCable ? cableType : undefined,
-      cableGauge: isCable ? '350' : undefined,
+      cableGauge: isCable ? (electricalArea === 'electrical_lighting' ? '12' : '350') : undefined,
       cableMeters: isCable ? initialMetraje ?? 0 : undefined,
       cameraCode: isCamera ? 'SB850' : undefined,
       cameraType: isCamera ? 'MT' : undefined,

@@ -74,3 +74,6 @@
 - [x] Añadir cableado longitudinal en MT, BT y Alumbrado con tipo, calibre y metraje, sin incluirlo en Obras Civiles.
 - [x] Permitir adjuntar, conservar y administrar varias fotos por elemento desde sus propiedades.
 - [x] Mostrar una miniatura de la foto principal del elemento al pasar el cursor o enfocar su marcador en el plano.
+- [x] Restringir los calibres de cable de Obras Eléctricas Alumbrado a 12, 10, 8 y 6.
+- [x] Añadir un carrusel de fotos en la vista de detalle de cada elemento.
+- [x] Abrir las miniaturas del detalle en un visor de imágenes a pantalla completa.

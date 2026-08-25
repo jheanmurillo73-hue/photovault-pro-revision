@@ -3,7 +3,7 @@
  * objeto seleccionado; una tubería nunca guarda datos de cámara, y viceversa.
  */
 import React, { useRef, useState } from 'react';
-import { CableGauge, CableType, CABLE_GAUGE_OPTIONS, CABLE_TYPE_OPTIONS, InspectionPhoto, ExecutionStatus, CameraCode, CameraType, ElementType, ActaLabelPosition, getElectricalElementOption, getElectricalPlanArea, getElementType, getPipeNetworkOption, PIPE_NETWORK_OPTIONS, PipeNetworkType } from '../types';
+import { CableGauge, CableType, CABLE_TYPE_OPTIONS, getCableGaugeOptionsForPlanArea, InspectionPhoto, ExecutionStatus, CameraCode, CameraType, ElementType, ActaLabelPosition, getElectricalElementOption, getElectricalPlanArea, getElementType, getPipeNetworkOption, PIPE_NETWORK_OPTIONS, PipeNetworkType } from '../types';
 import { WAREHOUSE_LOCATIONS, CAMERA_CODES, CAMERA_TYPES } from '../data/mockData';
 import { compressImageForDevice } from '../services/deviceStorageService';
 import { TramoSelector } from './TramoSelector';
@@ -54,7 +54,10 @@ export const EditPhotoModal: React.FC<EditPhotoModalProps> = ({
   const [metraje, setMetraje] = useState<string>(photo.metraje !== undefined ? String(photo.metraje) : '');
   const [pipeNetworkType, setPipeNetworkType] = useState<PipeNetworkType>(getPipeNetworkOption(photo.pipeNetworkType).value);
   const [cableType, setCableType] = useState<CableType>(photo.cableType || (photo.planArea === 'electrical_lighting' ? 'alumbrado' : photo.planArea === 'electrical_bt' ? 'baja_tension' : 'media_tension'));
-  const [cableGauge, setCableGauge] = useState<CableGauge>(photo.cableGauge || '350');
+  const [cableGauge, setCableGauge] = useState<CableGauge>(() => {
+    const availableGauges = getCableGaugeOptionsForPlanArea(photo.planArea);
+    return availableGauges.includes(photo.cableGauge as CableGauge) ? photo.cableGauge as CableGauge : availableGauges[0];
+  });
   const [cableMeters, setCableMeters] = useState<string>(photo.cableMeters !== undefined ? String(photo.cableMeters) : '');
   const [fieldNotes, setFieldNotes] = useState(photo.fieldNotes ?? '');
   const [executionStatus, setExecutionStatus] = useState<ExecutionStatus>(photo.executionStatus || 'En proceso');
@@ -71,6 +74,7 @@ export const EditPhotoModal: React.FC<EditPhotoModalProps> = ({
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const electricalOption = getElectricalElementOption(photo.electricalType);
   const electricalArea = getElectricalPlanArea(photo.electricalType);
+  const cableGaugeOptions = getCableGaugeOptionsForPlanArea(photo.planArea);
 
   if (!isOpen) return null;
 
@@ -439,7 +443,7 @@ export const EditPhotoModal: React.FC<EditPhotoModalProps> = ({
                 <div>
                   <label className="block text-[12px] font-bold text-[#173f58]">Calibre del cable</label>
                   <div className="mt-1.5 grid grid-cols-4 gap-1.5">
-                    {CABLE_GAUGE_OPTIONS.map((gauge) => (
+                    {cableGaugeOptions.map((gauge) => (
                       <button key={gauge} type="button" onClick={() => setCableGauge(gauge)} className={`rounded-md border px-1 py-2 text-[11px] font-bold ${cableGauge === gauge ? 'border-[#0369a1] bg-[#0369a1] text-white' : 'border-[#bcd4e6] bg-white text-[#36576e]'}`}>{gauge}</button>
                     ))}
                   </div>

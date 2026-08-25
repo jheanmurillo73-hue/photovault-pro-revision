@@ -395,7 +395,7 @@ export const supabaseService = {
         cableType: ['media_tension', 'baja_tension', 'alumbrado'].includes(item.cable_type)
           ? item.cable_type
           : undefined,
-        cableGauge: ['350', '500', '2/0', '4/0'].includes(item.cable_gauge)
+        cableGauge: ['350', '500', '2/0', '4/0', '12', '10', '8', '6'].includes(item.cable_gauge)
           ? item.cable_gauge
           : undefined,
         cableMeters: item.cable_meters || undefined,
@@ -664,7 +664,7 @@ CREATE TABLE IF NOT EXISTS public.inspection_photos (
   electrical_type TEXT,
   electrical_color TEXT CHECK (electrical_color IS NULL OR electrical_color ~ '^#[0-9A-Fa-f]{6}$'),
   cable_type TEXT CHECK (cable_type IS NULL OR cable_type IN ('media_tension', 'baja_tension', 'alumbrado')),
-  cable_gauge TEXT CHECK (cable_gauge IS NULL OR cable_gauge IN ('350', '500', '2/0', '4/0')),
+  cable_gauge TEXT CHECK (cable_gauge IS NULL OR cable_gauge IN ('350', '500', '2/0', '4/0', '12', '10', '8', '6')),
   cable_meters TEXT,
   inspector_name TEXT NOT NULL,
   inspector_id TEXT NOT NULL,
@@ -695,7 +695,7 @@ ALTER TABLE public.inspection_photos ADD COLUMN IF NOT EXISTS acta_label_positio
 ALTER TABLE public.inspection_photos ADD COLUMN IF NOT EXISTS pipe_network_type TEXT CHECK (pipe_network_type IS NULL OR pipe_network_type IN ('media_tension', 'baja_tension', 'datos'));
 ALTER TABLE public.inspection_photos ADD COLUMN IF NOT EXISTS pipe_color TEXT CHECK (pipe_color IS NULL OR pipe_color ~ '^#[0-9A-Fa-f]{6}$');
 ALTER TABLE public.inspection_photos ADD COLUMN IF NOT EXISTS cable_type TEXT CHECK (cable_type IS NULL OR cable_type IN ('media_tension', 'baja_tension', 'alumbrado'));
-ALTER TABLE public.inspection_photos ADD COLUMN IF NOT EXISTS cable_gauge TEXT CHECK (cable_gauge IS NULL OR cable_gauge IN ('350', '500', '2/0', '4/0'));
+ALTER TABLE public.inspection_photos ADD COLUMN IF NOT EXISTS cable_gauge TEXT CHECK (cable_gauge IS NULL OR cable_gauge IN ('350', '500', '2/0', '4/0', '12', '10', '8', '6'));
 ALTER TABLE public.inspection_photos ADD COLUMN IF NOT EXISTS cable_meters TEXT;
 ALTER TABLE public.inspection_photos ADD COLUMN IF NOT EXISTS plan_area TEXT NOT NULL DEFAULT 'civil';
 UPDATE public.inspection_photos SET plan_area = 'electrical_mt' WHERE plan_area = 'electrical';
