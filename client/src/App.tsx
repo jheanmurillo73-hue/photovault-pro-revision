@@ -16,6 +16,8 @@ import {
   getPipeNetworkOption,
   ElectricalElementType,
   getElectricalElementOption,
+  getElectricalPlanArea,
+  PlanArea,
 } from './types';
 import {
   INITIAL_PHOTOS,
@@ -73,7 +75,9 @@ const normalizeInspectionPhoto = (photo: InspectionPhoto): InspectionPhoto => ({
   status: photo.status ?? 'Synced',
   requiresImmediateAction: Boolean(photo.requiresImmediateAction),
   verified: Boolean(photo.verified),
-  planArea: photo.electricalType || photo.planArea === 'electrical' ? 'electrical' : 'civil',
+  planArea: photo.electricalType || photo.planArea === 'electrical'
+    ? getElectricalPlanArea(photo.electricalType)
+    : photo.planArea || 'civil',
   electricalType: photo.electricalType,
   electricalColor: photo.electricalType ? getElectricalElementOption(photo.electricalType).color : undefined,
   pipeNetworkType: getElementType(photo) === 'tuberia'
@@ -332,6 +336,7 @@ export default function App() {
     position: Pick<InspectionPhoto, 'planX' | 'planY' | 'planEndX' | 'planEndY'>,
     initialMetraje?: number,
     electricalType?: ElectricalElementType,
+    electricalArea?: PlanArea,
   ): InspectionPhoto => {
     if (userAccess.role !== 'admin') {
       throw new Error('Solo el administrador puede crear elementos en el plano.');
@@ -357,7 +362,7 @@ export default function App() {
       categoryLabel: isElectrical ? 'Obras Eléctricas' : 'Inspección General',
       location: 'Plano de obra',
       elementType,
-      planArea: isElectrical ? 'electrical' : 'civil',
+      planArea: isElectrical ? electricalArea || getElectricalPlanArea(electricalType) : 'civil',
       electricalType: isElectrical ? electricalType : undefined,
       electricalColor: isElectrical ? electricalOption.color : undefined,
       cameraCode: isCamera ? 'SB850' : undefined,

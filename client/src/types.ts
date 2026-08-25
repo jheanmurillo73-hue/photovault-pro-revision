@@ -12,7 +12,7 @@ export type CameraType = 'MT' | 'BT' | 'Datos' | string;
 
 export type ElementType = 'caja' | 'camara' | 'tuberia' | 'electrico';
 
-export type PlanArea = 'civil' | 'electrical';
+export type PlanArea = 'civil' | 'electrical' | 'electrical_mt' | 'electrical_bt' | 'electrical_lighting';
 
 export type ElectricalElementType =
   | 'transformador'
@@ -46,6 +46,12 @@ export const getElectricalElementOption = (value?: string) =>
 
 export const isElectricalElementType = (value?: string): value is ElectricalElementType =>
   ELECTRICAL_ELEMENT_OPTIONS.some((option) => option.value === value);
+
+export const getElectricalPlanArea = (electricalType?: ElectricalElementType): PlanArea => {
+  if (electricalType === 'poste_alumbrado') return 'electrical_lighting';
+  if (electricalType === 'tablero_baja_tension' || electricalType === 'tablero_distribucion' || electricalType === 'malla_tierra') return 'electrical_bt';
+  return 'electrical_mt';
+};
 
 export type PipeNetworkType = 'media_tension' | 'baja_tension' | 'datos';
 

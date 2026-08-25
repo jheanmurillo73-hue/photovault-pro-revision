@@ -4,7 +4,7 @@
  * relativos al plano, nunca como coordenadas de un proveedor cartográfico.
  */
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { ActaLabelPosition, BlueprintCalibration, BlueprintOverlay, ElectricalElementType, ELECTRICAL_ELEMENT_OPTIONS, getElectricalElementOption, getElementType, getPipeNetworkOption, InspectionPhoto, InspectorProfile, isElectricalElementType, PIPE_NETWORK_OPTIONS, PipeNetworkType, PlanArea } from '../types';
+import { ActaLabelPosition, BlueprintCalibration, BlueprintOverlay, ElectricalElementType, ELECTRICAL_ELEMENT_OPTIONS, getElectricalElementOption, getElectricalPlanArea, getElementType, getPipeNetworkOption, InspectionPhoto, InspectorProfile, isElectricalElementType, PIPE_NETWORK_OPTIONS, PipeNetworkType, PlanArea } from '../types';
 import { compressImageForDevice } from '../services/deviceStorageService';
 import { isQuotaExceededError, loadBlueprintImage, saveBlueprintImage } from '../services/blueprintStorageService';
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from './ui/breadcrumb';
@@ -24,6 +24,7 @@ interface MapViewProps {
     position: Pick<InspectionPhoto, 'planX' | 'planY' | 'planEndX' | 'planEndY'>,
     initialMetraje?: number,
     electricalType?: ElectricalElementType,
+    electricalArea?: PlanArea,
   ) => InspectionPhoto;
   onUpdatePhotoPosition: (
     photoId: string,
@@ -139,7 +140,19 @@ const hasCompletePipe = (photo: InspectionPhoto) =>
   && typeof photo.planEndY === 'number';
 
 const isElectricalPhoto = (photo: InspectionPhoto) =>
-  photo.planArea === 'electrical' && isElectricalElementType(photo.electricalType);
+  photo.planArea !== 'civil' && isElectricalElementType(photo.electricalType);
+
+const getPhotoPlanArea = (photo: InspectionPhoto): PlanArea =>
+  photo.planArea === 'electrical'
+    ? getElectricalPlanArea(photo.electricalType)
+    : photo.planArea || 'civil';
+
+const PLAN_AREA_DETAILS: Record<'civil' | 'electrical_mt' | 'electrical_bt' | 'electrical_lighting', { label: string; shortLabel: string; icon: string; color: string; panel: string }> = {
+  civil: { label: 'Obras Civiles', shortLabel: 'CIVIL', icon: 'architecture', color: '#073f74', panel: 'bg-[#eaf6fb]' },
+  electrical_mt: { label: 'Obras Eléctricas MT', shortLabel: 'ELÉCTRICA MT', icon: 'bolt', color: '#6d28d9', panel: 'bg-[#f4efff]' },
+  electrical_bt: { label: 'Obras Eléctricas BT', shortLabel: 'ELÉCTRICA BT', icon: 'electric_bolt', color: '#0369A1', panel: 'bg-[#eef7ff]' },
+  electrical_lighting: { label: 'Obras Eléctricas Alumbrado', shortLabel: 'ALUMBRADO', icon: 'light', color: '#CA8A04', panel: 'bg-[#fff8e5]' },
+};
 
 const elementLabel = (photo: InspectionPhoto) => {
   const type = getElementType(photo);
@@ -183,7 +196,9 @@ export const MapView: React.FC<MapViewProps> = ({
   const [activeFilter, setActiveFilter] = useState<'all' | 'camara' | 'caja' | 'tuberia' | 'pending'>('all');
   const [selectedPlanArea, setSelectedPlanArea] = useState<PlanArea | null>(() => {
     const saved = localStorage.getItem('photovault_last_plan_area');
-    return saved === 'civil' || saved === 'electrical' ? saved : null;
+    return saved === 'civil' || saved === 'electrical_mt' || saved === 'electrical_bt' || saved === 'electrical_lighting'
+      ? saved
+      : saved === 'electrical' ? 'electrical_mt' : null;
   });
   const [hasPendingPlanChanges, setHasPendingPlanChanges] = useState(false);
   const [isLeaveConfirmOpen, setIsLeaveConfirmOpen] = useState(false);
@@ -329,9 +344,9 @@ export const MapView: React.FC<MapViewProps> = ({
   const pendingPhotos = useMemo(
     () => photos.filter((photo) => {
       const type = getElementType(photo);
-      const belongsToArea = selectedPlanArea === 'electrical'
-        ? isElectricalPhoto(photo)
-        : !isElectricalPhoto(photo);
+      const belongsToArea = selectedPlanArea === 'civil'
+        ? !isElectricalPhoto(photo)
+        : getPhotoPlanArea(photo) === selectedPlanArea;
       return belongsToArea && (type === 'tuberia' ? !hasCompletePipe(photo) : !isPlaced(photo));
     }),
     [photos, selectedPlanArea],
@@ -341,9 +356,9 @@ export const MapView: React.FC<MapViewProps> = ({
     const query = searchQuery.trim().toLowerCase();
     return photos.filter((photo) => {
       const type = getElementType(photo);
-      const belongsToArea = selectedPlanArea === 'electrical'
-        ? isElectricalPhoto(photo)
-        : !isElectricalPhoto(photo);
+      const belongsToArea = selectedPlanArea === 'civil'
+        ? !isElectricalPhoto(photo)
+        : getPhotoPlanArea(photo) === selectedPlanArea;
       if (!belongsToArea) return false;
       if (activeFilter === 'pending' && !pendingPhotos.some((pending) => pending.id === photo.id)) return false;
       if (activeFilter !== 'all' && activeFilter !== 'pending' && type !== activeFilter) return false;
@@ -357,6 +372,11 @@ export const MapView: React.FC<MapViewProps> = ({
   const positionedPhotos = useMemo(
     () => visiblePhotos.filter((photo) => isPlaced(photo)),
     [visiblePhotos],
+  );
+
+  const electricalOptionsForArea = useMemo(
+    () => ELECTRICAL_ELEMENT_OPTIONS.filter((option) => getElectricalPlanArea(option.value) === selectedPlanArea),
+    [selectedPlanArea],
   );
 
   const totalPipelineMeters = useMemo(
@@ -656,7 +676,7 @@ export const MapView: React.FC<MapViewProps> = ({
       : undefined;
 
     if (electricalCreationType) {
-      const created = onCreatePhoto('electrico', { planX, planY }, undefined, electricalCreationType);
+      const created = onCreatePhoto('electrico', { planX, planY }, undefined, electricalCreationType, selectedPlanArea ?? undefined);
       setHasPendingPlanChanges(true);
       setSelectedPlanPhotoId(created.id);
       setCreationMode(null);
@@ -837,9 +857,15 @@ export const MapView: React.FC<MapViewProps> = ({
         : `Haz clic para ubicar ${elementLabel(placement.photo)}.`
     : null;
 
+  const activeAreaDetails = selectedPlanArea && selectedPlanArea !== 'electrical'
+    ? PLAN_AREA_DETAILS[selectedPlanArea]
+    : PLAN_AREA_DETAILS.electrical_mt;
+
   if (!selectedPlanArea) {
     const civilCount = photos.filter((photo) => !isElectricalPhoto(photo)).length;
-    const electricalCount = photos.filter(isElectricalPhoto).length;
+    const electricalMtCount = photos.filter((photo) => getPhotoPlanArea(photo) === 'electrical_mt').length;
+    const electricalBtCount = photos.filter((photo) => getPhotoPlanArea(photo) === 'electrical_bt').length;
+    const electricalLightingCount = photos.filter((photo) => getPhotoPlanArea(photo) === 'electrical_lighting').length;
     return (
       <section className="flex h-full min-h-[560px] w-full items-center justify-center overflow-auto bg-[#e7edf1] p-5 font-['Roboto',sans-serif]">
         <div className="w-full max-w-5xl">
@@ -848,7 +874,7 @@ export const MapView: React.FC<MapViewProps> = ({
             <h1 className="mt-2 text-2xl font-bold text-[#0b2940] sm:text-3xl">Selecciona el área de actualización</h1>
             <p className="mx-auto mt-2 max-w-2xl text-sm leading-6 text-[#547181]">Ambas áreas usan el mismo plano JPG como base, pero sus elementos se guardan y visualizan de forma independiente.</p>
           </div>
-          <div className="grid gap-5 md:grid-cols-2">
+          <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
             <button
               type="button"
               onClick={() => { setSelectedPlanArea('civil'); setActiveFilter('all'); }}
@@ -869,19 +895,55 @@ export const MapView: React.FC<MapViewProps> = ({
             </button>
             <button
               type="button"
-              onClick={() => { setSelectedPlanArea('electrical'); setActiveFilter('all'); }}
+              onClick={() => { setSelectedPlanArea('electrical_mt'); setActiveFilter('all'); }}
               className="group overflow-hidden border border-[#ceb9f3] bg-white text-left shadow-[0_16px_34px_rgba(91,33,182,0.13)] transition hover:-translate-y-1 hover:border-[#7c3aed] hover:shadow-[0_20px_42px_rgba(91,33,182,0.2)]"
             >
               <div className="flex items-center justify-between bg-[#f4efff] px-5 py-4">
                 <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-[#6d28d9] text-white shadow-sm"><span className="material-symbols-outlined text-[26px]">bolt</span></span>
-                <span className="font-mono text-[10px] font-bold tracking-[0.12em] text-[#5b21b6]">CAPA 02 / ELÉCTRICA</span>
+                <span className="font-mono text-[10px] font-bold tracking-[0.12em] text-[#5b21b6]">CAPA 02 / ELÉCTRICA MT</span>
               </div>
               <div className="p-5">
-                <h2 className="text-xl font-bold text-[#3b1b75]">Obras Eléctricas</h2>
-                <p className="mt-2 text-sm leading-6 text-[#6b5a85]">Transformadores, tableros, barrajes, mallas a tierra, postes y reconectadores sobre el mismo plano base.</p>
+                <h2 className="text-xl font-bold text-[#3b1b75]">Obras Eléctricas MT</h2>
+                <p className="mt-2 text-sm leading-6 text-[#6b5a85]">Transformadores, barrajes, postes de media tensión y reconectadores.</p>
                 <div className="mt-5 flex items-center justify-between border-t border-[#e4d9f6] pt-4">
-                  <span className="text-xs font-bold text-[#6d28d9]">{electricalCount} elemento{electricalCount === 1 ? '' : 's'}</span>
+                  <span className="text-xs font-bold text-[#6d28d9]">{electricalMtCount} elemento{electricalMtCount === 1 ? '' : 's'}</span>
                   <span className="inline-flex items-center gap-1 text-sm font-bold text-[#6d28d9]">Abrir plano <span className="material-symbols-outlined text-[18px]">arrow_forward</span></span>
+                </div>
+              </div>
+            </button>
+            <button
+              type="button"
+              onClick={() => { setSelectedPlanArea('electrical_bt'); setActiveFilter('all'); }}
+              className="group overflow-hidden border border-[#a8cbe6] bg-white text-left shadow-[0_16px_34px_rgba(3,105,161,0.13)] transition hover:-translate-y-1 hover:border-[#0369a1] hover:shadow-[0_20px_42px_rgba(3,105,161,0.2)]"
+            >
+              <div className="flex items-center justify-between bg-[#eef7ff] px-5 py-4">
+                <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-[#0369a1] text-white shadow-sm"><span className="material-symbols-outlined text-[26px]">electric_bolt</span></span>
+                <span className="font-mono text-[10px] font-bold tracking-[0.12em] text-[#0369a1]">CAPA 03 / ELÉCTRICA BT</span>
+              </div>
+              <div className="p-5">
+                <h2 className="text-xl font-bold text-[#0c4a6e]">Obras Eléctricas BT</h2>
+                <p className="mt-2 text-sm leading-6 text-[#527284]">Tableros de baja tensión, tableros de distribución y mallas a tierra.</p>
+                <div className="mt-5 flex items-center justify-between border-t border-[#d6e5ec] pt-4">
+                  <span className="text-xs font-bold text-[#0369a1]">{electricalBtCount} elemento{electricalBtCount === 1 ? '' : 's'}</span>
+                  <span className="inline-flex items-center gap-1 text-sm font-bold text-[#0369a1]">Abrir plano <span className="material-symbols-outlined text-[18px]">arrow_forward</span></span>
+                </div>
+              </div>
+            </button>
+            <button
+              type="button"
+              onClick={() => { setSelectedPlanArea('electrical_lighting'); setActiveFilter('all'); }}
+              className="group overflow-hidden border border-[#ead28c] bg-white text-left shadow-[0_16px_34px_rgba(202,138,4,0.13)] transition hover:-translate-y-1 hover:border-[#ca8a04] hover:shadow-[0_20px_42px_rgba(202,138,4,0.2)]"
+            >
+              <div className="flex items-center justify-between bg-[#fff8e5] px-5 py-4">
+                <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-[#ca8a04] text-white shadow-sm"><span className="material-symbols-outlined text-[26px]">light</span></span>
+                <span className="font-mono text-[10px] font-bold tracking-[0.12em] text-[#a16207]">CAPA 04 / ALUMBRADO</span>
+              </div>
+              <div className="p-5">
+                <h2 className="text-xl font-bold text-[#854d0e]">Obras Eléctricas Alumbrado</h2>
+                <p className="mt-2 text-sm leading-6 text-[#7c6a45]">Postes y activos de alumbrado vinculados al plano de obra.</p>
+                <div className="mt-5 flex items-center justify-between border-t border-[#f1e2b6] pt-4">
+                  <span className="text-xs font-bold text-[#a16207]">{electricalLightingCount} elemento{electricalLightingCount === 1 ? '' : 's'}</span>
+                  <span className="inline-flex items-center gap-1 text-sm font-bold text-[#a16207]">Abrir plano <span className="material-symbols-outlined text-[18px]">arrow_forward</span></span>
                 </div>
               </div>
             </button>
@@ -910,12 +972,12 @@ export const MapView: React.FC<MapViewProps> = ({
 
       <header className="relative z-30 flex shrink-0 flex-col gap-3 border-b border-[#c7d7df] bg-white/95 px-4 py-3 shadow-sm backdrop-blur xl:flex-row xl:items-center xl:justify-between">
         <div className="flex min-w-0 items-center gap-3">
-          <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-white shadow-sm ${selectedPlanArea === 'electrical' ? 'bg-[#6d28d9]' : 'bg-[#073f74]'}`}>
-            <span className="material-symbols-outlined text-[21px]">{selectedPlanArea === 'electrical' ? 'bolt' : 'architecture'}</span>
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-white shadow-sm" style={{ backgroundColor: activeAreaDetails.color }}>
+            <span className="material-symbols-outlined text-[21px]">{activeAreaDetails.icon}</span>
           </div>
           <div className="min-w-0">
             <Breadcrumb className="mb-1">
-              <BreadcrumbList className={`gap-1 text-[10px] font-bold tracking-[0.1em] ${selectedPlanArea === 'electrical' ? 'text-[#6d28d9]' : 'text-[#527284]'}`}>
+              <BreadcrumbList className="gap-1 text-[10px] font-bold tracking-[0.1em]" style={{ color: activeAreaDetails.color }}>
                 <BreadcrumbItem>
                   <BreadcrumbLink asChild>
                     <button
@@ -932,8 +994,8 @@ export const MapView: React.FC<MapViewProps> = ({
                 </BreadcrumbItem>
                 <BreadcrumbSeparator className="text-[#86a0ad]" />
                 <BreadcrumbItem>
-                  <BreadcrumbPage className={`font-mono text-[10px] font-bold tracking-[0.1em] ${selectedPlanArea === 'electrical' ? 'text-[#6d28d9]' : 'text-[#527284]'}`}>
-                    {selectedPlanArea === 'electrical' ? 'Obras eléctricas' : 'Obras civiles'}
+                  <BreadcrumbPage className="font-mono text-[10px] font-bold tracking-[0.1em]" style={{ color: activeAreaDetails.color }}>
+                    {activeAreaDetails.label}
                   </BreadcrumbPage>
                 </BreadcrumbItem>
               </BreadcrumbList>
@@ -982,7 +1044,7 @@ export const MapView: React.FC<MapViewProps> = ({
 
       <div className="relative z-20 shrink-0 overflow-x-auto border-b border-[#c7d7df] bg-[#f7fbfd]/95 px-4 py-2 shadow-sm">
       <div className="flex min-w-max items-center gap-2 pr-4">
-        {(selectedPlanArea === 'electrical'
+        {(selectedPlanArea !== 'civil'
           ? [['all', 'Todos', 'bolt'], ['pending', 'Sin ubicar', 'location_off']]
           : [['all', 'Todos', 'layers'], ['camara', 'Cámaras', 'videocam'], ['caja', 'Cajas', 'inventory_2'], ['tuberia', 'Tuberías', 'timeline'], ['pending', 'Sin ubicar', 'location_off']]
         ).map(([filter, label, icon]) => (
@@ -1008,7 +1070,7 @@ export const MapView: React.FC<MapViewProps> = ({
             <button type="button" onClick={() => activateCreation('tuberia')} className={`inline-flex h-8 items-center gap-1.5 rounded-full border px-3 text-[11px] font-bold shadow-sm transition ${creationMode === 'tuberia' ? 'border-[#073f74] bg-[#073f74] text-white' : 'border-[#9fb5c5] bg-white text-[#173f58] hover:bg-[#eaf3f8]'}`} title="Agregar tramo de tubería directamente al plano"><span className="material-symbols-outlined text-[16px]">timeline</span>Tubería</button>
           </>
         ) : (
-          ELECTRICAL_ELEMENT_OPTIONS.map((element) => (
+          electricalOptionsForArea.map((element) => (
             <button key={element.value} type="button" onClick={() => activateCreation(element.value)} className={`inline-flex h-8 items-center gap-1.5 rounded-full border px-3 text-[11px] font-bold shadow-sm transition ${creationMode === element.value ? 'border-[#5b21b6] bg-[#5b21b6] text-white' : 'border-[#d8c3fb] bg-white text-[#5b21b6] hover:bg-[#f5f0ff]'}`} title={`Agregar ${element.label.toLowerCase()} al plano eléctrico`}><span className="material-symbols-outlined text-[16px]">{element.icon}</span>{element.shortLabel}</button>
           ))
         ))}

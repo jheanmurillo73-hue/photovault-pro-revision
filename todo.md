@@ -68,3 +68,5 @@
 - [x] Reforzar la interacción de la ruta de navegación para volver al menú principal de áreas.
 - [x] Añadir una herramienta de mano para desplazar el plano sin mover los elementos.
 - [x] Restringir la carga y estructura del plano al administrador, permitiendo al inspector editar solo propiedades autorizadas.
+- [x] Promover de forma segura los cambios publicados a las ramas de GitHub acordadas.
+- [x] Dividir Obras Eléctricas en las capas independientes MT, BT y Alumbrado.

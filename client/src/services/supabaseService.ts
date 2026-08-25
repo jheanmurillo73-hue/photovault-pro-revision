@@ -358,7 +358,9 @@ export const supabaseService = {
         pipeColor: typeof item.pipe_color === 'string' && /^#[0-9a-fA-F]{6}$/.test(item.pipe_color)
           ? item.pipe_color
           : undefined,
-        planArea: item.plan_area === 'electrical' ? 'electrical' : 'civil',
+        planArea: item.plan_area === 'electrical_mt' || item.plan_area === 'electrical_bt' || item.plan_area === 'electrical_lighting'
+          ? item.plan_area
+          : item.plan_area === 'electrical' ? 'electrical_mt' : 'civil',
         electricalType: [
           'transformador', 'tablero_baja_tension', 'tablero_distribucion', 'barrajes_elastomericos',
           'malla_tierra', 'poste_media_tension', 'poste_alumbrado', 'reconectador',
@@ -625,7 +627,7 @@ CREATE TABLE IF NOT EXISTS public.inspection_photos (
   metraje TEXT,
   pipe_network_type TEXT CHECK (pipe_network_type IS NULL OR pipe_network_type IN ('media_tension', 'baja_tension', 'datos')),
   pipe_color TEXT CHECK (pipe_color IS NULL OR pipe_color ~ '^#[0-9A-Fa-f]{6}$'),
-  plan_area TEXT NOT NULL DEFAULT 'civil' CHECK (plan_area IN ('civil', 'electrical')),
+  plan_area TEXT NOT NULL DEFAULT 'civil' CHECK (plan_area IN ('civil', 'electrical', 'electrical_mt', 'electrical_bt', 'electrical_lighting')),
   electrical_type TEXT,
   electrical_color TEXT CHECK (electrical_color IS NULL OR electrical_color ~ '^#[0-9A-Fa-f]{6}$'),
   inspector_name TEXT NOT NULL,
@@ -655,7 +657,10 @@ ALTER TABLE public.inspection_photos ADD COLUMN IF NOT EXISTS show_acta_label BO
 ALTER TABLE public.inspection_photos ADD COLUMN IF NOT EXISTS acta_label_position TEXT NOT NULL DEFAULT 'derecha' CHECK (acta_label_position IN ('arriba', 'abajo', 'izquierda', 'derecha'));
 ALTER TABLE public.inspection_photos ADD COLUMN IF NOT EXISTS pipe_network_type TEXT CHECK (pipe_network_type IS NULL OR pipe_network_type IN ('media_tension', 'baja_tension', 'datos'));
 ALTER TABLE public.inspection_photos ADD COLUMN IF NOT EXISTS pipe_color TEXT CHECK (pipe_color IS NULL OR pipe_color ~ '^#[0-9A-Fa-f]{6}$');
-ALTER TABLE public.inspection_photos ADD COLUMN IF NOT EXISTS plan_area TEXT NOT NULL DEFAULT 'civil' CHECK (plan_area IN ('civil', 'electrical'));
+ALTER TABLE public.inspection_photos ADD COLUMN IF NOT EXISTS plan_area TEXT NOT NULL DEFAULT 'civil';
+UPDATE public.inspection_photos SET plan_area = 'electrical_mt' WHERE plan_area = 'electrical';
+ALTER TABLE public.inspection_photos DROP CONSTRAINT IF EXISTS inspection_photos_plan_area_check;
+ALTER TABLE public.inspection_photos ADD CONSTRAINT inspection_photos_plan_area_check CHECK (plan_area IN ('civil', 'electrical_mt', 'electrical_bt', 'electrical_lighting'));
 ALTER TABLE public.inspection_photos ADD COLUMN IF NOT EXISTS electrical_type TEXT;
 ALTER TABLE public.inspection_photos ADD COLUMN IF NOT EXISTS electrical_color TEXT CHECK (electrical_color IS NULL OR electrical_color ~ '^#[0-9A-Fa-f]{6}$');
 
