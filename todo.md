@@ -86,3 +86,4 @@
 - [x] Promover los cambios publicados a desarrollo, produccion y main mediante el flujo seguro de Git.
 - [x] Corregir el restablecimiento inesperado de la vista al guardar propiedades de un elemento.
 - [x] Evitar que las evidencias sin fuente válida rendericen un atributo src vacío.
+- [x] Mostrar una etiqueta visual de “Sin evidencia” en elementos sin fotos disponibles.

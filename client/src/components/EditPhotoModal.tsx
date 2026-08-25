@@ -64,8 +64,9 @@ export const EditPhotoModal: React.FC<EditPhotoModalProps> = ({
   const [requiresImmediateAction, setRequiresImmediateAction] = useState(photo.requiresImmediateAction ?? false);
   const [verified, setVerified] = useState(photo.verified ?? false);
   const [imageUrls, setImageUrls] = useState<string[]>(() => {
-    const existing = Array.isArray(photo.imageUrls) ? photo.imageUrls.filter(Boolean) : [];
-    return existing.length > 0 ? existing : photo.imageUrl ? [photo.imageUrl] : [];
+    return Array.isArray(photo.imageUrls)
+      ? photo.imageUrls.filter((url): url is string => Boolean(url) && !url.startsWith('data:image/svg+xml'))
+      : [];
   });
   const [imageSize, setImageSize] = useState(photo.fileSize ?? '');
   const [isProcessingImage, setIsProcessingImage] = useState(false);
@@ -145,7 +146,7 @@ export const EditPhotoModal: React.FC<EditPhotoModalProps> = ({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    const savedImageUrls = imageUrls.length > 0 ? imageUrls : [photo.imageUrl];
+    const savedImageUrls = imageUrls;
     onSave({
       ...photo,
       name: isAdmin ? name.trim() || photo.name : photo.name,
@@ -246,6 +247,15 @@ export const EditPhotoModal: React.FC<EditPhotoModalProps> = ({
             </div>
             <div className="space-y-3">
               <div className="grid grid-cols-3 gap-2 sm:grid-cols-6">
+                {imageUrls.length === 0 && (
+                  <div className="col-span-full flex min-h-24 items-center gap-3 rounded-lg border border-dashed border-[#a7c8da] bg-[#f3faff] px-3 py-3 text-[#466473]" role="status">
+                    <span className="material-symbols-outlined grid h-9 w-9 place-items-center rounded-full bg-white text-[20px] text-[#607d8b]">hide_image</span>
+                    <div>
+                      <p className="text-[12px] font-bold uppercase tracking-wide">Sin evidencia</p>
+                      <p className="mt-0.5 text-[11px] leading-4">Aún no hay fotos disponibles para este elemento.</p>
+                    </div>
+                  </div>
+                )}
                 {imageUrls.map((url, index) => (
                   <div
                     key={`${url.slice(0, 32)}-${index}`}
@@ -305,7 +315,7 @@ export const EditPhotoModal: React.FC<EditPhotoModalProps> = ({
                   {isProcessingImage ? 'Optimizando…' : 'Tomar foto'}
                 </button>
                 </div>
-                <p className="mt-1.5 text-[10px] text-[#607d8b]">{imageUrls.length}/6 fotos. {imageUrls.length > 1 ? 'Arrastra las miniaturas para ordenarlas; la primera es la portada. ' : ''}{imageSize ? `Última carga original: ${imageSize}.` : 'Cada imagen se optimiza antes de guardarse.'}</p>
+                <p className="mt-1.5 text-[10px] text-[#607d8b]">{imageUrls.length === 0 ? 'Sin evidencia cargada. Usa Galería o Tomar foto para adjuntarla. ' : `${imageUrls.length}/6 fotos. ${imageUrls.length > 1 ? 'Arrastra las miniaturas para ordenarlas; la primera es la portada. ' : ''}`}{imageSize ? `Última carga original: ${imageSize}.` : 'Cada imagen se optimiza antes de guardarse.'}</p>
               </div>
             </div>
             {imageError && <p className="mt-2 text-[11px] font-medium text-[#ba1a1a]">{imageError}</p>}

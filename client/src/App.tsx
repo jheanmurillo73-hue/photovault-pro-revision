@@ -65,17 +65,21 @@ const normalizePlanCoordinate = (value: unknown): number | undefined => {
   return value >= 0 && value <= 100 ? value : undefined;
 };
 
+function isTechnicalPreview(imageUrl: string): boolean {
+  return imageUrl.startsWith('data:image/svg+xml');
+}
+
 const normalizeInspectionPhoto = (photo: InspectionPhoto): InspectionPhoto => {
-  const evidenceUrls = Array.isArray(photo.imageUrls)
+  const candidateEvidenceUrls = Array.isArray(photo.imageUrls)
     ? photo.imageUrls.filter((url): url is string => typeof url === 'string' && url.trim().length > 0)
     : photo.imageUrl ? [photo.imageUrl] : [];
+  const evidenceUrls = candidateEvidenceUrls.filter((url) => !isTechnicalPreview(url));
   const imageUrl = evidenceUrls[0] || photo.imageUrl?.trim() || createMapElementPreview(getElementType(photo));
-  const imageUrls = evidenceUrls.length > 0 ? evidenceUrls : [imageUrl];
 
   return {
     ...photo,
     imageUrl,
-    imageUrls,
+    imageUrls: evidenceUrls,
     name: photo.name ?? 'Inspección sin nombre',
     type: photo.type ?? '',
     location: photo.location ?? '',
@@ -101,9 +105,9 @@ const normalizeInspectionPhoto = (photo: InspectionPhoto): InspectionPhoto => {
 
 const getEvidenceUrls = (photo: InspectionPhoto): string[] => {
   const imageUrls = Array.isArray(photo.imageUrls)
-    ? photo.imageUrls.filter((url): url is string => typeof url === 'string' && url.trim().length > 0)
+    ? photo.imageUrls.filter((url): url is string => typeof url === 'string' && url.trim().length > 0 && !isTechnicalPreview(url))
     : [];
-  return imageUrls.length > 0 ? imageUrls : photo.imageUrl ? [photo.imageUrl] : [];
+  return imageUrls.length > 0 ? imageUrls : photo.imageUrl && !isTechnicalPreview(photo.imageUrl) ? [photo.imageUrl] : [];
 };
 
 const isLargeEmbeddedEvidence = (imageUrl: string) => (
@@ -118,7 +122,7 @@ const createLightweightPhotoCache = (photo: InspectionPhoto): InspectionPhoto =>
   return {
     ...photo,
     imageUrl: remoteEvidence[0] || fallbackImageUrl || createMapElementPreview(getElementType(photo)),
-    imageUrls: remoteEvidence.length > 0 ? remoteEvidence : [fallbackImageUrl || createMapElementPreview(getElementType(photo))],
+    imageUrls: remoteEvidence,
   };
 };
 
