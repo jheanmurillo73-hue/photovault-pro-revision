@@ -44,7 +44,7 @@ import { AuthScreen } from './components/AuthScreen';
 import { SupabaseTablesModal } from './components/SupabaseTablesModal';
 import { UserManagementView } from './components/UserManagementView';
 import { supabaseService } from './services/supabaseService';
-import { clearBlueprintImage } from './services/blueprintStorageService';
+import { clearBlueprintImage, clearEvidenceImages, loadEvidenceImages, saveEvidenceImages } from './services/blueprintStorageService';
 import { canAccessModule, createFallbackAccess, MODULE_DEFINITIONS } from './lib/accessControl';
 import { Footer } from './components/Footer';
 import { Toast } from './components/Toast';
@@ -97,6 +97,24 @@ const normalizeInspectionPhoto = (photo: InspectionPhoto): InspectionPhoto => {
   };
 };
 
+const getEvidenceUrls = (photo: InspectionPhoto): string[] => {
+  const imageUrls = Array.isArray(photo.imageUrls)
+    ? photo.imageUrls.filter((url): url is string => typeof url === 'string' && url.trim().length > 0)
+    : [];
+  return imageUrls.length > 0 ? imageUrls : photo.imageUrl ? [photo.imageUrl] : [];
+};
+
+const isEmbeddedEvidence = (imageUrl: string) => imageUrl.startsWith('data:image/');
+
+const createLightweightPhotoCache = (photo: InspectionPhoto): InspectionPhoto => {
+  const remoteEvidence = getEvidenceUrls(photo).filter((imageUrl) => !isEmbeddedEvidence(imageUrl));
+  return {
+    ...photo,
+    imageUrl: remoteEvidence[0] || (isEmbeddedEvidence(photo.imageUrl) ? '' : photo.imageUrl),
+    imageUrls: remoteEvidence,
+  };
+};
+
 const createMapElementPreview = (elementType: ElementType) => {
   const visual = elementType === 'camara'
     ? { accent: '#0566aa', symbol: 'C' }
@@ -129,6 +147,7 @@ export default function App() {
       return INITIAL_PHOTOS;
     }
   });
+  const [isEvidenceStorageReady, setIsEvidenceStorageReady] = useState(false);
 
   const [inspector, setInspector] = useState<InspectorProfile>(() => {
     const saved = localStorage.getItem('photovault_inspector');
@@ -174,10 +193,50 @@ export default function App() {
   const [isSupabaseModalOpen, setIsSupabaseModalOpen] = useState<boolean>(false);
   const [toast, setToast] = useState<{ message: string; type?: 'success' | 'info' | 'error' } | null>(null);
 
-  // Sync to local storage
+  // Las evidencias se hidratan desde IndexedDB para que localStorage contenga solo datos ligeros.
   useEffect(() => {
-    localStorage.setItem('photovault_photos', JSON.stringify(photos));
-  }, [photos]);
+    let active = true;
+    const hydrateEvidence = async () => {
+      try {
+        const hydratedPhotos = await Promise.all(photos.map(async (photo) => {
+          const cachedEvidence = await loadEvidenceImages(photo.id);
+          if (!cachedEvidence || cachedEvidence.length === 0) return photo;
+          return normalizeInspectionPhoto({ ...photo, imageUrl: cachedEvidence[0], imageUrls: cachedEvidence });
+        }));
+        if (active) setPhotos(hydratedPhotos);
+      } catch (error) {
+        console.warn('No se pudieron recuperar todas las evidencias locales:', error);
+      } finally {
+        if (active) setIsEvidenceStorageReady(true);
+      }
+    };
+
+    void hydrateEvidence();
+    return () => {
+      active = false;
+    };
+    // La hidratación se realiza una sola vez para no reemplazar cambios del usuario.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Sincroniza el registro ligero con localStorage y las evidencias completas con IndexedDB.
+  useEffect(() => {
+    try {
+      localStorage.setItem('photovault_photos', JSON.stringify(photos.map(createLightweightPhotoCache)));
+    } catch (error) {
+      console.warn('No se pudo actualizar el caché ligero de inspecciones:', error);
+    }
+
+    if (!isEvidenceStorageReady) return;
+    const persistEvidence = async () => {
+      try {
+        await Promise.all(photos.map((photo) => saveEvidenceImages(photo.id, getEvidenceUrls(photo))));
+      } catch (error) {
+        console.warn('No se pudieron actualizar algunas evidencias locales:', error);
+      }
+    };
+    void persistEvidence();
+  }, [isEvidenceStorageReady, photos]);
 
   useEffect(() => {
     localStorage.setItem('photovault_inspector', JSON.stringify(inspector));
@@ -491,9 +550,9 @@ export default function App() {
     ].forEach((key) => localStorage.removeItem(key));
 
     try {
-      await clearBlueprintImage();
+      await Promise.all([clearBlueprintImage(), clearEvidenceImages()]);
     } catch {
-      // El estado de la aplicación ya se limpió; la próxima carga no conservará metadatos del plano.
+      // El estado de la aplicación ya se limpió; la próxima carga no conservará los medios locales previos.
     }
 
   };
