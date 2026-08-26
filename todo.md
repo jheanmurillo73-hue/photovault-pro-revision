@@ -126,3 +126,4 @@
 - [x] Promover la versión validada de Storage y restablecimiento a desarrollo, produccion y main.
 - [x] Confirmar la ejecución correcta de la migración SQL de restablecimiento en Supabase.
 - [x] Sincronizar la versión más reciente en desarrollo, produccion y main.
+- [x] Crear una GitHub Action para validar pruebas, tipos y compilación en cada pull request.
