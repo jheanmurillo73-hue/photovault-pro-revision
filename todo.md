@@ -104,4 +104,6 @@
 - [x] Mostrar una consulta completa y compacta del ítem de acta seleccionado en propiedades.
 - [x] Permitir configurar el porcentaje de aumento o disminución de la longitud de un tramo.
 - [x] Añadir deshacer y rehacer para los cambios de dimensión de tuberías.
-- [ ] Promover los cambios validados a desarrollo, produccion y main en GitHub.
+- [x] Promover los cambios validados a desarrollo, produccion y main en GitHub.
+- [x] Ampliar los calibres de cable disponibles a 12, 10, 8, 6, 4, 2, 1/0, 2/0, 3/0, 4/0 y 250.
+- [ ] Promover la actualización de calibres de cableado a desarrollo, produccion y main.
