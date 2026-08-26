@@ -26,7 +26,7 @@ export type ElectricalElementType =
   | 'cableado';
 
 export type CableType = 'media_tension' | 'baja_tension' | 'alumbrado';
-export type CableGauge = '350' | '500' | '2/0' | '4/0' | '12' | '10' | '8' | '6';
+export type CableGauge = '12' | '10' | '8' | '6' | '4' | '2' | '1/0' | '2/0' | '3/0' | '4/0' | '250' | '350' | '500';
 
 export const CABLE_TYPE_OPTIONS: ReadonlyArray<{ value: CableType; label: string; color: string }> = [
   { value: 'media_tension', label: 'Media tensión', color: '#6D28D9' },
@@ -34,7 +34,7 @@ export const CABLE_TYPE_OPTIONS: ReadonlyArray<{ value: CableType; label: string
   { value: 'alumbrado', label: 'Alumbrado', color: '#CA8A04' },
 ];
 
-export const CABLE_GAUGE_OPTIONS: ReadonlyArray<CableGauge> = ['350', '500', '2/0', '4/0'];
+export const CABLE_GAUGE_OPTIONS: ReadonlyArray<CableGauge> = ['12', '10', '8', '6', '4', '2', '1/0', '2/0', '3/0', '4/0', '250', '350', '500'];
 export const LIGHTING_CABLE_GAUGE_OPTIONS: ReadonlyArray<CableGauge> = ['12', '10', '8', '6'];
 
 export const getCableGaugeOptionsForPlanArea = (planArea?: PlanArea): ReadonlyArray<CableGauge> =>
