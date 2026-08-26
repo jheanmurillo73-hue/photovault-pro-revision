@@ -117,10 +117,10 @@ export const SupabaseTablesModal: React.FC<SupabaseTablesModalProps> = ({
       if (result.success > 0) {
         onShowToast(`¡${result.success} registros de inspección sincronizados en Supabase!`, 'success');
       } else {
-        onShowToast('No se pudieron subir los registros. Verifica que las tablas estén creadas.', 'error');
+        onShowToast('No se pudieron sincronizar los registros o sus evidencias. Verifica las tablas, la sesión de Supabase y las políticas de Supabase Storage.', 'error');
       }
     } catch (err: any) {
-      onShowToast(`Error de sincronización: ${err.message || 'Desconocido'}`, 'error');
+      onShowToast(`Error de sincronización con Supabase Storage: ${err.message || 'Desconocido'}`, 'error');
     } finally {
       setIsSyncing(false);
     }

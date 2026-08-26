@@ -7,6 +7,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ActaLabelPosition, BlueprintCalibration, BlueprintOverlay, ElectricalElementType, ELECTRICAL_ELEMENT_OPTIONS, getCableTypeOption, getElectricalElementOption, getElectricalPlanArea, getElementType, getPipeNetworkOption, InspectionPhoto, InspectorProfile, isElectricalElementType, PlanArea } from '../types';
 import { compressImageForDevice } from '../services/deviceStorageService';
 import { isQuotaExceededError, loadBlueprintImage, saveBlueprintImage } from '../services/blueprintStorageService';
+import { getCloudBlueprintUrl, isSupabaseStorageUrl, uploadBlueprintToSupabase } from '../services/supabaseStorageService';
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from './ui/breadcrumb';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from './ui/alert-dialog';
 
@@ -329,9 +330,18 @@ export const MapView: React.FC<MapViewProps> = ({
     const restoreUserBlueprint = async () => {
       try {
         const storedImage = await loadBlueprintImage();
-        const isLegacySvg = storedImage?.startsWith('data:image/svg+xml');
-        if (active && storedImage && !isLegacySvg) {
-          setBlueprint((previous) => ({ ...previous, imageUrl: storedImage, visible: true, opacity: 1 }));
+        const cloudImage = storedImage ? null : await getCloudBlueprintUrl();
+        const imageUrl = storedImage || cloudImage;
+        const isLegacySvg = imageUrl?.startsWith('data:image/svg+xml');
+        if (active && imageUrl && !isLegacySvg) {
+          if (cloudImage && !storedImage) {
+            try {
+              await saveBlueprintImage(cloudImage);
+            } catch {
+              // El archivo permanece disponible en la nube aunque el navegador no pueda conservar una copia.
+            }
+          }
+          setBlueprint((previous) => ({ ...previous, imageUrl, visible: true, opacity: 1 }));
         }
       } catch {
         // El usuario siempre puede volver a cargar un JPG si el navegador no expone IndexedDB.
@@ -356,7 +366,7 @@ export const MapView: React.FC<MapViewProps> = ({
         setBlueprintStorageNotice('No se pudieron guardar los ajustes del plano en este dispositivo.');
       }
 
-      if (!imageUrl) return;
+      if (!imageUrl || isSupabaseStorageUrl(imageUrl)) return;
       try {
         await saveBlueprintImage(imageUrl);
         setBlueprintStorageNotice(null);
@@ -750,6 +760,13 @@ export const MapView: React.FC<MapViewProps> = ({
       }));
       setHasPendingPlanChanges(true);
       event.target.value = '';
+      try {
+        await uploadBlueprintToSupabase(optimizedImage);
+        setBlueprintStorageNotice('Plano JPG guardado localmente y sincronizado con Supabase Storage.');
+      } catch (error) {
+        setBlueprintStorageNotice('El plano quedó guardado en este dispositivo, pero no se pudo sincronizar con Supabase Storage.');
+        console.warn('No se pudo cargar el plano a Supabase Storage:', error);
+      }
     } catch {
       setBlueprintStorageNotice('No se pudo procesar el JPG. Intenta con otro archivo de plano.');
     }

@@ -60,7 +60,6 @@ const normalizeSettings = (candidate?: Partial<AppSettings> | null): AppSettings
     ? candidate.offlineStorageLimitMb
     : INITIAL_SETTINGS.offlineStorageLimitMb,
 });
-
 const normalizePlanCoordinate = (value: unknown): number | undefined => {
   if (typeof value !== 'number' || !Number.isFinite(value)) return undefined;
   return value >= 0 && value <= 100 ? value : undefined;
@@ -292,14 +291,18 @@ export default function App() {
     };
   }, [isAuthenticated, inspector.id, inspector.email, inspector.name]);
 
-  // Initial optional load from Supabase if configured and photos array is empty
+  // Recupera los registros remotos, incluidos los enlaces públicos de Supabase Storage.
   useEffect(() => {
     const checkAndLoadSupabase = async () => {
-      if (supabaseService.isConfigured() && photos.length === 0) {
+      if (supabaseService.isConfigured()) {
         try {
           const remotePhotos = await supabaseService.fetchPhotos();
           if (remotePhotos && remotePhotos.length > 0) {
-            setPhotos(remotePhotos);
+            setPhotos((currentPhotos) => {
+              const remoteIds = new Set(remotePhotos.map((photo) => photo.id));
+              const localOnlyPhotos = currentPhotos.filter((photo) => !remoteIds.has(photo.id));
+              return [...remotePhotos, ...localOnlyPhotos].map(normalizeInspectionPhoto);
+            });
             showToast(`Se cargaron ${remotePhotos.length} inspecciones desde Supabase`, 'info');
           }
         } catch (err) {
@@ -312,6 +315,22 @@ export default function App() {
 
   const showToast = (message: string, type: 'success' | 'info' | 'error' = 'success') => {
     setToast({ message, type });
+  };
+
+  const syncPhotoToSupabase = (photo: InspectionPhoto, actionLabel: string) => {
+    void supabaseService.savePhoto(photo, inspector.id).then((saved) => {
+      if (!saved) {
+        showToast(`${actionLabel} quedó guardado en este dispositivo, pero no se pudo sincronizar con Supabase Storage. Intenta nuevamente cuando tengas conexión.`, 'error');
+      }
+    });
+  };
+
+  const deletePhotoFromSupabase = (photo: InspectionPhoto) => {
+    void supabaseService.deletePhoto(photo.id).then((deleted) => {
+      if (!deleted) {
+        showToast(`"${photo.name}" se eliminó localmente, pero no se pudo eliminar su registro o evidencias en Supabase Storage.`, 'error');
+      }
+    });
   };
 
   const addActivity = (action: string, photoName: string, photoId: string, type: ActivityItem['type']) => {
@@ -351,7 +370,7 @@ export default function App() {
       prev.map((p) => {
         if (p.id === id) {
           const updated = { ...p, name: newTitle };
-          supabaseService.savePhoto(updated, inspector.id);
+          syncPhotoToSupabase(updated, `El nombre de "${updated.name}"`);
           return updated;
         }
         return p;
@@ -383,8 +402,7 @@ export default function App() {
     addActivity('Detalles actualizados', protectedUpdate.name, protectedUpdate.id, 'edit');
     showToast(`Actualizado "${protectedUpdate.name}"`);
 
-    // Sync to Supabase
-    supabaseService.savePhoto(protectedUpdate, inspector.id);
+    syncPhotoToSupabase(protectedUpdate, `Los cambios de "${protectedUpdate.name}"`);
   };
 
   const handleUpdatePhotoPosition = (
@@ -406,7 +424,7 @@ export default function App() {
         : currentPhoto.pipeConduits,
     });
     setPhotos((previous) => previous.map((photo) => (photo.id === photoId ? updated : photo)));
-    supabaseService.savePhoto(updated, inspector.id);
+    syncPhotoToSupabase(updated, `La ubicación de "${updated.name}"`);
     addActivity('Ubicación actualizada en el plano', updated.name, updated.id, 'edit');
     showToast(`Ubicación guardada para "${updated.name}"`);
   };
@@ -432,7 +450,7 @@ export default function App() {
 
     setPhotos(updatedPhotos);
     recordsToSync.forEach((photo) => {
-      void supabaseService.savePhoto(photo, inspector.id);
+      syncPhotoToSupabase(photo, `La medición de "${photo.name}"`);
     });
   };
 
@@ -502,7 +520,7 @@ export default function App() {
     });
 
     setPhotos((previous) => [newPhoto, ...previous]);
-    supabaseService.savePhoto(newPhoto, inspector.id);
+    syncPhotoToSupabase(newPhoto, `El elemento "${newPhoto.name}"`);
     addActivity('Elemento creado directamente en el plano', newPhoto.name, newPhoto.id, 'upload');
     showToast(`${elementName} agregada al plano`);
     return newPhoto;
@@ -524,7 +542,7 @@ export default function App() {
     }
     recordsToDelete.forEach((photo) => {
       addActivity('Inspección eliminada', photo.name, photo.id, 'flag');
-      supabaseService.deletePhoto(photo.id);
+      deletePhotoFromSupabase(photo);
     });
     showToast(
       recordsToDelete.length === 1
@@ -541,8 +559,7 @@ export default function App() {
     addActivity('Foto de inspección subida', newPhoto.name, newPhoto.id, 'upload');
     showToast(`"${newPhoto.name}" subida exitosamente`);
     
-    // Sync to Supabase in background
-    supabaseService.savePhoto(newPhoto, inspector.id);
+    syncPhotoToSupabase(newPhoto, `La foto de "${newPhoto.name}"`);
 
     setSelectedPhotoId(newPhoto.id);
     setCurrentTab('detail');
@@ -692,6 +709,7 @@ export default function App() {
 
   const selectedPhoto = photos.find((p) => p.id === selectedPhotoId);
 
+  // make sure to consider if you need authentication for certain routes
   return (
     <div className="min-h-screen flex flex-col bg-[#f3faff] text-[#071e27] font-['Inter']">
       {/* Fixed Top Nav Bar */}
