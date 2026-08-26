@@ -106,4 +106,20 @@
 - [x] Añadir deshacer y rehacer para los cambios de dimensión de tuberías.
 - [x] Promover los cambios validados a desarrollo, produccion y main en GitHub.
 - [x] Ampliar los calibres de cable disponibles a 12, 10, 8, 6, 4, 2, 1/0, 2/0, 3/0, 4/0 y 250.
-- [ ] Promover la actualización de calibres de cableado a desarrollo, produccion y main.
+- [x] Promover la actualización de calibres de cableado a desarrollo, produccion y main.
+- [x] Configurar buckets y políticas de Supabase Storage para planos JPG y evidencias.
+- [x] Cargar automáticamente planos y fotos de evidencia a Supabase Storage.
+- [x] Recuperar archivos en la nube al abrir la aplicación, manteniendo un respaldo local seguro.
+- [x] Revalidar la versión final del bucket y políticas de Supabase Storage, incluidos los tipos JPG, PNG y WEBP.
+- [x] Añadir reintento y aviso explícito si falla la carga de evidencias a Supabase Storage.
+- [x] Verificar la recuperación de plano y evidencias desde la nube cuando no existe caché local.
+- [x] Validar de forma verificable el bucket y las políticas finales de `photovault-media`.
+- [x] Mostrar avisos de fallo de Storage en todas las rutas de guardado y sincronización de evidencias.
+- [x] Probar la recuperación remota de plano y evidencias sin caché local.
+- [x] Validar el bucket mediante un endpoint público apto para la clave anónima.
+- [x] Mostrar un aviso específico de Storage en la sincronización masiva.
+- [x] Ejecutar una prueba controlada de recuperación sin caché local.
+- [x] Confirmar en un navegador sin caché que el plano y las evidencias se recuperan desde Supabase Storage.
+- [x] Confirmar en incógnito que el plano se muestra automáticamente dentro de la aplicación sin datos locales.
+- [x] Confirmar en incógnito que una evidencia se muestra automáticamente dentro de la aplicación sin datos locales.
+- [x] Documentar el resultado de la prueba real de recuperación en la aplicación.
