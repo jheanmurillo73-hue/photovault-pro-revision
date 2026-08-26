@@ -56,9 +56,9 @@
 - [x] Mostrar el nombre de cada cámara junto al icono y permitir ocultarlo o mostrarlo globalmente en el plano.
 - [x] Mostrar en naranja los iconos de las cámaras de tipo Datos en el plano.
 - [x] Promover los últimos cambios del proyecto entre main, desarrollo y produccion en GitHub.
-- [ ] Eliminar los datos operativos de prueba de Supabase sin modificar perfiles, cuentas, roles ni permisos.
+- [x] Eliminar los datos operativos de prueba de Supabase sin modificar perfiles, cuentas, roles ni permisos.
 - [x] Corregir el botón de restablecimiento administrativo que no ejecuta el flujo esperado.
-- [ ] Ejecutar la migración de reparación en Supabase antes de usar el restablecimiento operativo.
+- [x] Ejecutar la migración de reparación en Supabase antes de usar el restablecimiento operativo.
 - [x] Añadir estados visuales de carga, éxito y error al restablecimiento administrativo.
 - [x] Permitir clasificar cada tramo como media tensión, baja tensión o datos y diferenciarlo por color.
 - [x] Separar el acceso a Planos de Obra en Obras Civiles y Obras Eléctricas con datos y elementos independientes sobre el mismo JPG.
@@ -123,4 +123,6 @@
 - [x] Confirmar en incógnito que el plano se muestra automáticamente dentro de la aplicación sin datos locales.
 - [x] Confirmar en incógnito que una evidencia se muestra automáticamente dentro de la aplicación sin datos locales.
 - [x] Documentar el resultado de la prueba real de recuperación en la aplicación.
-- [ ] Promover la versión validada de Storage y restablecimiento a desarrollo, produccion y main.
+- [x] Promover la versión validada de Storage y restablecimiento a desarrollo, produccion y main.
+- [x] Confirmar la ejecución correcta de la migración SQL de restablecimiento en Supabase.
+- [ ] Sincronizar la versión más reciente en desarrollo, produccion y main.
