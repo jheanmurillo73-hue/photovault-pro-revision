@@ -2147,11 +2147,11 @@ export const MapView: React.FC<MapViewProps> = ({
         </div>
       )}
 
-      <div className="absolute bottom-4 right-4 z-20 flex items-center gap-2">
+      <div className="absolute bottom-[max(0.75rem,env(safe-area-inset-bottom))] right-2 z-20 flex items-center gap-1.5 sm:bottom-4 sm:right-4 sm:gap-2">
         {blueprint.imageUrl && (
-          <div className="relative">
+          <div className="static sm:relative">
             {activeMapPopover === 'view' && (
-              <div role="dialog" aria-label="Ajustes de vista del plano" className="absolute bottom-12 right-0 w-[min(20rem,calc(100vw-2rem))] overflow-hidden rounded-xl border border-[#b7d4e1] bg-white shadow-[0_14px_30px_rgba(10,54,83,0.22)]">
+              <div role="dialog" aria-label="Ajustes de vista del plano" className="fixed bottom-[calc(3.75rem+env(safe-area-inset-bottom))] left-2 right-2 max-h-[calc(100dvh-5.25rem)] overflow-y-auto rounded-xl border border-[#b7d4e1] bg-white shadow-[0_14px_30px_rgba(10,54,83,0.22)] sm:absolute sm:bottom-12 sm:left-auto sm:right-0 sm:max-h-[min(75vh,32rem)] sm:w-[min(20rem,calc(100vw-2rem))]">
                 <div className="flex items-center justify-between border-b border-[#d7e5eb] bg-[#f3faff] px-3 py-2.5">
                   <div><p className="font-mono text-[10px] font-bold tracking-[0.12em] text-[#0566aa]">VISTA DEL PLANO</p><p className="mt-0.5 text-xs font-semibold text-[#24485b]">Escala y legibilidad</p></div>
                   <button type="button" onClick={() => setActiveMapPopover(null)} className="grid h-7 w-7 place-items-center rounded-md text-[#486a7c] hover:bg-white" aria-label="Cerrar ajustes de vista"><span className="material-symbols-outlined text-[18px]">close</span></button>
@@ -2172,15 +2172,15 @@ export const MapView: React.FC<MapViewProps> = ({
                 </div>
               </div>
             )}
-            <button type="button" onClick={() => setActiveMapPopover((current) => current === 'view' ? null : 'view')} aria-expanded={activeMapPopover === 'view'} aria-haspopup="dialog" className={`flex h-10 items-center gap-1.5 rounded-xl border px-3 text-xs font-bold shadow-sm transition ${activeMapPopover === 'view' ? 'border-[#073f74] bg-[#073f74] text-white' : 'border-[#c7d7df] bg-white text-[#285b72] hover:bg-[#eaf6fb]'}`} title="Abrir ajustes de vista">
-              <span className="material-symbols-outlined text-[19px]">tune</span><span className="hidden sm:inline">Vista</span>
+            <button type="button" onClick={() => setActiveMapPopover((current) => current === 'view' ? null : 'view')} aria-label="Abrir ajustes de vista" aria-expanded={activeMapPopover === 'view'} aria-haspopup="dialog" className={`flex h-11 w-11 items-center justify-center rounded-xl border p-0 text-xs font-bold shadow-sm transition sm:h-10 sm:w-auto sm:gap-1.5 sm:px-3 ${activeMapPopover === 'view' ? 'border-[#073f74] bg-[#073f74] text-white' : 'border-[#c7d7df] bg-white text-[#285b72] hover:bg-[#eaf6fb]'}`} title="Abrir ajustes de vista">
+              <span className="material-symbols-outlined text-[20px] sm:text-[19px]">tune</span><span className="hidden md:inline">Vista</span>
             </button>
           </div>
         )}
         {blueprint.imageUrl && (
-          <div className="relative">
+          <div className="static sm:relative">
             {activeMapPopover === 'tools' && (
-              <div role="dialog" aria-label="Herramientas del plano" className="absolute bottom-12 right-0 w-[min(20rem,calc(100vw-2rem))] overflow-hidden rounded-xl border border-[#b7d4e1] bg-white shadow-[0_14px_30px_rgba(10,54,83,0.22)]">
+              <div role="dialog" aria-label="Herramientas del plano" className="fixed bottom-[calc(3.75rem+env(safe-area-inset-bottom))] left-2 right-2 max-h-[calc(100dvh-5.25rem)] overflow-y-auto rounded-xl border border-[#b7d4e1] bg-white shadow-[0_14px_30px_rgba(10,54,83,0.22)] sm:absolute sm:bottom-12 sm:left-auto sm:right-0 sm:max-h-[min(75vh,32rem)] sm:w-[min(20rem,calc(100vw-2rem))]">
                 <div className="flex items-center justify-between border-b border-[#d7e5eb] bg-[#f3faff] px-3 py-2.5">
                   <div><p className="font-mono text-[10px] font-bold tracking-[0.12em] text-[#0566aa]">OPERACIÓN</p><p className="mt-0.5 text-xs font-semibold text-[#24485b]">Herramientas del plano</p></div>
                   <button type="button" onClick={() => setActiveMapPopover(null)} className="grid h-7 w-7 place-items-center rounded-md text-[#486a7c] hover:bg-white" aria-label="Cerrar herramientas del plano"><span className="material-symbols-outlined text-[18px]">close</span></button>
@@ -2196,13 +2196,13 @@ export const MapView: React.FC<MapViewProps> = ({
                 </div>
               </div>
             )}
-            <button type="button" onClick={() => setActiveMapPopover((current) => current === 'tools' ? null : 'tools')} aria-expanded={activeMapPopover === 'tools'} aria-haspopup="dialog" className={`flex h-10 items-center gap-1.5 rounded-xl border px-3 text-xs font-bold shadow-sm transition ${activeMapPopover === 'tools' ? 'border-[#073f74] bg-[#073f74] text-white' : 'border-[#c7d7df] bg-white text-[#285b72] hover:bg-[#eaf6fb]'}`} title="Abrir herramientas del plano">
-              <span className="material-symbols-outlined text-[19px]">construction</span><span className="hidden sm:inline">Herramientas</span>
+            <button type="button" onClick={() => setActiveMapPopover((current) => current === 'tools' ? null : 'tools')} aria-label="Abrir herramientas del plano" aria-expanded={activeMapPopover === 'tools'} aria-haspopup="dialog" className={`flex h-11 w-11 items-center justify-center rounded-xl border p-0 text-xs font-bold shadow-sm transition sm:h-10 sm:w-auto sm:gap-1.5 sm:px-3 ${activeMapPopover === 'tools' ? 'border-[#073f74] bg-[#073f74] text-white' : 'border-[#c7d7df] bg-white text-[#285b72] hover:bg-[#eaf6fb]'}`} title="Abrir herramientas del plano">
+              <span className="material-symbols-outlined text-[20px] sm:text-[19px]">construction</span><span className="hidden md:inline">Herramientas</span>
             </button>
           </div>
         )}
-        <button type="button" onClick={() => { setActiveMapPopover(null); setIsFullscreen((value) => !value); }} className="flex h-10 w-10 items-center justify-center rounded-xl border border-[#c7d7df] bg-white text-[#285b72] shadow-sm transition hover:bg-[#eaf6fb]" title={isFullscreen ? 'Salir de pantalla completa' : 'Pantalla completa'}>
-          <span className="material-symbols-outlined text-[20px]">{isFullscreen ? 'fullscreen_exit' : 'fullscreen'}</span>
+        <button type="button" onClick={() => { setActiveMapPopover(null); setIsFullscreen((value) => !value); }} className="flex h-11 w-11 items-center justify-center rounded-xl border border-[#c7d7df] bg-white text-[#285b72] shadow-sm transition hover:bg-[#eaf6fb] sm:h-10 sm:w-10" title={isFullscreen ? 'Salir de pantalla completa' : 'Pantalla completa'}>
+          <span className="material-symbols-outlined text-[21px] sm:text-[20px]">{isFullscreen ? 'fullscreen_exit' : 'fullscreen'}</span>
         </button>
       </div>
 

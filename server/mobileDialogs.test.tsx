@@ -77,6 +77,30 @@ describe('Diálogos del plano en móvil', () => {
       />,
     );
 
+    const viewTrigger = await screen.findByTitle('Abrir ajustes de vista');
+    expect(viewTrigger.className).toContain('h-11');
+    expect(viewTrigger.className).toContain('w-11');
+    fireEvent.click(viewTrigger);
+
+    const viewDialog = screen.getByRole('dialog', { name: 'Ajustes de vista del plano' });
+    expect(viewDialog.className).toContain('fixed');
+    expect(viewDialog.className).toContain('left-2');
+    expect(viewDialog.className).toContain('right-2');
+    expect(viewDialog.className).toContain('max-h-[calc(100dvh-5.25rem)]');
+    fireEvent.click(viewTrigger);
+
+    const toolsTrigger = screen.getByTitle('Abrir herramientas del plano');
+    expect(toolsTrigger.className).toContain('h-11');
+    expect(toolsTrigger.className).toContain('w-11');
+    fireEvent.click(toolsTrigger);
+
+    const toolsDialog = screen.getByRole('dialog', { name: 'Herramientas del plano' });
+    expect(toolsDialog.className).toContain('fixed');
+    expect(toolsDialog.className).toContain('left-2');
+    expect(toolsDialog.className).toContain('right-2');
+    expect(toolsDialog.className).toContain('max-h-[calc(100dvh-5.25rem)]');
+    fireEvent.click(toolsTrigger);
+
     const marker = await screen.findByRole('button', { name: 'Abrir o mover SB850' });
     fireEvent.click(marker);
 

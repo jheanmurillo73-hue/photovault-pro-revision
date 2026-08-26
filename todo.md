@@ -157,3 +157,8 @@
 - [x] Ajustar el cuadro de elemento seleccionado para que se adapte a pantallas móviles.
 - [x] Ajustar el modal de propiedades con desplazamiento interno y acciones accesibles en móvil.
 - [x] Validar la selección y edición de elementos en una vista móvil de referencia.
+- [x] Ajustar los accesos Vista y Herramientas para que no se recorten en móvil.
+- [x] Reposicionar dinámicamente los paneles emergentes dentro del ancho disponible.
+- [x] Validar accesos y paneles en una referencia móvil estrecha.
+- [x] Añadir una prueba móvil del acceso Herramientas y de su panel emergente contenido.
+- [x] Validar explícitamente Vista y Herramientas a 375 px antes de cerrar la adaptación responsiva.
