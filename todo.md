@@ -106,3 +106,4 @@
 - [x] Añadir deshacer y rehacer para los cambios de dimensión de tuberías.
 - [x] Promover los cambios validados a desarrollo, produccion y main en GitHub.
 - [x] Ampliar los calibres de cable disponibles a 12, 10, 8, 6, 4, 2, 1/0, 2/0, 3/0, 4/0 y 250.
+- [ ] Promover la actualización de calibres de cableado a desarrollo, produccion y main.
