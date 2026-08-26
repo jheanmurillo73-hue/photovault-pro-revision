@@ -7,7 +7,8 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ActaLabelPosition, BlueprintCalibration, BlueprintOverlay, ElectricalElementType, ELECTRICAL_ELEMENT_OPTIONS, getCableTypeOption, getElectricalElementOption, getElectricalPlanArea, getElementType, getPipeNetworkOption, InspectionPhoto, InspectorProfile, isElectricalElementType, PlanArea } from '../types';
 import { compressImageForDevice } from '../services/deviceStorageService';
 import { isQuotaExceededError, loadBlueprintImage, restoreBlueprintFromSources, saveBlueprintImage } from '../services/blueprintStorageService';
-import { getCloudBlueprintUrl, isSupabaseStorageUrl, uploadBlueprintToSupabase } from '../services/supabaseStorageService';
+import { BlueprintRevision, getCloudBlueprintRevision, isSupabaseStorageUrl, uploadBlueprintToSupabase } from '../services/supabaseStorageService';
+import { getBlueprintSyncPresentation } from '../services/blueprintSyncPresentation';
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from './ui/breadcrumb';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from './ui/alert-dialog';
 
@@ -284,6 +285,9 @@ export const MapView: React.FC<MapViewProps> = ({
     localStorage.getItem('photovault_plan_camera_names_visible') !== 'false',
   );
   const [blueprintStorageNotice, setBlueprintStorageNotice] = useState<string | null>(null);
+  const [blueprintUpdateNotice, setBlueprintUpdateNotice] = useState<string | null>(null);
+  const [blueprintRevision, setBlueprintRevision] = useState<BlueprintRevision | null>(null);
+  const [isBlueprintLoading, setIsBlueprintLoading] = useState(true);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const blueprintStorageReadyRef = useRef(false);
   const dragTargetRef = useRef<DragTarget | null>(null);
@@ -291,6 +295,12 @@ export const MapView: React.FC<MapViewProps> = ({
   const activeFilter: PlanFilter = selectedPlanArea && selectedPlanArea !== 'electrical'
     ? filtersByPlanArea[selectedPlanArea]
     : 'all';
+  const blueprintSyncPresentation = getBlueprintSyncPresentation({
+    isLoading: isBlueprintLoading,
+    isAdmin,
+    previousVersion: null,
+    revision: blueprintRevision,
+  });
 
   const setActiveFilter = (filter: PlanFilter) => {
     if (!selectedPlanArea || selectedPlanArea === 'electrical') return;
@@ -329,13 +339,35 @@ export const MapView: React.FC<MapViewProps> = ({
     let active = true;
     const restoreUserBlueprint = async () => {
       try {
+        const cloudRevisionRequest = getCloudBlueprintRevision().catch(() => null);
         const { cloudImage, imageUrl } = await restoreBlueprintFromSources(
-          getCloudBlueprintUrl,
+          async () => (await cloudRevisionRequest)?.url || null,
           loadBlueprintImage,
         );
+        const cloudRevision = await cloudRevisionRequest;
         // El plano del administrador en Storage es la fuente de verdad. La copia
         // local solo permite continuar trabajando cuando no hay conexión remota.
         const isLegacySvg = imageUrl?.startsWith('data:image/svg+xml');
+        if (active && cloudRevision) {
+          setBlueprintRevision(cloudRevision);
+          if (!isAdmin && cloudRevision.version) {
+            const previousVersion = localStorage.getItem('photovault_seen_blueprint_version');
+            const message = getBlueprintSyncPresentation({
+              isLoading: false,
+              isAdmin,
+              previousVersion,
+              revision: cloudRevision,
+            }).updateNotice;
+            if (!previousVersion || previousVersion !== cloudRevision.version) {
+              setBlueprintUpdateNotice(message);
+              try {
+                localStorage.setItem('photovault_seen_blueprint_version', cloudRevision.version);
+              } catch {
+                // El aviso sigue siendo visible durante la sesión aunque el navegador bloquee localStorage.
+              }
+            }
+          }
+        }
         if (active && imageUrl && !isLegacySvg) {
           if (cloudImage) {
             try {
@@ -349,7 +381,10 @@ export const MapView: React.FC<MapViewProps> = ({
       } catch {
         // El usuario siempre puede volver a cargar un JPG si el navegador no expone IndexedDB.
       } finally {
-        blueprintStorageReadyRef.current = true;
+        if (active) {
+          setIsBlueprintLoading(false);
+          blueprintStorageReadyRef.current = true;
+        }
       }
     };
 
@@ -357,7 +392,7 @@ export const MapView: React.FC<MapViewProps> = ({
     return () => {
       active = false;
     };
-  }, []);
+  }, [isAdmin]);
 
   useEffect(() => {
     if (!blueprintStorageReadyRef.current) return;
@@ -764,8 +799,20 @@ export const MapView: React.FC<MapViewProps> = ({
       setHasPendingPlanChanges(true);
       event.target.value = '';
       try {
-        await uploadBlueprintToSupabase(optimizedImage);
-        setBlueprintStorageNotice('Plano JPG guardado localmente y sincronizado con Supabase Storage.');
+        const remoteUrl = await uploadBlueprintToSupabase(optimizedImage, {
+          id: inspector.id,
+          name: inspector.name || inspector.email || 'Administrador',
+        });
+        const uploadedAt = new Date().toISOString();
+        if (remoteUrl) {
+          setBlueprintRevision({
+            url: remoteUrl,
+            updatedAt: uploadedAt,
+            updatedByName: inspector.name || inspector.email || 'Administrador',
+            version: uploadedAt,
+          });
+        }
+        setBlueprintStorageNotice('Plano JPG sincronizado con Supabase Storage y disponible para inspectores.');
       } catch (error) {
         setBlueprintStorageNotice('El plano quedó guardado en este dispositivo, pero no se pudo sincronizar con Supabase Storage.');
         console.warn('No se pudo cargar el plano a Supabase Storage:', error);
@@ -1183,6 +1230,15 @@ export const MapView: React.FC<MapViewProps> = ({
           </button>
         </div>
       )}
+      {blueprintUpdateNotice && !isAdmin && (
+        <div role="status" className="absolute right-4 top-20 z-50 flex max-w-sm items-start gap-2 rounded-xl border border-cyan-300 bg-cyan-50 px-3 py-2.5 text-xs text-cyan-950 shadow-lg motion-safe:animate-[pulse_900ms_ease-out_1]">
+          <span className="material-symbols-outlined mt-0.5 text-[17px] text-cyan-700">cloud_done</span>
+          <span className="flex-1 font-medium">{blueprintUpdateNotice}</span>
+          <button type="button" onClick={() => setBlueprintUpdateNotice(null)} aria-label="Cerrar aviso de plano actualizado">
+            <span className="material-symbols-outlined text-[17px]">close</span>
+          </button>
+        </div>
+      )}
 
       <header className="relative z-30 flex shrink-0 flex-col gap-3 border-b border-[#c7d7df] bg-white/95 px-4 py-3 shadow-sm backdrop-blur xl:flex-row xl:items-center xl:justify-between">
         <div className="flex min-w-0 items-center gap-3">
@@ -1215,6 +1271,14 @@ export const MapView: React.FC<MapViewProps> = ({
               </BreadcrumbList>
             </Breadcrumb>
             <h1 className="truncate text-sm font-bold text-[#0b2940]">{blueprint.imageUrl ? blueprint.name : 'Carga un plano JPG para comenzar'}</h1>
+            {blueprintRevision && (
+              <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[10px] text-[#527284]">
+                <span className="inline-flex items-center gap-1 font-semibold text-[#0566aa]"><span className="material-symbols-outlined text-[13px]">history</span>Última modificación</span>
+                <span>{blueprintSyncPresentation.lastModifiedLabel}</span>
+                <span className="text-[#aabcc6]">•</span>
+                <span>Por: <strong className="font-semibold text-[#24485b]">{blueprintSyncPresentation.authorLabel}</strong></span>
+              </div>
+            )}
           </div>
         </div>
 
@@ -1359,6 +1423,17 @@ export const MapView: React.FC<MapViewProps> = ({
       </div>
 
       <main className="relative min-h-0 flex-1 overflow-auto p-5">
+        {blueprintSyncPresentation.isLoading && (
+          <div role="status" aria-live="polite" className="absolute inset-0 z-20 flex items-center justify-center bg-[#e7edf1]/80 backdrop-blur-[1px]">
+            <div className="flex min-w-[250px] items-center gap-3 rounded-2xl border border-[#b6d4e4] bg-white/95 px-5 py-4 shadow-[0_16px_38px_rgba(7,63,116,0.16)]">
+              <span className="material-symbols-outlined text-[28px] text-[#0566aa] motion-safe:animate-spin">sync</span>
+              <div>
+                <p className="text-sm font-bold text-[#0b2940]">Actualizando plano compartido</p>
+                <p className="mt-0.5 text-xs text-[#527284]">Descargando la versión más reciente…</p>
+              </div>
+            </div>
+          </div>
+        )}
         {blueprint.imageUrl ? (
           <div className="flex min-h-full min-w-full items-center justify-center py-3">
             <div

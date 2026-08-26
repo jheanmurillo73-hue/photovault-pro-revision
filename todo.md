@@ -134,3 +134,11 @@
 - [x] Añadir una prueba integrada de restauración inicial con plano remoto actualizado y caché local previa.
 - [x] Documentar la validación controlada del flujo administrador a inspector para la actualización de plano.
 - [x] Guardar un registro verificable de la validación automatizada administrador a inspector con caché local obsoleta.
+- [x] Mostrar una notificación visual al inspector cuando se descargue un plano actualizado desde Supabase.
+- [x] Registrar y mostrar fecha, hora y autor de la última modificación del plano.
+- [x] Añadir una animación de carga suave mientras se recupera la versión remota del plano.
+- [x] Validar la interfaz y las pruebas de recuperación del plano actualizado.
+- [x] Añadir una prueba de presentación que cubra la carga, el aviso de actualización y el registro de autor del plano.
+- [x] Validar de forma verificable los estados visuales del inspector durante la restauración del plano remoto.
+- [x] Añadir una prueba de integración de MapView que renderice carga, aviso y registro de actualización remota.
+- [x] Validar el flujo visible del inspector con una revisión remota nueva en el componente del mapa.
