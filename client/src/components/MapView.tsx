@@ -268,6 +268,7 @@ export const MapView: React.FC<MapViewProps> = ({
   const [dragTarget, setDragTarget] = useState<DragTarget | null>(null);
   const [isPanelOpen, setIsPanelOpen] = useState<boolean>(false);
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
+  const [activeMapPopover, setActiveMapPopover] = useState<'view' | 'tools' | null>(null);
   const [isHandToolActive, setIsHandToolActive] = useState(false);
   const [panOffset, setPanOffset] = useState({ x: 0, y: 0 });
   const [iconScale, setIconScale] = useState<number>(() => {
@@ -2148,74 +2149,59 @@ export const MapView: React.FC<MapViewProps> = ({
 
       <div className="absolute bottom-4 right-4 z-20 flex items-center gap-2">
         {blueprint.imageUrl && (
-          <div className="flex max-w-[calc(100vw-2rem)] flex-wrap items-center divide-x divide-[#c7d7df] overflow-hidden rounded-xl border border-[#c7d7df] bg-white/95 shadow-sm">
-            <div className="flex items-center gap-1.5 px-2 py-1.5">
-              <span className="material-symbols-outlined text-[16px] text-[#0566aa]">zoom_in</span>
-              <span className="font-mono text-[10px] font-bold text-[#355c70]">PLANO {Math.round(planScale * 100)}%</span>
-              <button type="button" onClick={() => adjustPlanScale(-0.25)} disabled={planScale <= 0.45} className="flex h-6 w-6 items-center justify-center rounded text-[#285b72] transition hover:bg-[#eaf6fb] disabled:cursor-not-allowed disabled:opacity-35" aria-label="Reducir tamaño del plano" title="Reducir plano en incrementos de 25%">
-                <span className="material-symbols-outlined text-[16px]">remove</span>
-              </button>
-              <button type="button" onClick={() => adjustPlanScale(0.25)} disabled={planScale >= 8} className="flex h-6 w-6 items-center justify-center rounded text-[#285b72] transition hover:bg-[#eaf6fb] disabled:cursor-not-allowed disabled:opacity-35" aria-label="Aumentar tamaño del plano" title="Aumentar plano hasta 800%">
-                <span className="material-symbols-outlined text-[16px]">add</span>
-              </button>
-            </div>
-            <div className="flex items-center gap-1.5 px-2 py-1.5">
-              <span className="material-symbols-outlined text-[16px] text-[#b77812]">ads_click</span>
-              <span className="font-mono text-[10px] font-bold text-[#355c70]">ICONOS {Math.round(iconScale * 100)}%</span>
-              <button type="button" onClick={() => adjustIconScale(-0.1)} disabled={iconScale <= 0.2} className="flex h-6 w-6 items-center justify-center rounded text-[#285b72] transition hover:bg-[#eaf6fb] disabled:cursor-not-allowed disabled:opacity-35" aria-label="Reducir tamaño de los iconos" title="Reducir iconos hasta 20%">
-                <span className="material-symbols-outlined text-[16px]">remove</span>
-              </button>
-              <button type="button" onClick={() => adjustIconScale(0.1)} disabled={iconScale >= 1.8} className="flex h-6 w-6 items-center justify-center rounded text-[#285b72] transition hover:bg-[#eaf6fb] disabled:cursor-not-allowed disabled:opacity-35" aria-label="Aumentar tamaño de los iconos" title="Aumentar iconos">
-                <span className="material-symbols-outlined text-[16px]">add</span>
-              </button>
-            </div>
-            <div className="flex items-center gap-1.5 px-2 py-1.5">
-              <span className="material-symbols-outlined text-[16px] text-[#0b5d8c]">text_fields</span>
-              <span className="font-mono text-[10px] font-bold text-[#355c70]">TEXTOS {Math.round(textScale * 100)}%</span>
-              <button type="button" onClick={() => adjustTextScale(-0.1)} disabled={textScale <= 0.25} className="flex h-6 w-6 items-center justify-center rounded text-[#285b72] transition hover:bg-[#eaf6fb] disabled:cursor-not-allowed disabled:opacity-35" aria-label="Reducir tamaño de los textos del plano" title="Reducir textos hasta 25%">
-                <span className="material-symbols-outlined text-[16px]">remove</span>
-              </button>
-              <button type="button" onClick={() => adjustTextScale(0.1)} disabled={textScale >= 1.8} className="flex h-6 w-6 items-center justify-center rounded text-[#285b72] transition hover:bg-[#eaf6fb] disabled:cursor-not-allowed disabled:opacity-35" aria-label="Aumentar tamaño de los textos del plano" title="Aumentar textos">
-                <span className="material-symbols-outlined text-[16px]">add</span>
-              </button>
-            </div>
+          <div className="relative">
+            {activeMapPopover === 'view' && (
+              <div role="dialog" aria-label="Ajustes de vista del plano" className="absolute bottom-12 right-0 w-[min(20rem,calc(100vw-2rem))] overflow-hidden rounded-xl border border-[#b7d4e1] bg-white shadow-[0_14px_30px_rgba(10,54,83,0.22)]">
+                <div className="flex items-center justify-between border-b border-[#d7e5eb] bg-[#f3faff] px-3 py-2.5">
+                  <div><p className="font-mono text-[10px] font-bold tracking-[0.12em] text-[#0566aa]">VISTA DEL PLANO</p><p className="mt-0.5 text-xs font-semibold text-[#24485b]">Escala y legibilidad</p></div>
+                  <button type="button" onClick={() => setActiveMapPopover(null)} className="grid h-7 w-7 place-items-center rounded-md text-[#486a7c] hover:bg-white" aria-label="Cerrar ajustes de vista"><span className="material-symbols-outlined text-[18px]">close</span></button>
+                </div>
+                <div className="divide-y divide-[#e1ebef] px-3">
+                  {[
+                    { label: 'Plano', value: Math.round(planScale * 100), icon: 'zoom_in', iconClass: 'text-[#0566aa]', decrease: () => adjustPlanScale(-0.25), increase: () => adjustPlanScale(0.25), decreaseDisabled: planScale <= 0.45, increaseDisabled: planScale >= 8, decreaseLabel: 'Reducir tamaño del plano', increaseLabel: 'Aumentar tamaño del plano' },
+                    { label: 'Iconos', value: Math.round(iconScale * 100), icon: 'ads_click', iconClass: 'text-[#b77812]', decrease: () => adjustIconScale(-0.1), increase: () => adjustIconScale(0.1), decreaseDisabled: iconScale <= 0.2, increaseDisabled: iconScale >= 1.8, decreaseLabel: 'Reducir tamaño de los iconos', increaseLabel: 'Aumentar tamaño de los iconos' },
+                    { label: 'Textos', value: Math.round(textScale * 100), icon: 'text_fields', iconClass: 'text-[#0b5d8c]', decrease: () => adjustTextScale(-0.1), increase: () => adjustTextScale(0.1), decreaseDisabled: textScale <= 0.25, increaseDisabled: textScale >= 1.8, decreaseLabel: 'Reducir tamaño de los textos del plano', increaseLabel: 'Aumentar tamaño de los textos del plano' },
+                  ].map((control) => (
+                    <div key={control.label} className="flex items-center gap-2 py-2.5">
+                      <span className={`material-symbols-outlined text-[18px] ${control.iconClass}`}>{control.icon}</span>
+                      <span className="flex-1 text-xs font-bold text-[#355c70]">{control.label} <span className="font-mono text-[#0b2940]">{control.value}%</span></span>
+                      <button type="button" onClick={control.decrease} disabled={control.decreaseDisabled} className="grid h-7 w-7 place-items-center rounded-md text-[#285b72] hover:bg-[#eaf6fb] disabled:cursor-not-allowed disabled:opacity-35" aria-label={control.decreaseLabel}><span className="material-symbols-outlined text-[17px]">remove</span></button>
+                      <button type="button" onClick={control.increase} disabled={control.increaseDisabled} className="grid h-7 w-7 place-items-center rounded-md text-[#285b72] hover:bg-[#eaf6fb] disabled:cursor-not-allowed disabled:opacity-35" aria-label={control.increaseLabel}><span className="material-symbols-outlined text-[17px]">add</span></button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            <button type="button" onClick={() => setActiveMapPopover((current) => current === 'view' ? null : 'view')} aria-expanded={activeMapPopover === 'view'} aria-haspopup="dialog" className={`flex h-10 items-center gap-1.5 rounded-xl border px-3 text-xs font-bold shadow-sm transition ${activeMapPopover === 'view' ? 'border-[#073f74] bg-[#073f74] text-white' : 'border-[#c7d7df] bg-white text-[#285b72] hover:bg-[#eaf6fb]'}`} title="Abrir ajustes de vista">
+              <span className="material-symbols-outlined text-[19px]">tune</span><span className="hidden sm:inline">Vista</span>
+            </button>
           </div>
         )}
         {blueprint.imageUrl && (
-          <button type="button" onClick={startCalibration} className={`inline-flex h-10 items-center gap-1.5 rounded-xl border px-3 text-xs font-bold shadow-sm transition ${blueprint.calibration ? 'border-[#6ca9c5] bg-[#eaf6fb] text-[#075a91] hover:bg-[#dff2fa]' : 'border-[#e0bf78] bg-white text-[#8b5d05] hover:bg-[#fff6df]'}`} title="Calibrar el plano con una distancia conocida">
-            <span className="material-symbols-outlined text-[18px]">straighten</span>
-            <span className="hidden sm:inline">{blueprint.calibration ? 'Escala activa' : 'Calibrar'}</span>
-          </button>
+          <div className="relative">
+            {activeMapPopover === 'tools' && (
+              <div role="dialog" aria-label="Herramientas del plano" className="absolute bottom-12 right-0 w-[min(20rem,calc(100vw-2rem))] overflow-hidden rounded-xl border border-[#b7d4e1] bg-white shadow-[0_14px_30px_rgba(10,54,83,0.22)]">
+                <div className="flex items-center justify-between border-b border-[#d7e5eb] bg-[#f3faff] px-3 py-2.5">
+                  <div><p className="font-mono text-[10px] font-bold tracking-[0.12em] text-[#0566aa]">OPERACIÓN</p><p className="mt-0.5 text-xs font-semibold text-[#24485b]">Herramientas del plano</p></div>
+                  <button type="button" onClick={() => setActiveMapPopover(null)} className="grid h-7 w-7 place-items-center rounded-md text-[#486a7c] hover:bg-white" aria-label="Cerrar herramientas del plano"><span className="material-symbols-outlined text-[18px]">close</span></button>
+                </div>
+                <div className="space-y-2.5 p-3">
+                  <button type="button" onClick={() => { setActiveMapPopover(null); startCalibration(); }} className={`flex w-full items-center gap-2 rounded-lg border px-3 py-2.5 text-left text-xs font-bold transition ${blueprint.calibration ? 'border-[#6ca9c5] bg-[#eaf6fb] text-[#075a91] hover:bg-[#dff2fa]' : 'border-[#e0bf78] bg-[#fffaf0] text-[#8b5d05] hover:bg-[#fff2d6]'}`}>
+                    <span className="material-symbols-outlined text-[19px]">straighten</span><span className="flex-1">{blueprint.calibration ? 'Escala activa' : 'Calibrar plano'}</span><span className="material-symbols-outlined text-[17px]">chevron_right</span>
+                  </button>
+                  <div className="rounded-lg border border-[#d7e5eb] bg-[#fbfdfe] px-3 py-2 text-xs text-[#426373]"><strong className="text-[#0b2940]">{photos.filter((photo) => isPlaced(photo)).length}</strong> ubicados · <strong className="text-[#0b2940]">{totalPipelineMeters.toFixed(1)} m</strong> de tubería</div>
+                  <button type="button" onClick={() => { const nextHandMode = !isHandToolActive; setIsHandToolActive(nextHandMode); setActiveMapPopover(null); if (nextHandMode) { exitMultipleSelection(); setPlacement(null); setCreationMode(null); setPipeStart(null); setPipePreview(null); if (calibrationMode) cancelCalibration(); } }} className={`flex w-full items-center gap-2 rounded-lg border px-3 py-2.5 text-left text-xs font-bold transition ${isHandToolActive ? 'border-[#073f74] bg-[#073f74] text-white' : 'border-[#c7d7df] bg-white text-[#285b72] hover:bg-[#eaf6fb]'}`} aria-pressed={isHandToolActive}>
+                    <span className="material-symbols-outlined text-[19px]">pan_tool_alt</span><span className="flex-1">{isHandToolActive ? 'Mano activa' : 'Activar mano'}</span><span className="text-[10px] font-medium">Mover plano</span>
+                  </button>
+                </div>
+              </div>
+            )}
+            <button type="button" onClick={() => setActiveMapPopover((current) => current === 'tools' ? null : 'tools')} aria-expanded={activeMapPopover === 'tools'} aria-haspopup="dialog" className={`flex h-10 items-center gap-1.5 rounded-xl border px-3 text-xs font-bold shadow-sm transition ${activeMapPopover === 'tools' ? 'border-[#073f74] bg-[#073f74] text-white' : 'border-[#c7d7df] bg-white text-[#285b72] hover:bg-[#eaf6fb]'}`} title="Abrir herramientas del plano">
+              <span className="material-symbols-outlined text-[19px]">construction</span><span className="hidden sm:inline">Herramientas</span>
+            </button>
+          </div>
         )}
-        <div className="hidden rounded-xl border border-[#c7d7df] bg-white/95 px-3 py-2 text-[11px] text-[#426373] shadow-sm sm:block">
-          <strong className="text-[#0b2940]">{photos.filter((photo) => isPlaced(photo)).length}</strong> ubicados · <strong className="text-[#0b2940]">{totalPipelineMeters.toFixed(1)} m</strong> de tubería
-        </div>
-        <button
-          type="button"
-          onClick={() => {
-            const nextHandMode = !isHandToolActive;
-            setIsHandToolActive(nextHandMode);
-            if (nextHandMode) {
-              exitMultipleSelection();
-              setPlacement(null);
-              setCreationMode(null);
-              setPipeStart(null);
-              setPipePreview(null);
-              if (calibrationMode) cancelCalibration();
-            }
-          }}
-          className={`flex h-10 items-center gap-1.5 rounded-xl border px-3 text-xs font-bold shadow-sm transition ${
-            isHandToolActive
-              ? 'border-[#073f74] bg-[#073f74] text-white'
-              : 'border-[#c7d7df] bg-white text-[#285b72] hover:bg-[#eaf6fb]'
-          }`}
-          title={isHandToolActive ? 'Desactivar mano para mover el plano' : 'Activar mano para mover el plano'}
-          aria-pressed={isHandToolActive}
-        >
-          <span className="material-symbols-outlined text-[20px]">pan_tool_alt</span>
-          <span className="hidden sm:inline">Mano</span>
-        </button>
-        <button type="button" onClick={() => setIsFullscreen((value) => !value)} className="flex h-10 w-10 items-center justify-center rounded-xl border border-[#c7d7df] bg-white text-[#285b72] shadow-sm transition hover:bg-[#eaf6fb]" title={isFullscreen ? 'Salir de pantalla completa' : 'Pantalla completa'}>
+        <button type="button" onClick={() => { setActiveMapPopover(null); setIsFullscreen((value) => !value); }} className="flex h-10 w-10 items-center justify-center rounded-xl border border-[#c7d7df] bg-white text-[#285b72] shadow-sm transition hover:bg-[#eaf6fb]" title={isFullscreen ? 'Salir de pantalla completa' : 'Pantalla completa'}>
           <span className="material-symbols-outlined text-[20px]">{isFullscreen ? 'fullscreen_exit' : 'fullscreen'}</span>
         </button>
       </div>

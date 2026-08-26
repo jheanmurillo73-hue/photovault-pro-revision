@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import React from 'react';
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { MapView } from '../client/src/components/MapView';
 import type { BlueprintRevision } from '../client/src/services/supabaseStorageService';
@@ -82,5 +82,23 @@ describe('MapView: estados visibles de sincronización del plano', () => {
     expect(screen.getByText('Última modificación')).toBeTruthy();
     expect(screen.getByText('Ing. Laura Gómez')).toBeTruthy();
     expect(screen.getByText((content) => content.includes('2026'))).toBeTruthy();
+    expect(screen.getByAltText('Plano de obra sin cargar')).toBeTruthy();
+
+    fireEvent.click(screen.getByTitle('Abrir ajustes de vista'));
+    expect(screen.getByRole('dialog', { name: 'Ajustes de vista del plano' })).toBeTruthy();
+    expect(screen.getByText('Escala y legibilidad')).toBeTruthy();
+    expect(screen.getByLabelText('Reducir tamaño del plano')).toBeTruthy();
+
+    fireEvent.click(screen.getByTitle('Abrir herramientas del plano'));
+    expect(screen.queryByRole('dialog', { name: 'Ajustes de vista del plano' })).toBeNull();
+    expect(screen.getByRole('dialog', { name: 'Herramientas del plano' })).toBeTruthy();
+    expect(screen.getByText('Calibrar plano')).toBeTruthy();
+
+    fireEvent.click(screen.getByText('Activar mano'));
+    expect(screen.queryByRole('dialog', { name: 'Herramientas del plano' })).toBeNull();
+    expect(screen.getByAltText('Plano de obra sin cargar')).toBeTruthy();
+
+    fireEvent.click(screen.getByTitle('Abrir herramientas del plano'));
+    expect(screen.getByText('Mano activa')).toBeTruthy();
   });
 });

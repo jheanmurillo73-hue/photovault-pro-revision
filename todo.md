@@ -147,3 +147,10 @@
 - [x] Validar la agrupación cronológica y la navegación del historial fotográfico.
 - [x] Añadir una prueba de navegación que abra la evidencia correcta desde una tarjeta del timeline.
 - [x] Validar de forma explícita el clic y visor de una evidencia dentro del historial fotográfico.
+- [x] Convertir los controles de escala de plano, iconos y textos en un panel emergente compacto.
+- [x] Convertir calibración y herramientas auxiliares del plano en controles emergentes no obstructivos.
+- [x] Validar que los controles emergentes preserven la visibilidad y operación del plano.
+- [x] Añadir una prueba integrada que active la herramienta Mano desde el panel emergente sin perder el plano cargado.
+- [x] Verificar de forma explícita la persistencia visual del plano mientras se abre un panel emergente compacto.
+- [x] Corregir las claves duplicadas de tarjetas de evidencia en el historial fotográfico.
+- [x] Probar el timeline con fotos que comparten URL y fecha para garantizar claves únicas.

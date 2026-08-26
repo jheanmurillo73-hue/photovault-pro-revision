@@ -691,11 +691,21 @@ export const PhotoDetailView: React.FC<PhotoDetailViewProps> = ({
                 <span className="absolute left-0 top-1.5 grid h-4 w-4 place-items-center rounded-full border-2 border-white bg-[#0566aa] shadow-sm" aria-hidden="true" />
                 <time dateTime={group.day} className="mb-3 block text-xs font-bold capitalize text-[#0b4f7a]">{formatTimelineDay(group.day)}</time>
                 <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-                  {group.entries.map((entry) => {
-                    const imageIndex = evidenceTimeline.findIndex((candidate) => candidate.url === entry.url && candidate.capturedAt === entry.capturedAt);
+                  {group.entries.map((entry, entryIndex) => {
+                    const duplicateOrdinal = group.entries
+                      .slice(0, entryIndex)
+                      .filter((candidate) => candidate.url === entry.url && candidate.capturedAt === entry.capturedAt)
+                      .length;
+                    let matchedOccurrences = 0;
+                    const imageIndex = evidenceTimeline.findIndex((candidate) => {
+                      if (candidate.url !== entry.url || candidate.capturedAt !== entry.capturedAt) return false;
+                      const isRequestedOccurrence = matchedOccurrences === duplicateOrdinal;
+                      matchedOccurrences += 1;
+                      return isRequestedOccurrence;
+                    });
                     return (
                       <button
-                        key={`${entry.url.slice(0, 36)}-${entry.capturedAt}`}
+                        key={`${group.day}-${entryIndex}`}
                         type="button"
                         onClick={() => openImageFullscreen(Math.max(0, imageIndex))}
                         className="group flex overflow-hidden rounded-lg border border-[#c7dce5] bg-white text-left shadow-sm transition hover:-translate-y-0.5 hover:border-[#0566aa] hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0566aa] focus-visible:ring-offset-2"

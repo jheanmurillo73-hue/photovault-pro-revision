@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import React from 'react';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { PhotoDetailView } from '../client/src/components/PhotoDetailView';
 import { groupEvidenceTimelineByDate, normalizeEvidenceTimeline, type InspectionPhoto } from '../client/src/types';
@@ -70,5 +70,25 @@ describe('Historial fotográfico por elemento', () => {
     expect(screen.getByText(/Foto 2 de 3/)).toBeTruthy();
     const selectedEvidenceViews = screen.getAllByAltText('Cámara de acceso — evidencia 2 de 3');
     expect(selectedEvidenceViews.at(-1)?.getAttribute('src')).toBe('https://example.com/evidence-2.jpg');
+  });
+
+  it('mantiene claves únicas cuando dos evidencias comparten URL y fecha', () => {
+    const duplicateEvidencePhoto: InspectionPhoto = {
+      ...photoWithProgress,
+      imageUrls: [...photoWithProgress.imageUrls!, 'https://example.com/evidence-2.jpg'],
+      evidenceTimeline: [...photoWithProgress.evidenceTimeline!, {
+        url: 'https://example.com/evidence-2.jpg',
+        capturedAt: '2026-08-22T13:15:00.000Z',
+      }],
+    };
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+
+    try {
+      const duplicateTimeline = render(<PhotoDetailView photo={duplicateEvidencePhoto} onBack={vi.fn()} onEdit={vi.fn()} onDelete={vi.fn()} onUpdatePhoto={vi.fn()} />);
+      expect(within(duplicateTimeline.container).getAllByText('Evidencia de avance')).toHaveLength(4);
+      expect(consoleError.mock.calls.some(([message]) => String(message).includes('same key'))).toBe(false);
+    } finally {
+      consoleError.mockRestore();
+    }
   });
 });
