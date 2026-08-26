@@ -123,3 +123,4 @@
 - [x] Confirmar en incógnito que el plano se muestra automáticamente dentro de la aplicación sin datos locales.
 - [x] Confirmar en incógnito que una evidencia se muestra automáticamente dentro de la aplicación sin datos locales.
 - [x] Documentar el resultado de la prueba real de recuperación en la aplicación.
+- [ ] Promover la versión validada de Storage y restablecimiento a desarrollo, produccion y main.
