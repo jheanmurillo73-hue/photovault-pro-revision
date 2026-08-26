@@ -6,7 +6,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ActaLabelPosition, BlueprintCalibration, BlueprintOverlay, ElectricalElementType, ELECTRICAL_ELEMENT_OPTIONS, getCableTypeOption, getElectricalElementOption, getElectricalPlanArea, getElementType, getPipeNetworkOption, InspectionPhoto, InspectorProfile, isElectricalElementType, PlanArea } from '../types';
 import { compressImageForDevice } from '../services/deviceStorageService';
-import { isQuotaExceededError, loadBlueprintImage, saveBlueprintImage } from '../services/blueprintStorageService';
+import { isQuotaExceededError, loadBlueprintImage, restoreBlueprintFromSources, saveBlueprintImage } from '../services/blueprintStorageService';
 import { getCloudBlueprintUrl, isSupabaseStorageUrl, uploadBlueprintToSupabase } from '../services/supabaseStorageService';
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from './ui/breadcrumb';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from './ui/alert-dialog';
@@ -329,12 +329,15 @@ export const MapView: React.FC<MapViewProps> = ({
     let active = true;
     const restoreUserBlueprint = async () => {
       try {
-        const storedImage = await loadBlueprintImage();
-        const cloudImage = storedImage ? null : await getCloudBlueprintUrl();
-        const imageUrl = storedImage || cloudImage;
+        const { cloudImage, imageUrl } = await restoreBlueprintFromSources(
+          getCloudBlueprintUrl,
+          loadBlueprintImage,
+        );
+        // El plano del administrador en Storage es la fuente de verdad. La copia
+        // local solo permite continuar trabajando cuando no hay conexión remota.
         const isLegacySvg = imageUrl?.startsWith('data:image/svg+xml');
         if (active && imageUrl && !isLegacySvg) {
-          if (cloudImage && !storedImage) {
+          if (cloudImage) {
             try {
               await saveBlueprintImage(cloudImage);
             } catch {

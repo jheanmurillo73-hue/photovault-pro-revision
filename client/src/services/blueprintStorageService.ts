@@ -8,6 +8,39 @@ const BLUEPRINT_STORE_NAME = 'blueprints';
 const EVIDENCE_STORE_NAME = 'evidences';
 const ACTIVE_BLUEPRINT_KEY = 'active-blueprint-image';
 
+/**
+ * Storage remoto es la fuente de verdad. IndexedDB solamente actúa como respaldo
+ * para permitir abrir el plano sin conexión.
+ */
+export const resolveBlueprintImage = (
+  cloudImage: string | null,
+  storedImage: string | null,
+): string | null => cloudImage || storedImage || null;
+
+export interface BlueprintRestoreResult {
+  cloudImage: string | null;
+  storedImage: string | null;
+  imageUrl: string | null;
+}
+
+export async function restoreBlueprintFromSources(
+  loadCloudImage: () => Promise<string | null>,
+  loadStoredImage: () => Promise<string | null>,
+): Promise<BlueprintRestoreResult> {
+  const [cloudResult, storedResult] = await Promise.allSettled([
+    loadCloudImage(),
+    loadStoredImage(),
+  ]);
+  const cloudImage = cloudResult.status === 'fulfilled' ? cloudResult.value : null;
+  const storedImage = storedResult.status === 'fulfilled' ? storedResult.value : null;
+
+  return {
+    cloudImage,
+    storedImage,
+    imageUrl: resolveBlueprintImage(cloudImage, storedImage),
+  };
+}
+
 function openBlueprintDatabase(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
     if (!('indexedDB' in window)) {

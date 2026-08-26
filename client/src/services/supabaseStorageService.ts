@@ -22,6 +22,12 @@ const getPublicUrl = (path: string): string | null => {
   return data.publicUrl || null;
 };
 
+const addCacheVersion = (url: string, version?: string | null): string => {
+  if (!version) return url;
+  const separator = url.includes('?') ? '&' : '?';
+  return `${url}${separator}v=${encodeURIComponent(version)}`;
+};
+
 const uploadEmbeddedImage = async (source: string, path: string): Promise<string | null> => {
   const client = getSupabaseClient();
   if (!isEmbeddedImage(source)) return null;
@@ -38,7 +44,7 @@ const uploadEmbeddedImage = async (source: string, path: string): Promise<string
     const { error } = await client.storage.from(SUPABASE_MEDIA_BUCKET).upload(path, blob, {
       upsert: true,
       contentType,
-      cacheControl: '31536000',
+      cacheControl: '3600',
     });
     if (!error) return getPublicUrl(path);
     lastError = new Error(error.message);
@@ -59,8 +65,10 @@ export async function getCloudBlueprintUrl(): Promise<string | null> {
     limit: 10,
     search: 'active-plan.jpg',
   });
-  if (error || !data?.some((file) => file.name === 'active-plan.jpg')) return null;
-  return getPublicUrl(ACTIVE_BLUEPRINT_PATH);
+  const blueprintFile = data?.find((file) => file.name === 'active-plan.jpg');
+  if (error || !blueprintFile) return null;
+  const publicUrl = getPublicUrl(ACTIVE_BLUEPRINT_PATH);
+  return publicUrl ? addCacheVersion(publicUrl, blueprintFile.updated_at || blueprintFile.created_at) : null;
 }
 
 export async function uploadEvidenceToSupabase(photoId: string, imageUrls: string[]): Promise<string[]> {

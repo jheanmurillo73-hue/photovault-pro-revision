@@ -127,3 +127,10 @@
 - [x] Confirmar la ejecución correcta de la migración SQL de restablecimiento en Supabase.
 - [x] Sincronizar la versión más reciente en desarrollo, produccion y main.
 - [x] Crear una GitHub Action para validar pruebas, tipos y compilación en cada pull request.
+- [x] Priorizar y actualizar el plano JPG remoto de Supabase Storage en las sesiones de inspector.
+- [x] Verificar que un inspector vea el último plano cargado por el administrador sin conservar una copia obsoleta.
+- [x] Añadir una prueba automatizada que compruebe que el plano remoto actualizado prevalece sobre una copia local obsoleta.
+- [x] Probar el flujo administrador a inspector con el plano remoto actualizado y una caché local previa.
+- [x] Añadir una prueba integrada de restauración inicial con plano remoto actualizado y caché local previa.
+- [x] Documentar la validación controlada del flujo administrador a inspector para la actualización de plano.
+- [x] Guardar un registro verificable de la validación automatizada administrador a inspector con caché local obsoleta.
