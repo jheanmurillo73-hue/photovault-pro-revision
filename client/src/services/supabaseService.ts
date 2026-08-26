@@ -1,6 +1,7 @@
 import { getSupabaseClient, isSupabaseConfigured, getActiveSupabaseConfig } from '../lib/supabase';
 import { ActaItem, InspectionPhoto, InspectorProfile, ActivityItem, InspectionCollection, AppSettings, AppModule, AppRole, UserAccess, normalizePipeConduits } from '../types';
 import { ALL_OPERATIONAL_MODULES, createFallbackAccess, isPrimaryAdmin, normalizeModules } from '../lib/accessControl';
+import { removeEvidenceFromSupabase, uploadEvidenceToSupabase } from './supabaseStorageService';
 
 const parseImageUrls = (value: unknown, fallback?: string): string[] => {
   if (Array.isArray(value)) return value.filter((url): url is string => typeof url === 'string' && url.trim().length > 0);
@@ -45,6 +46,11 @@ const parseActaItem = (value: unknown): ActaItem | undefined => {
     quantity: typeof item.quantity === 'string' ? item.quantity : '',
     section: typeof item.section === 'string' ? item.section : 'Sin categoría',
   };
+};
+
+const getCloudEvidenceUrls = async (photo: InspectionPhoto): Promise<string[]> => {
+  const evidence = Array.isArray(photo.imageUrls) ? photo.imageUrls : [];
+  return uploadEvidenceToSupabase(photo.id, evidence);
 };
 
 export interface SupabaseConnectionStatus {
@@ -243,12 +249,14 @@ export const supabaseService = {
     }
 
     try {
+      const cloudEvidenceUrls = await getCloudEvidenceUrls(photo);
+      const cloudImageUrl = cloudEvidenceUrls[0] || (photo.imageUrl.startsWith('data:image/') ? '' : photo.imageUrl);
       const { error } = await client.from('inspection_photos').upsert({
         id: photo.id,
         display_id: photo.displayId,
         name: photo.name,
-        image_url: photo.imageUrl,
-        image_urls: JSON.stringify(photo.imageUrls || [photo.imageUrl]),
+        image_url: cloudImageUrl,
+        image_urls: JSON.stringify(cloudEvidenceUrls),
         date: photo.date,
         date_raw: photo.dateRaw,
         status: photo.status,
@@ -308,12 +316,17 @@ export const supabaseService = {
       return { success: 0, failed: photos.length };
     }
 
-    const records = photos.map((photo) => ({
+    try {
+    const cloudEvidenceByPhoto = await Promise.all(photos.map((photo) => getCloudEvidenceUrls(photo)));
+    const records = photos.map((photo, index) => {
+      const cloudEvidenceUrls = cloudEvidenceByPhoto[index] || [];
+      const cloudImageUrl = cloudEvidenceUrls[0] || (photo.imageUrl.startsWith('data:image/') ? '' : photo.imageUrl);
+      return {
       id: photo.id,
       display_id: photo.displayId,
       name: photo.name,
-      image_url: photo.imageUrl,
-      image_urls: JSON.stringify(photo.imageUrls || [photo.imageUrl]),
+      image_url: cloudImageUrl,
+      image_urls: JSON.stringify(cloudEvidenceUrls),
       date: photo.date,
       date_raw: photo.dateRaw,
       status: photo.status,
@@ -353,9 +366,9 @@ export const supabaseService = {
       plan_end_y: photo.planEndY ?? null,
       user_id: userId || photo.inspectorId,
       updated_at: new Date().toISOString(),
-    }));
+      };
+    });
 
-    try {
       const { error } = await client.from('inspection_photos').upsert(records);
       if (error) {
         console.warn('Error in bulkSyncPhotos:', error.message);
@@ -471,6 +484,7 @@ export const supabaseService = {
         console.warn('Error deleting photo from Supabase:', error.message);
         return false;
       }
+      await removeEvidenceFromSupabase(photoId);
       return true;
     } catch (err) {
       console.warn('Error in deletePhoto:', err);
