@@ -154,3 +154,6 @@
 - [x] Verificar de forma explícita la persistencia visual del plano mientras se abre un panel emergente compacto.
 - [x] Corregir las claves duplicadas de tarjetas de evidencia en el historial fotográfico.
 - [x] Probar el timeline con fotos que comparten URL y fecha para garantizar claves únicas.
+- [x] Ajustar el cuadro de elemento seleccionado para que se adapte a pantallas móviles.
+- [x] Ajustar el modal de propiedades con desplazamiento interno y acciones accesibles en móvil.
+- [x] Validar la selección y edición de elementos en una vista móvil de referencia.

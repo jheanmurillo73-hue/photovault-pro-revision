@@ -1790,7 +1790,7 @@ export const MapView: React.FC<MapViewProps> = ({
       )}
 
       {selectedPlanPhoto && !placementInstruction && !isMultipleSelectionMode && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" role="presentation">
+        <div className="fixed inset-0 z-50 flex items-end justify-center p-2 sm:items-center sm:p-4" role="presentation">
           <button
             type="button"
             className="absolute inset-0 cursor-default bg-transparent"
@@ -1801,18 +1801,18 @@ export const MapView: React.FC<MapViewProps> = ({
             role="dialog"
             aria-modal="true"
             aria-labelledby="selected-element-title"
-            className="relative z-10 flex max-h-[min(86vh,720px)] w-full max-w-lg flex-col overflow-hidden border border-[#8eb4c7] bg-white shadow-[0_24px_72px_rgba(7,63,116,0.34)]"
+            className="relative z-10 flex max-h-[calc(100dvh-1rem)] w-full max-w-lg flex-col overflow-hidden rounded-t-2xl border border-[#8eb4c7] bg-white shadow-[0_24px_72px_rgba(7,63,116,0.34)] sm:max-h-[min(86vh,720px)] sm:rounded-xl"
           >
-          <div className="flex items-start justify-between gap-3 border-b border-[#d3e1e8] bg-[#f4fbfe] px-5 py-4">
+          <div className="flex items-start justify-between gap-3 border-b border-[#d3e1e8] bg-[#f4fbfe] px-4 py-3 sm:px-5 sm:py-4">
             <div className="min-w-0">
               <p className="font-mono text-[9px] font-bold tracking-[0.14em] text-[#527284]">ELEMENTO SELECCIONADO</p>
-              <h2 id="selected-element-title" className="mt-0.5 truncate text-lg font-bold text-[#0b2940]">{elementLabel(selectedPlanPhoto)}</h2>
+              <h2 id="selected-element-title" className="mt-0.5 truncate text-base font-bold text-[#0b2940] sm:text-lg">{elementLabel(selectedPlanPhoto)}</h2>
             </div>
-            <button type="button" onClick={() => setSelectedPlanPhotoId(null)} className="flex h-9 w-9 shrink-0 items-center justify-center border border-[#b4cbd8] bg-white text-[#315c70] transition hover:bg-[#eaf6fb]" aria-label="Cerrar propiedades del elemento">
+            <button type="button" onClick={() => setSelectedPlanPhotoId(null)} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-[#b4cbd8] bg-white text-[#315c70] transition hover:bg-[#eaf6fb]" aria-label="Cerrar propiedades del elemento">
               <span className="material-symbols-outlined text-[20px]">close</span>
             </button>
           </div>
-          <div className="min-h-0 overflow-y-auto px-5 py-4">
+          <div className="min-h-0 overflow-y-auto px-4 py-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] sm:px-5 sm:py-4">
           {getElementType(selectedPlanPhoto) === 'tuberia' && (
             <>
               <div className="mt-3 flex items-center justify-between rounded-lg border border-[#b7d5e4] bg-[#eaf6fb] px-2.5 py-2">
@@ -1973,19 +1973,19 @@ export const MapView: React.FC<MapViewProps> = ({
               </button>
             </div>
           )}
-          <div className="mt-4 grid grid-cols-[1fr_1fr_auto] gap-2 border-t border-[#d3e1e8] pt-4">
-            <button type="button" onClick={() => onEditPhoto(selectedPlanPhoto)} className="inline-flex h-9 items-center justify-center gap-1.5 bg-[#0566aa] px-3 text-xs font-bold text-white transition hover:bg-[#004d84]">
+          <div className="sticky bottom-0 -mx-4 mt-4 grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] gap-2 border-t border-[#d3e1e8] bg-white px-4 pb-[calc(0.75rem+env(safe-area-inset-bottom))] pt-3 sm:-mx-5 sm:px-5">
+            <button type="button" onClick={() => onEditPhoto(selectedPlanPhoto)} className="inline-flex h-10 items-center justify-center gap-1.5 bg-[#0566aa] px-2 text-xs font-bold text-white transition hover:bg-[#004d84] sm:h-9 sm:px-3">
               <span className="material-symbols-outlined text-[16px]">edit</span>
               Propiedades
             </button>
-            <button type="button" onClick={() => onSelectPhoto(selectedPlanPhoto)} className="inline-flex h-9 items-center justify-center gap-1.5 border border-[#b4cbd8] bg-white px-3 text-xs font-bold text-[#154860] transition hover:bg-[#eaf6fb]">
+            <button type="button" onClick={() => onSelectPhoto(selectedPlanPhoto)} className="inline-flex h-10 items-center justify-center gap-1.5 border border-[#b4cbd8] bg-white px-2 text-xs font-bold text-[#154860] transition hover:bg-[#eaf6fb] sm:h-9 sm:px-3">
               <span className="material-symbols-outlined text-[16px]">open_in_new</span>
               Detalle
             </button>
             <button
               type="button"
               onClick={() => setPhotosPendingDeletion([selectedPlanPhoto])}
-              className="inline-flex h-9 w-9 items-center justify-center border border-[#f0b4b0] bg-[#fff7f6] text-[#b42318] transition hover:bg-[#ffdad6]"
+              className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-[#f0b4b0] bg-[#fff7f6] text-[#b42318] transition hover:bg-[#ffdad6] sm:h-9 sm:w-9"
               title="Eliminar elemento"
               aria-label={`Eliminar ${elementLabel(selectedPlanPhoto)}`}
             >
