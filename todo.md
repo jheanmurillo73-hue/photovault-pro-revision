@@ -125,3 +125,4 @@
 - [x] Documentar el resultado de la prueba real de recuperación en la aplicación.
 - [x] Promover la versión validada de Storage y restablecimiento a desarrollo, produccion y main.
 - [x] Confirmar la ejecución correcta de la migración SQL de restablecimiento en Supabase.
+- [ ] Sincronizar la versión más reciente en desarrollo, produccion y main.
