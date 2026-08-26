@@ -1,19 +1,38 @@
 import { getSupabaseClient, isSupabaseConfigured, getActiveSupabaseConfig } from '../lib/supabase';
-import { ActaItem, InspectionPhoto, InspectorProfile, ActivityItem, InspectionCollection, AppSettings, AppModule, AppRole, UserAccess, normalizePipeConduits } from '../types';
+import { ActaItem, EvidenceTimelineEntry, InspectionPhoto, InspectorProfile, ActivityItem, InspectionCollection, AppSettings, AppModule, AppRole, UserAccess, normalizeEvidenceTimeline, normalizePipeConduits } from '../types';
 import { ALL_OPERATIONAL_MODULES, createFallbackAccess, isPrimaryAdmin, normalizeModules } from '../lib/accessControl';
 import { removeEvidenceFromSupabase, uploadEvidenceToSupabase } from './supabaseStorageService';
 
-const parseImageUrls = (value: unknown, fallback?: string): string[] => {
-  if (Array.isArray(value)) return value.filter((url): url is string => typeof url === 'string' && url.trim().length > 0);
+const parseEvidenceTimeline = (value: unknown, fallback?: string, fallbackDate?: string): EvidenceTimelineEntry[] => {
+  const defaultDate = fallbackDate || new Date().toISOString();
+  const parseEntries = (candidate: unknown): EvidenceTimelineEntry[] => {
+    if (!Array.isArray(candidate)) return [];
+    return candidate.flatMap((entry) => {
+      if (typeof entry === 'string' && entry.trim()) return [{ url: entry, capturedAt: defaultDate }];
+      if (!entry || typeof entry !== 'object' || Array.isArray(entry)) return [];
+      const item = entry as Partial<EvidenceTimelineEntry>;
+      return typeof item.url === 'string' && item.url.trim()
+        ? [{ url: item.url, capturedAt: typeof item.capturedAt === 'string' && item.capturedAt.trim() ? item.capturedAt : defaultDate }]
+        : [];
+    });
+  };
+
+  if (Array.isArray(value)) return parseEntries(value);
   if (typeof value === 'string' && value.trim()) {
     try {
       const parsed = JSON.parse(value);
-      if (Array.isArray(parsed)) return parsed.filter((url): url is string => typeof url === 'string' && url.trim().length > 0);
+      return parseEntries(parsed);
     } catch {
-      return fallback ? [fallback] : [];
+      return fallback ? [{ url: fallback, capturedAt: defaultDate }] : [];
     }
   }
-  return fallback ? [fallback] : [];
+  return fallback ? [{ url: fallback, capturedAt: defaultDate }] : [];
+};
+
+const serializeEvidenceTimeline = (photo: InspectionPhoto, urls: string[]): string => {
+  const sourceTimeline = normalizeEvidenceTimeline(photo);
+  const fallbackDate = photo.dateRaw || new Date().toISOString();
+  return JSON.stringify(urls.map((url, index) => ({ url, capturedAt: sourceTimeline[index]?.capturedAt || fallbackDate })));
 };
 
 const parsePipeConduits = (value: unknown) => {
@@ -49,7 +68,7 @@ const parseActaItem = (value: unknown): ActaItem | undefined => {
 };
 
 const getCloudEvidenceUrls = async (photo: InspectionPhoto): Promise<string[]> => {
-  const evidence = Array.isArray(photo.imageUrls) ? photo.imageUrls : [];
+  const evidence = normalizeEvidenceTimeline(photo).map((entry) => entry.url);
   return uploadEvidenceToSupabase(photo.id, evidence);
 };
 
@@ -256,7 +275,7 @@ export const supabaseService = {
         display_id: photo.displayId,
         name: photo.name,
         image_url: cloudImageUrl,
-        image_urls: JSON.stringify(cloudEvidenceUrls),
+        image_urls: serializeEvidenceTimeline(photo, cloudEvidenceUrls),
         date: photo.date,
         date_raw: photo.dateRaw,
         status: photo.status,
@@ -326,7 +345,7 @@ export const supabaseService = {
       display_id: photo.displayId,
       name: photo.name,
       image_url: cloudImageUrl,
-      image_urls: JSON.stringify(cloudEvidenceUrls),
+      image_urls: serializeEvidenceTimeline(photo, cloudEvidenceUrls),
       date: photo.date,
       date_raw: photo.dateRaw,
       status: photo.status,
@@ -402,13 +421,15 @@ export const supabaseService = {
       if (!data) return [];
 
       return data.map((item: any) => {
-        const imageUrls = parseImageUrls(item.image_urls, item.image_url);
+        const evidenceTimeline = parseEvidenceTimeline(item.image_urls, item.image_url, item.date_raw || item.created_at);
+        const imageUrls = evidenceTimeline.map((entry) => entry.url);
         return {
         id: item.id,
         displayId: item.display_id || item.id,
         name: item.name || 'Sin título',
         imageUrl: imageUrls[0] || item.image_url,
         imageUrls,
+        evidenceTimeline,
         date: item.date,
         dateRaw: item.date_raw || item.created_at || new Date().toISOString(),
         status: item.status || 'Synced',

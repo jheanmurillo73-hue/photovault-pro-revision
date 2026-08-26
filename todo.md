@@ -142,3 +142,8 @@
 - [x] Validar de forma verificable los estados visuales del inspector durante la restauración del plano remoto.
 - [x] Añadir una prueba de integración de MapView que renderice carga, aviso y registro de actualización remota.
 - [x] Validar el flujo visible del inspector con una revisión remota nueva en el componente del mapa.
+- [x] Clasificar las fotos de cada elemento por fecha de captura o registro.
+- [x] Mostrar un timeline de avance fotográfico en la vista de detalle del elemento.
+- [x] Validar la agrupación cronológica y la navegación del historial fotográfico.
+- [x] Añadir una prueba de navegación que abra la evidencia correcta desde una tarjeta del timeline.
+- [x] Validar de forma explícita el clic y visor de una evidencia dentro del historial fotográfico.

@@ -3,7 +3,22 @@
  * categorías distintas y comunica el alcance real del elemento seleccionado.
  */
 import React, { useEffect, useState } from 'react';
-import { InspectionPhoto, getElementType } from '../types';
+import { groupEvidenceTimelineByDate, InspectionPhoto, normalizeEvidenceTimeline, getElementType } from '../types';
+
+const formatTimelineDay = (day: string) => {
+  if (day === 'Sin fecha') return day;
+  return new Date(`${day}T12:00:00`).toLocaleDateString('es-CO', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  });
+};
+
+const formatTimelineTime = (value: string) => {
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? 'Hora no disponible' : date.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' });
+};
 
 interface PhotoDetailViewProps {
   photo: InspectionPhoto;
@@ -72,9 +87,9 @@ export const PhotoDetailView: React.FC<PhotoDetailViewProps> = ({
 
   const currentExecutionStatus = photo.executionStatus || 'En proceso';
   const elementType = getElementType(photo);
-  const galleryImages = Array.isArray(photo.imageUrls)
-    ? photo.imageUrls.filter((url): url is string => typeof url === 'string' && url.trim().length > 0 && !url.startsWith('data:image/svg+xml'))
-    : [];
+  const evidenceTimeline = normalizeEvidenceTimeline(photo);
+  const galleryImages = evidenceTimeline.map((entry) => entry.url);
+  const timelineGroups = groupEvidenceTimelineByDate(evidenceTimeline);
   const hasEvidence = galleryImages.length > 0;
   const activeImageUrl = galleryImages[activeImageIndex] || galleryImages[0];
   const hasMultipleImages = galleryImages.length > 1;
@@ -650,6 +665,57 @@ export const PhotoDetailView: React.FC<PhotoDetailViewProps> = ({
           </div>
         </div>
       </div>
+
+      <section aria-labelledby="photo-timeline-title" className="overflow-hidden rounded-xl border border-[#c2c6d4] bg-white shadow-xs">
+        <div className="flex flex-col gap-2 border-b border-[#d7e3e8] bg-[#f3faff] px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="font-mono text-[10px] font-bold tracking-[0.14em] text-[#0566aa]">AVANCE DOCUMENTADO</p>
+            <h2 id="photo-timeline-title" className="mt-1 text-base font-bold text-[#0b2940]">Historial fotográfico</h2>
+          </div>
+          <span className="inline-flex w-fit items-center gap-1.5 rounded-full border border-[#b7d7e6] bg-white px-2.5 py-1 text-[11px] font-semibold text-[#285b72]">
+            <span className="material-symbols-outlined text-[15px]">photo_library</span>
+            {evidenceTimeline.length} evidencia{evidenceTimeline.length === 1 ? '' : 's'}
+          </span>
+        </div>
+
+        {timelineGroups.length === 0 ? (
+          <div className="flex items-center gap-3 px-5 py-6 text-sm text-[#607d8b]">
+            <span className="material-symbols-outlined grid h-10 w-10 place-items-center rounded-full bg-[#f3faff] text-[21px]">history_toggle_off</span>
+            <p>Aún no hay fotos para construir el avance cronológico de este elemento.</p>
+          </div>
+        ) : (
+          <div className="space-y-5 px-5 py-5">
+            {timelineGroups.map((group) => (
+              <div key={group.day} className="relative pl-8">
+                <span className="absolute left-[7px] top-2 h-full w-px bg-[#b7d7e6]" aria-hidden="true" />
+                <span className="absolute left-0 top-1.5 grid h-4 w-4 place-items-center rounded-full border-2 border-white bg-[#0566aa] shadow-sm" aria-hidden="true" />
+                <time dateTime={group.day} className="mb-3 block text-xs font-bold capitalize text-[#0b4f7a]">{formatTimelineDay(group.day)}</time>
+                <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                  {group.entries.map((entry) => {
+                    const imageIndex = evidenceTimeline.findIndex((candidate) => candidate.url === entry.url && candidate.capturedAt === entry.capturedAt);
+                    return (
+                      <button
+                        key={`${entry.url.slice(0, 36)}-${entry.capturedAt}`}
+                        type="button"
+                        onClick={() => openImageFullscreen(Math.max(0, imageIndex))}
+                        className="group flex overflow-hidden rounded-lg border border-[#c7dce5] bg-white text-left shadow-sm transition hover:-translate-y-0.5 hover:border-[#0566aa] hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0566aa] focus-visible:ring-offset-2"
+                        aria-label={`Abrir evidencia tomada a las ${formatTimelineTime(entry.capturedAt)}`}
+                      >
+                        <img src={entry.url} alt={`Evidencia de avance del ${formatTimelineDay(group.day)}`} className="h-20 w-24 shrink-0 object-cover" />
+                        <span className="flex min-w-0 flex-1 flex-col justify-center gap-1 px-3 py-2">
+                          <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide text-[#0566aa]"><span className="material-symbols-outlined text-[14px]">schedule</span>{formatTimelineTime(entry.capturedAt)}</span>
+                          <span className="truncate text-xs font-semibold text-[#24485b]">Evidencia de avance</span>
+                          <span className="text-[10px] text-[#607d8b]">Abrir en visor</span>
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
 
       {/* Fullscreen Lightbox Modal */}
       {isFullscreen && hasEvidence && (

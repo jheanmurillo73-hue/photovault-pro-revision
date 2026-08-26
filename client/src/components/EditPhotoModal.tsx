@@ -3,7 +3,7 @@
  * objeto seleccionado; una tubería nunca guarda datos de cámara, y viceversa.
  */
 import React, { useRef, useState } from 'react';
-import { CableGauge, CableType, CABLE_TYPE_OPTIONS, getCableGaugeOptionsForPlanArea, InspectionPhoto, ExecutionStatus, CameraCode, CameraType, ElementType, ActaLabelPosition, getElectricalElementOption, getElectricalPlanArea, getElementType, getPipeNetworkOption, PIPE_NETWORK_OPTIONS, PipeConduit, PipeNetworkType, getDefaultPipeConfiguration, normalizePipeConduits } from '../types';
+import { CableGauge, CableType, CABLE_TYPE_OPTIONS, getCableGaugeOptionsForPlanArea, InspectionPhoto, ExecutionStatus, CameraCode, CameraType, ElementType, ActaLabelPosition, getElectricalElementOption, getElectricalPlanArea, getElementType, getPipeNetworkOption, PIPE_NETWORK_OPTIONS, PipeConduit, PipeNetworkType, getDefaultPipeConfiguration, normalizeEvidenceTimeline, normalizePipeConduits } from '../types';
 import { WAREHOUSE_LOCATIONS, CAMERA_CODES, CAMERA_TYPES } from '../data/mockData';
 import { ACTA_ITEM_OPTIONS, getActaItemKey } from '../data/actaItems';
 import { compressImageForDevice } from '../services/deviceStorageService';
@@ -79,11 +79,8 @@ export const EditPhotoModal: React.FC<EditPhotoModalProps> = ({
   const [executionStatus, setExecutionStatus] = useState<ExecutionStatus>(photo.executionStatus || 'En proceso');
   const [requiresImmediateAction, setRequiresImmediateAction] = useState(photo.requiresImmediateAction ?? false);
   const [verified, setVerified] = useState(photo.verified ?? false);
-  const [imageUrls, setImageUrls] = useState<string[]>(() => {
-    return Array.isArray(photo.imageUrls)
-      ? photo.imageUrls.filter((url): url is string => Boolean(url) && !url.startsWith('data:image/svg+xml'))
-      : [];
-  });
+  const [evidenceTimeline, setEvidenceTimeline] = useState(() => normalizeEvidenceTimeline(photo));
+  const imageUrls = evidenceTimeline.map((entry) => entry.url);
   const [imageSize, setImageSize] = useState(photo.fileSize ?? '');
   const [isProcessingImage, setIsProcessingImage] = useState(false);
   const [imageError, setImageError] = useState<string | null>(null);
@@ -146,7 +143,11 @@ export const EditPhotoModal: React.FC<EditPhotoModalProps> = ({
       const filesToProcess = validFiles.slice(0, remainingSlots);
       const optimizedImages = await Promise.all(filesToProcess.map((file) => compressImageForDevice(file, 1280, 960, 0.76)));
       const originalSize = filesToProcess.reduce((total, file) => total + file.size, 0);
-      setImageUrls((previous) => [...previous, ...optimizedImages].slice(0, 6));
+      const capturedAt = new Date().toISOString();
+      setEvidenceTimeline((previous) => [
+        ...previous,
+        ...optimizedImages.map((url) => ({ url, capturedAt })),
+      ].slice(0, 6));
       setImageSize(originalSize > 1024 * 1024
         ? `${(originalSize / (1024 * 1024)).toFixed(1)} MB`
         : `${Math.max(1, Math.round(originalSize / 1024))} KB`);
@@ -172,13 +173,13 @@ export const EditPhotoModal: React.FC<EditPhotoModalProps> = ({
 
   const confirmPhotoRemoval = () => {
     if (photoIndexPendingRemoval === null) return;
-    setImageUrls((previous) => previous.filter((_, index) => index !== photoIndexPendingRemoval));
+    setEvidenceTimeline((previous) => previous.filter((_, index) => index !== photoIndexPendingRemoval));
     setPhotoIndexPendingRemoval(null);
   };
 
   const movePhoto = (fromIndex: number, toIndex: number) => {
     if (fromIndex === toIndex) return;
-    setImageUrls((previous) => {
+    setEvidenceTimeline((previous) => {
       const reordered = [...previous];
       const [movedPhoto] = reordered.splice(fromIndex, 1);
       reordered.splice(toIndex, 0, movedPhoto);
@@ -198,6 +199,7 @@ export const EditPhotoModal: React.FC<EditPhotoModalProps> = ({
       location: location.trim() || photo.location,
       imageUrl: savedImageUrls[0] || photo.imageUrl,
       imageUrls: savedImageUrls,
+      evidenceTimeline,
       fileSize: imageSize || photo.fileSize,
       resolution: JSON.stringify(savedImageUrls) !== JSON.stringify(photo.imageUrls || [photo.imageUrl]) ? 'Fotos adjuntas desde propiedades' : photo.resolution,
       elementType: isAdmin ? elementType : photo.elementType,
@@ -329,7 +331,7 @@ export const EditPhotoModal: React.FC<EditPhotoModalProps> = ({
                     }}
                     className={`group relative aspect-square overflow-hidden rounded-lg border bg-[#e6f6ff] transition ${draggedPhotoIndex === index ? 'scale-95 border-[#0566aa] opacity-55' : dragOverPhotoIndex === index ? 'border-[#0566aa] ring-2 ring-cyan-300 ring-offset-1' : 'border-[#a7c8da]'} ${imageUrls.length > 1 ? 'cursor-grab active:cursor-grabbing' : ''}`}
                   >
-                    <button type="button" onClick={() => setImageUrls((previous) => [previous[index], ...previous.filter((_, itemIndex) => itemIndex !== index)])} className="h-full w-full" title={index === 0 ? 'Foto de portada' : 'Usar como foto de portada'}>
+                    <button type="button" onClick={() => setEvidenceTimeline((previous) => [previous[index], ...previous.filter((_, itemIndex) => itemIndex !== index)])} className="h-full w-full" title={index === 0 ? 'Foto de portada' : 'Usar como foto de portada'}>
                       <img src={url} alt={`Foto de evidencia ${index + 1}`} className="h-full w-full object-cover" />
                     </button>
                     {index === 0 && <span className="absolute left-1 top-1 rounded bg-[#073f74] px-1 py-0.5 text-[8px] font-bold text-white">PORTADA</span>}

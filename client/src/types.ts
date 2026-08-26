@@ -28,6 +28,11 @@ export type ElectricalElementType =
 export type CableType = 'media_tension' | 'baja_tension' | 'alumbrado';
 export type CableGauge = '12' | '10' | '8' | '6' | '4' | '2' | '1/0' | '2/0' | '3/0' | '4/0' | '250' | '350' | '500';
 
+export interface EvidenceTimelineEntry {
+  url: string;
+  capturedAt: string;
+}
+
 export const CABLE_TYPE_OPTIONS: ReadonlyArray<{ value: CableType; label: string; color: string }> = [
   { value: 'media_tension', label: 'Media tensión', color: '#6D28D9' },
   { value: 'baja_tension', label: 'Baja tensión', color: '#0369A1' },
@@ -175,6 +180,7 @@ export interface InspectionPhoto {
   name: string;
   imageUrl: string;
   imageUrls?: string[];
+  evidenceTimeline?: EvidenceTimelineEntry[];
   date: string;
   dateRaw: string;
   status: SyncStatus;
@@ -218,6 +224,32 @@ export interface InspectionPhoto {
   fileSize?: string;
   resolution?: string;
 }
+
+export const normalizeEvidenceTimeline = (
+  photo: Pick<InspectionPhoto, 'imageUrl' | 'imageUrls' | 'evidenceTimeline' | 'dateRaw'>,
+): EvidenceTimelineEntry[] => {
+  const urls = (photo.imageUrls?.length ? photo.imageUrls : [photo.imageUrl])
+    .filter((url): url is string => typeof url === 'string' && url.trim().length > 0 && !url.startsWith('data:image/svg+xml'));
+  const recordedEntries = Array.isArray(photo.evidenceTimeline) ? photo.evidenceTimeline : [];
+  const fallbackDate = photo.dateRaw || new Date().toISOString();
+
+  return urls.map((url) => {
+    const recorded = recordedEntries.find((entry) => entry?.url === url && typeof entry.capturedAt === 'string' && entry.capturedAt.trim());
+    return { url, capturedAt: recorded?.capturedAt || fallbackDate };
+  });
+};
+
+export const groupEvidenceTimelineByDate = (entries: EvidenceTimelineEntry[]) => {
+  const ordered = [...entries].sort((left, right) => Date.parse(left.capturedAt) - Date.parse(right.capturedAt));
+  return ordered.reduce<Array<{ day: string; entries: EvidenceTimelineEntry[] }>>((groups, entry) => {
+    const parsedDate = new Date(entry.capturedAt);
+    const day = Number.isNaN(parsedDate.getTime()) ? 'Sin fecha' : parsedDate.toISOString().slice(0, 10);
+    const group = groups.find((item) => item.day === day);
+    if (group) group.entries.push(entry);
+    else groups.push({ day, entries: [entry] });
+    return groups;
+  }, []);
+};
 
 /**
  * Mantiene los registros creados antes de esta mejora: aquellos con metraje o
