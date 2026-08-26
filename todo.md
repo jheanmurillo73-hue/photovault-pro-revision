@@ -165,3 +165,7 @@
 - [x] Añadir un control móvil para contraer y expandir los accesos secundarios del plano.
 - [x] Ocultar Vista, Herramientas y pantalla completa cuando la barra secundaria esté contraída.
 - [x] Validar la restauración de accesos secundarios en una pantalla móvil estrecha.
+- [x] Crear un timeline gráfico de evolución con las evidencias fotográficas de cada elemento.
+- [x] Mantener navegación desde cada hito gráfico hacia su evidencia correspondiente.
+- [x] Restringir la calibración del plano y su acceso visual al perfil administrador.
+- [x] Validar el timeline gráfico y los permisos de calibración para inspector y administrador.

@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import React from 'react';
-import { fireEvent, render, screen, within } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { PhotoDetailView } from '../client/src/components/PhotoDetailView';
 import { groupEvidenceTimelineByDate, normalizeEvidenceTimeline, type InspectionPhoto } from '../client/src/types';
 
@@ -38,6 +38,8 @@ const photoWithProgress: InspectionPhoto = {
 };
 
 describe('Historial fotográfico por elemento', () => {
+  afterEach(() => cleanup());
+
   it('agrupa evidencias por fecha y mantiene el orden cronológico de avance', () => {
     const timeline = normalizeEvidenceTimeline(photoWithProgress);
     const groups = groupEvidenceTimelineByDate(timeline);
@@ -70,6 +72,18 @@ describe('Historial fotográfico por elemento', () => {
     expect(screen.getByText(/Foto 2 de 3/)).toBeTruthy();
     const selectedEvidenceViews = screen.getAllByAltText('Cámara de acceso — evidencia 2 de 3');
     expect(selectedEvidenceViews.at(-1)?.getAttribute('src')).toBe('https://example.com/evidence-2.jpg');
+  });
+
+  it('muestra hitos gráficos cronológicos y abre la evidencia seleccionada', () => {
+    render(<PhotoDetailView photo={photoWithProgress} onBack={vi.fn()} onEdit={vi.fn()} onDelete={vi.fn()} onUpdatePhoto={vi.fn()} />);
+
+    expect(screen.getByRole('heading', { name: 'Ruta gráfica del avance' })).toBeTruthy();
+    const graphicalMilestones = screen.getAllByRole('button', { name: /Abrir hito de evolución/i });
+    expect(graphicalMilestones).toHaveLength(3);
+    fireEvent.click(graphicalMilestones[2]);
+
+    expect(screen.getByText(/Foto 3 de 3/)).toBeTruthy();
+    expect(screen.getAllByAltText('Cámara de acceso — evidencia 3 de 3').at(-1)?.getAttribute('src')).toBe('https://example.com/evidence-3.jpg');
   });
 
   it('mantiene claves únicas cuando dos evidencias comparten URL y fecha', () => {

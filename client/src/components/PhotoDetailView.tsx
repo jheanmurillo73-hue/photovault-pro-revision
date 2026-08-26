@@ -20,6 +20,12 @@ const formatTimelineTime = (value: string) => {
   return Number.isNaN(date.getTime()) ? 'Hora no disponible' : date.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' });
 };
 
+const formatGraphicTimelineDate = (value: string) => {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return 'Sin fecha';
+  return date.toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' });
+};
+
 interface PhotoDetailViewProps {
   photo: InspectionPhoto;
   onBack: () => void;
@@ -90,6 +96,17 @@ export const PhotoDetailView: React.FC<PhotoDetailViewProps> = ({
   const evidenceTimeline = normalizeEvidenceTimeline(photo);
   const galleryImages = evidenceTimeline.map((entry) => entry.url);
   const timelineGroups = groupEvidenceTimelineByDate(evidenceTimeline);
+  const graphicalTimelineEntries = evidenceTimeline
+    .map((entry, originalIndex) => ({ ...entry, originalIndex }))
+    .sort((left, right) => Date.parse(left.capturedAt) - Date.parse(right.capturedAt));
+  const graphicalTimelineWidth = Math.max(360, graphicalTimelineEntries.length * 118);
+  const graphicalTimelinePoints = graphicalTimelineEntries.map((entry, index) => {
+    const x = graphicalTimelineEntries.length === 1
+      ? graphicalTimelineWidth / 2
+      : 58 + index * ((graphicalTimelineWidth - 116) / (graphicalTimelineEntries.length - 1));
+    const y = [132, 88, 148, 106, 138, 94][index % 6];
+    return { ...entry, x, y };
+  });
   const hasEvidence = galleryImages.length > 0;
   const activeImageUrl = galleryImages[activeImageIndex] || galleryImages[0];
   const hasMultipleImages = galleryImages.length > 1;
@@ -684,7 +701,55 @@ export const PhotoDetailView: React.FC<PhotoDetailViewProps> = ({
             <p>Aún no hay fotos para construir el avance cronológico de este elemento.</p>
           </div>
         ) : (
-          <div className="space-y-5 px-5 py-5">
+          <div className="space-y-6 px-5 py-5">
+            <figure aria-labelledby="graphic-evolution-title" className="overflow-hidden rounded-xl border border-[#b7d7e6] bg-[linear-gradient(135deg,#f8fcfe_0%,#edf7fb_100%)]">
+              <div className="flex items-center justify-between gap-3 border-b border-[#d5e6ee] bg-white/80 px-3 py-2.5">
+                <div>
+                  <p className="font-mono text-[9px] font-bold tracking-[0.12em] text-[#0566aa]">EVOLUCIÓN VISUAL</p>
+                  <h3 id="graphic-evolution-title" className="mt-0.5 text-sm font-bold text-[#0b2940]">Ruta gráfica del avance</h3>
+                </div>
+                <span className="material-symbols-outlined text-[22px] text-[#0b5d8c]" aria-hidden="true">insights</span>
+              </div>
+              <div className="overflow-x-auto px-2 py-3" aria-label="Línea de tiempo gráfica de evidencias">
+                <div className="relative h-[13.5rem]" style={{ width: `${graphicalTimelineWidth}px` }}>
+                  <svg viewBox={`0 0 ${graphicalTimelineWidth} 200`} className="absolute inset-0 h-full w-full" preserveAspectRatio="none" aria-hidden="true">
+                    <polyline
+                      points={graphicalTimelinePoints.map((point) => `${point.x},${point.y}`).join(' ')}
+                      fill="none"
+                      stroke="#527f96"
+                      strokeWidth="3"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                    {graphicalTimelinePoints.map((point) => (
+                      <g key={`graphic-node-${point.originalIndex}`}>
+                        <circle cx={point.x} cy={point.y} r="7" fill="#ffffff" stroke="#0b5d8c" strokeWidth="3" />
+                        <circle cx={point.x} cy={point.y} r="2.5" fill="#00a8c6" />
+                      </g>
+                    ))}
+                  </svg>
+                  {graphicalTimelinePoints.map((point) => (
+                    <button
+                      key={`graphic-evidence-${point.originalIndex}`}
+                      type="button"
+                      onClick={() => openImageFullscreen(point.originalIndex)}
+                      aria-label={`Abrir hito de evolución del ${formatGraphicTimelineDate(point.capturedAt)}`}
+                      className="group absolute z-10 flex w-[5.25rem] -translate-x-1/2 flex-col items-center text-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0566aa] focus-visible:ring-offset-2"
+                      style={{ left: `${point.x}px`, top: `${Math.max(10, point.y - 88)}px` }}
+                    >
+                      <span className="relative block w-[4.6rem] overflow-hidden rounded-md border-2 border-white bg-white p-1 shadow-[0_5px_14px_rgba(7,63,116,0.24)] transition duration-200 group-hover:-translate-y-1 group-hover:border-[#56b5cd]">
+                        <img src={point.url} alt={`Hito fotográfico de ${formatGraphicTimelineDate(point.capturedAt)}`} className="h-14 w-full object-cover" />
+                        <span className="absolute -bottom-1.5 left-1/2 h-3 w-3 -translate-x-1/2 rotate-45 border-b-2 border-r-2 border-white bg-white" aria-hidden="true" />
+                      </span>
+                      <time dateTime={point.capturedAt} className="mt-3 max-w-full truncate rounded-full bg-white/85 px-1.5 py-0.5 font-mono text-[8px] font-bold text-[#315c70]">
+                        {formatGraphicTimelineDate(point.capturedAt)}
+                      </time>
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <figcaption className="border-t border-[#d5e6ee] bg-white/70 px-3 py-2 text-[10px] leading-4 text-[#527284]">Cada hito representa una evidencia registrada. Selecciónalo para abrir la foto y revisar su avance.</figcaption>
+            </figure>
             {timelineGroups.map((group) => (
               <div key={group.day} className="relative pl-8">
                 <span className="absolute left-[7px] top-2 h-full w-px bg-[#b7d7e6]" aria-hidden="true" />

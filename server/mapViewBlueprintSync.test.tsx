@@ -92,7 +92,7 @@ describe('MapView: estados visibles de sincronización del plano', () => {
     fireEvent.click(screen.getByTitle('Abrir herramientas del plano'));
     expect(screen.queryByRole('dialog', { name: 'Ajustes de vista del plano' })).toBeNull();
     expect(screen.getByRole('dialog', { name: 'Herramientas del plano' })).toBeTruthy();
-    expect(screen.getByText('Calibrar plano')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Calibración disponible solo para administradores' })).toBeTruthy();
 
     fireEvent.click(screen.getByText('Activar mano'));
     expect(screen.queryByRole('dialog', { name: 'Herramientas del plano' })).toBeNull();

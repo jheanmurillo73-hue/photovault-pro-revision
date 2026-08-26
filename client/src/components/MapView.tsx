@@ -637,6 +637,10 @@ export const MapView: React.FC<MapViewProps> = ({
   };
 
   const startCalibration = () => {
+    if (!isAdmin) {
+      setBlueprintStorageNotice('La calibración del plano está disponible únicamente para el administrador.');
+      return;
+    }
     if (!blueprint.imageUrl) {
       setBlueprintStorageNotice('Carga primero el plano JPG para poder calibrarlo.');
       return;
@@ -2203,9 +2207,15 @@ export const MapView: React.FC<MapViewProps> = ({
                   <button type="button" onClick={() => setActiveMapPopover(null)} className="grid h-7 w-7 place-items-center rounded-md text-[#486a7c] hover:bg-white" aria-label="Cerrar herramientas del plano"><span className="material-symbols-outlined text-[18px]">close</span></button>
                 </div>
                 <div className="space-y-2.5 p-3">
-                  <button type="button" onClick={() => { setActiveMapPopover(null); startCalibration(); }} className={`flex w-full items-center gap-2 rounded-lg border px-3 py-2.5 text-left text-xs font-bold transition ${blueprint.calibration ? 'border-[#6ca9c5] bg-[#eaf6fb] text-[#075a91] hover:bg-[#dff2fa]' : 'border-[#e0bf78] bg-[#fffaf0] text-[#8b5d05] hover:bg-[#fff2d6]'}`}>
-                    <span className="material-symbols-outlined text-[19px]">straighten</span><span className="flex-1">{blueprint.calibration ? 'Escala activa' : 'Calibrar plano'}</span><span className="material-symbols-outlined text-[17px]">chevron_right</span>
-                  </button>
+                  {isAdmin ? (
+                    <button type="button" onClick={() => { setActiveMapPopover(null); startCalibration(); }} className={`flex w-full items-center gap-2 rounded-lg border px-3 py-2.5 text-left text-xs font-bold transition ${blueprint.calibration ? 'border-[#6ca9c5] bg-[#eaf6fb] text-[#075a91] hover:bg-[#dff2fa]' : 'border-[#e0bf78] bg-[#fffaf0] text-[#8b5d05] hover:bg-[#fff2d6]'}`}>
+                      <span className="material-symbols-outlined text-[19px]">straighten</span><span className="flex-1">{blueprint.calibration ? 'Escala activa' : 'Calibrar plano'}</span><span className="material-symbols-outlined text-[17px]">chevron_right</span>
+                    </button>
+                  ) : (
+                    <button type="button" disabled aria-label="Calibración disponible solo para administradores" className="flex w-full cursor-not-allowed items-center gap-2 rounded-lg border border-[#d7e2e7] bg-[#f5f8fa] px-3 py-2.5 text-left text-xs font-bold text-[#718692] opacity-85">
+                      <span className="material-symbols-outlined text-[19px]">lock</span><span className="flex-1">Calibración del administrador</span><span className="text-[10px] font-medium">Solo lectura</span>
+                    </button>
+                  )}
                   <div className="rounded-lg border border-[#d7e5eb] bg-[#fbfdfe] px-3 py-2 text-xs text-[#426373]"><strong className="text-[#0b2940]">{photos.filter((photo) => isPlaced(photo)).length}</strong> ubicados · <strong className="text-[#0b2940]">{totalPipelineMeters.toFixed(1)} m</strong> de tubería</div>
                   <button type="button" onClick={() => { const nextHandMode = !isHandToolActive; setIsHandToolActive(nextHandMode); setActiveMapPopover(null); if (nextHandMode) { exitMultipleSelection(); setPlacement(null); setCreationMode(null); setPipeStart(null); setPipePreview(null); if (calibrationMode) cancelCalibration(); } }} className={`flex w-full items-center gap-2 rounded-lg border px-3 py-2.5 text-left text-xs font-bold transition ${isHandToolActive ? 'border-[#073f74] bg-[#073f74] text-white' : 'border-[#c7d7df] bg-white text-[#285b72] hover:bg-[#eaf6fb]'}`} aria-pressed={isHandToolActive}>
                     <span className="material-symbols-outlined text-[19px]">pan_tool_alt</span><span className="flex-1">{isHandToolActive ? 'Mano activa' : 'Activar mano'}</span><span className="text-[10px] font-medium">Mover plano</span>

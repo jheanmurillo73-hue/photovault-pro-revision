@@ -107,6 +107,8 @@ describe('Diálogos del plano en móvil', () => {
     expect(toolsDialog.className).toContain('left-2');
     expect(toolsDialog.className).toContain('right-2');
     expect(toolsDialog.className).toContain('max-h-[calc(100dvh-5.25rem)]');
+    const inspectorCalibration = within(toolsDialog).getByRole('button', { name: 'Calibración disponible solo para administradores' });
+    expect(inspectorCalibration.hasAttribute('disabled')).toBe(true);
     fireEvent.click(toolsTrigger);
 
     const marker = await screen.findByRole('button', { name: 'Abrir o mover SB850' });
@@ -127,5 +129,28 @@ describe('Diálogos del plano en móvil', () => {
     expect(dialog.className).toContain('rounded-t-2xl');
     expect(screen.getByText('Guardar Cambios').className).toContain('h-10');
     expect(screen.getByText('Cancelar').className).toContain('h-10');
+  });
+
+  it('muestra la calibración únicamente al administrador dentro de Herramientas', async () => {
+    render(
+      <MapView
+        photos={[mobileElement]}
+        inspector={{ id: 'admin-mobile', name: 'Administrador móvil', email: 'admin@example.com', role: 'Administrador', terminal: 'Móvil', avatarUrl: '', phone: '', department: 'Obra' }}
+        isAdmin
+        onSelectPhoto={vi.fn()}
+        onEditPhoto={vi.fn()}
+        onUpdatePhoto={vi.fn()}
+        onDeletePhotos={vi.fn()}
+        onNavigateToUpload={vi.fn()}
+        onCreatePhoto={vi.fn()}
+        onUpdatePhotoPosition={vi.fn()}
+        onUpdatePipelineMeasurements={vi.fn()}
+      />,
+    );
+
+    fireEvent.click(await screen.findByTitle('Abrir herramientas del plano'));
+    const toolsDialog = screen.getByRole('dialog', { name: 'Herramientas del plano' });
+    expect(within(toolsDialog).getByText('Calibrar plano')).toBeTruthy();
+    expect(within(toolsDialog).queryByRole('button', { name: 'Calibración disponible solo para administradores' })).toBeNull();
   });
 });
