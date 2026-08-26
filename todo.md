@@ -162,3 +162,6 @@
 - [x] Validar accesos y paneles en una referencia móvil estrecha.
 - [x] Añadir una prueba móvil del acceso Herramientas y de su panel emergente contenido.
 - [x] Validar explícitamente Vista y Herramientas a 375 px antes de cerrar la adaptación responsiva.
+- [x] Añadir un control móvil para contraer y expandir los accesos secundarios del plano.
+- [x] Ocultar Vista, Herramientas y pantalla completa cuando la barra secundaria esté contraída.
+- [x] Validar la restauración de accesos secundarios en una pantalla móvil estrecha.

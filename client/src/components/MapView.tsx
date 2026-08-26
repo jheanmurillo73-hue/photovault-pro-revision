@@ -269,6 +269,7 @@ export const MapView: React.FC<MapViewProps> = ({
   const [isPanelOpen, setIsPanelOpen] = useState<boolean>(false);
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
   const [activeMapPopover, setActiveMapPopover] = useState<'view' | 'tools' | null>(null);
+  const [areSecondaryAccessesCollapsed, setAreSecondaryAccessesCollapsed] = useState(false);
   const [isHandToolActive, setIsHandToolActive] = useState(false);
   const [panOffset, setPanOffset] = useState({ x: 0, y: 0 });
   const [iconScale, setIconScale] = useState<number>(() => {
@@ -2148,6 +2149,22 @@ export const MapView: React.FC<MapViewProps> = ({
       )}
 
       <div className="absolute bottom-[max(0.75rem,env(safe-area-inset-bottom))] right-2 z-20 flex items-center gap-1.5 sm:bottom-4 sm:right-4 sm:gap-2">
+        {blueprint.imageUrl && <button
+          type="button"
+          onClick={() => {
+            setAreSecondaryAccessesCollapsed((collapsed) => {
+              if (!collapsed) setActiveMapPopover(null);
+              return !collapsed;
+            });
+          }}
+          aria-label={areSecondaryAccessesCollapsed ? 'Mostrar accesos secundarios' : 'Ocultar accesos secundarios'}
+          aria-expanded={!areSecondaryAccessesCollapsed}
+          className="flex h-11 w-11 items-center justify-center rounded-xl border border-[#9fc4d4] bg-[#eaf6fb] text-[#075a91] shadow-sm transition hover:bg-[#dff2fa] sm:hidden"
+          title={areSecondaryAccessesCollapsed ? 'Mostrar accesos' : 'Ocultar accesos'}
+        >
+          <span className="material-symbols-outlined text-[21px]">{areSecondaryAccessesCollapsed ? 'unfold_more' : 'unfold_less'}</span>
+        </button>}
+        <div data-testid="secondary-map-accesses" className={areSecondaryAccessesCollapsed ? 'hidden sm:contents' : 'contents'}>
         {blueprint.imageUrl && (
           <div className="static sm:relative">
             {activeMapPopover === 'view' && (
@@ -2204,6 +2221,7 @@ export const MapView: React.FC<MapViewProps> = ({
         <button type="button" onClick={() => { setActiveMapPopover(null); setIsFullscreen((value) => !value); }} className="flex h-11 w-11 items-center justify-center rounded-xl border border-[#c7d7df] bg-white text-[#285b72] shadow-sm transition hover:bg-[#eaf6fb] sm:h-10 sm:w-10" title={isFullscreen ? 'Salir de pantalla completa' : 'Pantalla completa'}>
           <span className="material-symbols-outlined text-[21px] sm:text-[20px]">{isFullscreen ? 'fullscreen_exit' : 'fullscreen'}</span>
         </button>
+        </div>
       </div>
 
       {isPanelOpen && (

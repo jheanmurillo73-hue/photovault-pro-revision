@@ -80,6 +80,14 @@ describe('Diálogos del plano en móvil', () => {
     const viewTrigger = await screen.findByTitle('Abrir ajustes de vista');
     expect(viewTrigger.className).toContain('h-11');
     expect(viewTrigger.className).toContain('w-11');
+    const secondaryAccesses = screen.getByTestId('secondary-map-accesses');
+    const collapseAccesses = screen.getByRole('button', { name: 'Ocultar accesos secundarios' });
+    expect(secondaryAccesses.className).toBe('contents');
+    fireEvent.click(collapseAccesses);
+    expect(secondaryAccesses.className).toBe('hidden sm:contents');
+    expect(screen.getByRole('button', { name: 'Mostrar accesos secundarios' })).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Mostrar accesos secundarios' }));
+    expect(secondaryAccesses.className).toBe('contents');
     fireEvent.click(viewTrigger);
 
     const viewDialog = screen.getByRole('dialog', { name: 'Ajustes de vista del plano' });
