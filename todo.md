@@ -169,3 +169,8 @@
 - [x] Mantener navegación desde cada hito gráfico hacia su evidencia correspondiente.
 - [x] Restringir la calibración del plano y su acceso visual al perfil administrador.
 - [x] Validar el timeline gráfico y los permisos de calibración para inspector y administrador.
+- [x] Inspeccionar la rama activa, las ramas locales y las referencias de GitHub.
+- [x] Comparar main, desarrollo y produccion para identificar divergencias pendientes.
+- [x] Aumentar el límite de fotos adjuntables desde las propiedades del elemento.
+- [x] Ajustar la interfaz para comunicar la nueva capacidad de evidencias.
+- [x] Validar la selección, orden y guardado de más de seis fotos por elemento.

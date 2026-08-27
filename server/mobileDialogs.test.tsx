@@ -51,6 +51,10 @@ vi.mock('../client/src/services/supabaseStorageService', async () => {
   };
 });
 
+vi.mock('../client/src/services/deviceStorageService', () => ({
+  compressImageForDevice: vi.fn(async (file: File) => `data:image/jpeg;base64,${file.name}`),
+}));
+
 describe('Diálogos del plano en móvil', () => {
   beforeEach(() => {
     localStorage.clear();
@@ -129,6 +133,20 @@ describe('Diálogos del plano en móvil', () => {
     expect(dialog.className).toContain('rounded-t-2xl');
     expect(screen.getByText('Guardar Cambios').className).toContain('h-10');
     expect(screen.getByText('Cancelar').className).toContain('h-10');
+  });
+
+  it('permite guardar más de seis fotos de evidencia en las propiedades del elemento', async () => {
+    const onSave = vi.fn();
+    const { container } = render(<EditPhotoModal photo={mobileElement} isOpen isAdmin onClose={vi.fn()} onSave={onSave} />);
+    const galleryInput = container.querySelector('input[type="file"][multiple]');
+    const additionalPhotos = Array.from({ length: 7 }, (_, index) => new File([`foto-${index + 1}`], `evidencia-${index + 1}.jpg`, { type: 'image/jpeg' }));
+
+    fireEvent.change(galleryInput!, { target: { files: additionalPhotos } });
+
+    await waitFor(() => expect(screen.getByText(/8\/20 fotos/)).toBeTruthy());
+    fireEvent.click(screen.getByText('Guardar Cambios'));
+    expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ imageUrls: expect.arrayContaining(['https://example.com/camera.jpg']) }));
+    expect(onSave.mock.calls[0][0].imageUrls).toHaveLength(8);
   });
 
   it('muestra la calibración únicamente al administrador dentro de Herramientas', async () => {

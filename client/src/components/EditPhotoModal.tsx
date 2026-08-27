@@ -12,6 +12,7 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 
 const ACTAS_STORAGE_KEY = 'photovault_actas_catalog';
 const DEFAULT_ACTAS = Array.from({ length: 10 }, (_, index) => `Acta ${index + 1}`);
+const MAX_EVIDENCE_PHOTOS = 20;
 const PIPE_NETWORK_ORDER: PipeNetworkType[] = ['media_tension', 'baja_tension', 'datos'];
 const ACTA_ITEMS_BY_SECTION = ACTA_ITEM_OPTIONS.reduce<Record<string, typeof ACTA_ITEM_OPTIONS[number][]>>((groups, item) => {
   (groups[item.section] ||= []).push(item);
@@ -130,9 +131,9 @@ export const EditPhotoModal: React.FC<EditPhotoModalProps> = ({
       return;
     }
 
-    const remainingSlots = Math.max(0, 6 - imageUrls.length);
+    const remainingSlots = Math.max(0, MAX_EVIDENCE_PHOTOS - imageUrls.length);
     if (remainingSlots === 0) {
-      setImageError('Cada elemento puede conservar hasta 6 fotos de evidencia. Elimina una para agregar otra.');
+      setImageError(`Cada elemento puede conservar hasta ${MAX_EVIDENCE_PHOTOS} fotos de evidencia. Elimina una para agregar otra.`);
       event.target.value = '';
       return;
     }
@@ -147,12 +148,12 @@ export const EditPhotoModal: React.FC<EditPhotoModalProps> = ({
       setEvidenceTimeline((previous) => [
         ...previous,
         ...optimizedImages.map((url) => ({ url, capturedAt })),
-      ].slice(0, 6));
+      ].slice(0, MAX_EVIDENCE_PHOTOS));
       setImageSize(originalSize > 1024 * 1024
         ? `${(originalSize / (1024 * 1024)).toFixed(1)} MB`
         : `${Math.max(1, Math.round(originalSize / 1024))} KB`);
       if (filesToProcess.length < selectedFiles.length) {
-        setImageError('Se agregaron las fotos disponibles hasta el máximo de 6 por elemento.');
+        setImageError(`Se agregaron las fotos disponibles hasta el máximo de ${MAX_EVIDENCE_PHOTOS} por elemento.`);
       }
     } catch {
       setImageError('No se pudo optimizar la foto. Intenta con otro archivo.');
@@ -289,7 +290,7 @@ export const EditPhotoModal: React.FC<EditPhotoModalProps> = ({
             <div className="mb-2 flex items-center justify-between gap-3">
               <div>
                 <p className="font-['Inter'] text-[13px] font-bold text-[#071e27]">Fotos de evidencia</p>
-                <p className="mt-0.5 text-[11px] text-[#607d8b]">Agrega hasta 6 fotos desde la galería o la cámara. La primera es la portada del elemento.</p>
+                <p className="mt-0.5 text-[11px] text-[#607d8b]">Agrega hasta {MAX_EVIDENCE_PHOTOS} fotos desde la galería o la cámara. La primera es la portada del elemento.</p>
               </div>
               <span className="material-symbols-outlined text-[21px] text-[#0566aa]">add_a_photo</span>
             </div>
@@ -363,7 +364,7 @@ export const EditPhotoModal: React.FC<EditPhotoModalProps> = ({
                   {isProcessingImage ? 'Optimizando…' : 'Tomar foto'}
                 </button>
                 </div>
-                <p className="mt-1.5 text-[10px] text-[#607d8b]">{imageUrls.length === 0 ? 'Sin evidencia cargada. Usa Galería o Tomar foto para adjuntarla. ' : `${imageUrls.length}/6 fotos. ${imageUrls.length > 1 ? 'Arrastra las miniaturas para ordenarlas; la primera es la portada. ' : ''}`}{imageSize ? `Última carga original: ${imageSize}.` : 'Cada imagen se optimiza antes de guardarse.'}</p>
+                <p className="mt-1.5 text-[10px] text-[#607d8b]">{imageUrls.length === 0 ? 'Sin evidencia cargada. Usa Galería o Tomar foto para adjuntarla. ' : `${imageUrls.length}/${MAX_EVIDENCE_PHOTOS} fotos. ${imageUrls.length > 1 ? 'Arrastra las miniaturas para ordenarlas; la primera es la portada. ' : ''}`}{imageSize ? `Última carga original: ${imageSize}.` : 'Cada imagen se optimiza antes de guardarse.'}</p>
               </div>
             </div>
             {imageError && <p className="mt-2 text-[11px] font-medium text-[#ba1a1a]">{imageError}</p>}
