@@ -256,8 +256,16 @@ export const groupEvidenceTimelineByDate = (entries: EvidenceTimelineEntry[]) =>
  * tramo se interpretan como tubería; el resto conserva el comportamiento de caja.
  */
 export const getElementType = (
-  element: Pick<InspectionPhoto, 'elementType' | 'tramo' | 'metraje' | 'electricalType' | 'planArea'>,
-): ElementType => element.elementType || (element.electricalType || element.planArea === 'electrical' ? 'electrico' : element.tramo || element.metraje ? 'tuberia' : 'caja');
+  element: Pick<InspectionPhoto, 'elementType' | 'tramo' | 'metraje' | 'electricalType' | 'planArea' | 'cameraCode'>,
+): ElementType => element.elementType || (
+  element.electricalType || element.planArea === 'electrical'
+    ? 'electrico'
+    : element.tramo || element.metraje
+      ? 'tuberia'
+      : element.cameraCode
+        ? 'camara'
+        : 'caja'
+);
 
 export interface BlueprintOverlay {
   id: string;

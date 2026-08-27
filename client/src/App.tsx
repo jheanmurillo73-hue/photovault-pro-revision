@@ -73,12 +73,13 @@ function isTechnicalPreview(imageUrl: string): boolean {
 }
 
 const normalizeInspectionPhoto = (photo: InspectionPhoto): InspectionPhoto => {
+  const elementType = getElementType(photo);
   const candidateEvidenceUrls = Array.isArray(photo.imageUrls)
     ? photo.imageUrls.filter((url): url is string => typeof url === 'string' && url.trim().length > 0)
     : photo.imageUrl ? [photo.imageUrl] : [];
   const evidenceUrls = candidateEvidenceUrls.filter((url) => !isTechnicalPreview(url));
-  const imageUrl = evidenceUrls[0] || photo.imageUrl?.trim() || createMapElementPreview(getElementType(photo));
-  const isPipeline = getElementType(photo) === 'tuberia';
+  const imageUrl = evidenceUrls[0] || photo.imageUrl?.trim() || createMapElementPreview(elementType);
+  const isPipeline = elementType === 'tuberia';
   const pipeConduits = isPipeline
     ? normalizePipeConduits(photo.pipeConduits, {
       networkType: getPipeNetworkOption(photo.pipeNetworkType).value,
@@ -90,6 +91,7 @@ const normalizeInspectionPhoto = (photo: InspectionPhoto): InspectionPhoto => {
 
   return {
     ...photo,
+    elementType,
     imageUrl,
     imageUrls: evidenceUrls,
     name: photo.name ?? 'Inspección sin nombre',

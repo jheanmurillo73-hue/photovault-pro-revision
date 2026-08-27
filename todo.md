@@ -190,3 +190,6 @@
 - [x] Diagnosticar y corregir la incompatibilidad entre el estado de ejecución de elementos y la restricción de Supabase.
 - [x] Asignar automáticamente el tipo de cámara Datos al seleccionar el código SB858 en Propiedades.
 - [x] Mostrar el nombre de la cámara seleccionada junto a su código en el panel Elemento seleccionado.
+- [x] Corregir la lógica que reclasifica cámaras como cajas al guardar cambios.
+- [x] Restaurar de forma segura a cámaras los elementos afectados que conservan código de cámara.
+- [x] Añadir y verificar la columna element_type en inspection_photos de Supabase para persistir la clasificación.

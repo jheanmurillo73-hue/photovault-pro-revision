@@ -1,7 +1,10 @@
 import { getSupabaseClient, isSupabaseConfigured, getActiveSupabaseConfig } from '../lib/supabase';
-import { ActaItem, EvidenceTimelineEntry, InspectionPhoto, InspectorProfile, ActivityItem, InspectionCollection, AppSettings, AppModule, AppRole, UserAccess, normalizeEvidenceTimeline, normalizePipeConduits } from '../types';
+import { ActaItem, EvidenceTimelineEntry, InspectionPhoto, InspectorProfile, ActivityItem, InspectionCollection, AppSettings, AppModule, AppRole, UserAccess, ElementType, getElementType, normalizeEvidenceTimeline, normalizePipeConduits } from '../types';
 import { ALL_OPERATIONAL_MODULES, createFallbackAccess, isPrimaryAdmin, normalizeModules } from '../lib/accessControl';
 import { removeEvidenceFromSupabase, uploadEvidenceToSupabase } from './supabaseStorageService';
+
+const isElementType = (value: unknown): value is ElementType =>
+  value === 'caja' || value === 'camara' || value === 'tuberia' || value === 'electrico';
 
 const parseEvidenceTimeline = (value: unknown, fallback?: string, fallbackDate?: string): EvidenceTimelineEntry[] => {
   const defaultDate = fallbackDate || new Date().toISOString();
@@ -298,8 +301,9 @@ export const supabaseService = {
         category: photo.category,
         category_label: photo.categoryLabel,
         location: photo.location,
-        camera_code: photo.cameraCode || 'SB850',
-        camera_type: photo.cameraType || 'MT',
+        element_type: getElementType(photo),
+        camera_code: getElementType(photo) === 'camara' ? photo.cameraCode || 'SB850' : null,
+        camera_type: getElementType(photo) === 'camara' ? photo.cameraType || 'MT' : null,
         acta: photo.acta || null,
         acta_item: photo.actaItem || null,
         show_acta_label: photo.showActaLabel ?? true,
@@ -372,8 +376,9 @@ export const supabaseService = {
       category: photo.category,
       category_label: photo.categoryLabel,
       location: photo.location,
-      camera_code: photo.cameraCode || 'SB850',
-      camera_type: photo.cameraType || 'MT',
+      element_type: getElementType(photo),
+      camera_code: getElementType(photo) === 'camara' ? photo.cameraCode || 'SB850' : null,
+      camera_type: getElementType(photo) === 'camara' ? photo.cameraType || 'MT' : null,
       acta: photo.acta || null,
       acta_item: photo.actaItem || null,
       show_acta_label: photo.showActaLabel ?? true,
@@ -442,6 +447,15 @@ export const supabaseService = {
       return data.map((item: any) => {
         const evidenceTimeline = parseEvidenceTimeline(item.image_urls, item.image_url, item.date_raw || item.created_at);
         const imageUrls = evidenceTimeline.map((entry) => entry.url);
+        const elementType = isElementType(item.element_type)
+          ? item.element_type
+          : getElementType({
+            cameraCode: item.camera_code || undefined,
+            tramo: item.tramo || undefined,
+            metraje: item.metraje || undefined,
+            electricalType: item.electrical_type || undefined,
+            planArea: item.plan_area || undefined,
+          });
         return {
         id: item.id,
         displayId: item.display_id || item.id,
@@ -456,8 +470,9 @@ export const supabaseService = {
         category: item.category || 'inspection',
         categoryLabel: item.category_label || 'Inspección',
         location: item.location || 'Bodega 1',
-        cameraCode: item.camera_code || 'SB850',
-        cameraType: item.camera_type || 'MT',
+        elementType,
+        cameraCode: elementType === 'camara' ? item.camera_code || 'SB850' : undefined,
+        cameraType: elementType === 'camara' ? item.camera_type || 'MT' : undefined,
         acta: item.acta || undefined,
         actaItem: parseActaItem(item.acta_item),
         showActaLabel: item.show_acta_label !== false,
@@ -743,6 +758,7 @@ CREATE TABLE IF NOT EXISTS public.inspection_photos (
   category TEXT NOT NULL DEFAULT 'inspection',
   category_label TEXT NOT NULL DEFAULT 'Inspección General',
   location TEXT NOT NULL DEFAULT 'Bodega 1',
+  element_type TEXT NOT NULL DEFAULT 'caja' CHECK (element_type IN ('caja', 'camara', 'tuberia', 'electrico')),
   camera_code TEXT DEFAULT 'SB850',
   camera_type TEXT DEFAULT 'MT',
   acta TEXT,
@@ -799,6 +815,24 @@ ALTER TABLE public.inspection_photos DROP CONSTRAINT IF EXISTS inspection_photos
 ALTER TABLE public.inspection_photos ADD CONSTRAINT inspection_photos_plan_area_check CHECK (plan_area IN ('civil', 'electrical_mt', 'electrical_bt', 'electrical_lighting'));
 ALTER TABLE public.inspection_photos ADD COLUMN IF NOT EXISTS electrical_type TEXT;
 ALTER TABLE public.inspection_photos ADD COLUMN IF NOT EXISTS electrical_color TEXT CHECK (electrical_color IS NULL OR electrical_color ~ '^#[0-9A-Fa-f]{6}$');
+ALTER TABLE public.inspection_photos ADD COLUMN IF NOT EXISTS element_type TEXT;
+UPDATE public.inspection_photos
+SET element_type = CASE
+  WHEN electrical_type IS NOT NULL THEN 'electrico'
+  WHEN tramo IS NOT NULL OR metraje IS NOT NULL THEN 'tuberia'
+  WHEN camera_code IS NOT NULL THEN 'camara'
+  ELSE 'camara'
+END
+WHERE element_type IS NULL;
+UPDATE public.inspection_photos
+SET element_type = 'camara',
+    camera_code = COALESCE(NULLIF(camera_code, ''), 'SB850'),
+    camera_type = COALESCE(NULLIF(camera_type, ''), 'MT')
+WHERE element_type = 'caja';
+ALTER TABLE public.inspection_photos ALTER COLUMN element_type SET DEFAULT 'caja';
+ALTER TABLE public.inspection_photos ALTER COLUMN element_type SET NOT NULL;
+ALTER TABLE public.inspection_photos DROP CONSTRAINT IF EXISTS inspection_photos_element_type_check;
+ALTER TABLE public.inspection_photos ADD CONSTRAINT inspection_photos_element_type_check CHECK (element_type IN ('caja', 'camara', 'tuberia', 'electrico'));
 
 -- 3. TABLA DE REGISTRO DE ACTIVIDADES Y AUDITORÍA (inspection_activities)
 CREATE TABLE IF NOT EXISTS public.inspection_activities (
@@ -848,6 +882,7 @@ CREATE INDEX IF NOT EXISTS idx_inspection_photos_execution_status ON public.insp
 CREATE INDEX IF NOT EXISTS idx_inspection_photos_status ON public.inspection_photos (status);
 CREATE INDEX IF NOT EXISTS idx_inspection_photos_location ON public.inspection_photos (location);
 CREATE INDEX IF NOT EXISTS idx_inspection_photos_camera_code ON public.inspection_photos (camera_code);
+CREATE INDEX IF NOT EXISTS idx_inspection_photos_element_type ON public.inspection_photos (element_type);
 CREATE INDEX IF NOT EXISTS idx_inspection_photos_inspector_id ON public.inspection_photos (inspector_id);
 CREATE INDEX IF NOT EXISTS idx_activities_created_at ON public.inspection_activities (created_at DESC);
 
