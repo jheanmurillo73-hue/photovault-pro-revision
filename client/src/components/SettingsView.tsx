@@ -20,6 +20,7 @@ interface SettingsViewProps {
   }) => void;
   canResetOperationalData?: boolean;
   onResetOperationalData?: () => Promise<void>;
+  canManageActaAssignment?: boolean;
 }
 
 export const SettingsView: React.FC<SettingsViewProps> = ({
@@ -34,6 +35,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   onRestoreBackup,
   canResetOperationalData = false,
   onResetOperationalData,
+  canManageActaAssignment = false,
 }) => {
   const [localSettings, setLocalSettings] = useState<AppSettings>({ ...settings });
   const [showSecurityModal, setShowSecurityModal] = useState<boolean>(false);
@@ -474,7 +476,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             </div>
 
             {/* High Quality Image Uploads */}
-            <div className="flex items-center justify-between">
+            <div className={canManageActaAssignment ? 'flex items-center justify-between border-b border-[#c2c6d4] pb-4' : 'flex items-center justify-between'}>
               <div>
                 <div className="font-['Inter'] font-bold text-[14px] text-[#071e27]">
                   Subidas en Alta Calidad
@@ -493,6 +495,29 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 <div className="w-11 h-6 bg-[#c2c6d4] rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#004d99]"></div>
               </label>
             </div>
+
+            {canManageActaAssignment && (
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <div className="font-['Inter'] font-bold text-[14px] text-[#071e27]">
+                    Permitir asignación de actas a inspectores
+                  </div>
+                  <div className="font-['Inter'] text-[14px] text-[#424752]">
+                    Cuando está activo, los inspectores pueden seleccionar o cambiar el acta asignada en las propiedades. La administración conserva este permiso siempre.
+                  </div>
+                </div>
+                <label className="relative mt-0.5 inline-flex shrink-0 cursor-pointer items-center">
+                  <input
+                    type="checkbox"
+                    checked={localSettings.allowInspectorActaAssignment}
+                    onChange={() => handleToggle('allowInspectorActaAssignment')}
+                    className="sr-only peer"
+                    aria-label="Permitir asignación de actas a inspectores"
+                  />
+                  <div className="h-6 w-11 rounded-full bg-[#c2c6d4] peer peer-checked:bg-[#004d99] peer-checked:after:translate-x-full peer-checked:after:border-white after:absolute after:left-[2px] after:top-[2px] after:h-5 after:w-5 after:rounded-full after:border after:border-gray-300 after:bg-white after:content-[''] after:transition-all"></div>
+                </label>
+              </div>
+            )}
           </div>
         </section>
 

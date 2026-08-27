@@ -4,6 +4,7 @@
  */
 import React, { useState } from 'react';
 import { InspectorProfile, ActivityItem, AppModule } from '../types';
+import type { SupabaseConnectionState } from '../hooks/useSupabaseConnection';
 
 interface TopNavBarProps {
   currentTab: string;
@@ -17,6 +18,8 @@ interface TopNavBarProps {
   onToggleMobileMenu: () => void;
   onOpenAuth?: () => void;
   onOpenSupabaseModal?: () => void;
+  connectionState: SupabaseConnectionState;
+  onRefreshConnection: () => void;
 }
 
 export const TopNavBar: React.FC<TopNavBarProps> = ({
@@ -31,6 +34,8 @@ export const TopNavBar: React.FC<TopNavBarProps> = ({
   onToggleMobileMenu,
   onOpenAuth,
   onOpenSupabaseModal,
+  connectionState,
+  onRefreshConnection,
 }) => {
   const [showNotifications, setShowNotifications] = useState(false);
   const [showHelpModal, setShowHelpModal] = useState(false);
@@ -42,6 +47,26 @@ export const TopNavBar: React.FC<TopNavBarProps> = ({
   const isUploadActive = currentTab === 'upload';
   const isActivityActive = currentTab === 'activity';
   const canUseModule = (module: AppModule) => isAdmin || allowedModules.includes(module);
+  const connectionPresentation = {
+    checking: {
+      label: 'Verificando conexión',
+      title: 'Verificando la conexión con Supabase. Haz clic para actualizar el estado.',
+      dotClass: 'bg-amber-500 animate-pulse',
+      badgeClass: 'border-amber-200 bg-amber-50 text-amber-800',
+    },
+    connected: {
+      label: 'Conectado a Supabase',
+      title: 'Conectado a Supabase. Haz clic para comprobar nuevamente.',
+      dotClass: 'bg-emerald-500',
+      badgeClass: 'border-emerald-200 bg-emerald-50 text-emerald-700',
+    },
+    disconnected: {
+      label: 'Sin conexión a Supabase',
+      title: 'Sin conexión a Supabase. Los cambios se conservan localmente; haz clic para reintentar.',
+      dotClass: 'bg-[#ba1a1a]',
+      badgeClass: 'border-red-200 bg-red-50 text-[#9b1c1c]',
+    },
+  }[connectionState];
   const desktopNavItems: Array<{ id: AppModule; label: string; icon?: string; isActive: boolean }> = [
     { id: 'dashboard', label: 'Galería', isActive: isGalleryActive },
     { id: 'map', label: 'Plano', icon: 'map', isActive: isMapActive },
@@ -95,6 +120,18 @@ export const TopNavBar: React.FC<TopNavBarProps> = ({
 
         {/* Right Action Icons & Avatar */}
         <div className="flex items-center gap-2 sm:gap-3 relative">
+          <button
+            type="button"
+            onClick={onRefreshConnection}
+            className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-bold transition-colors focus:outline-none focus:ring-2 focus:ring-[#004d99] ${connectionPresentation.badgeClass}`}
+            title={connectionPresentation.title}
+            aria-label={`Estado de conexión: ${connectionPresentation.label}. Activar para actualizar.`}
+          >
+            <span className={`h-2 w-2 shrink-0 rounded-full ${connectionPresentation.dotClass}`} aria-hidden="true"></span>
+            <span className="hidden sm:inline">{connectionPresentation.label}</span>
+            <span className="sm:hidden">{connectionState === 'connected' ? 'En línea' : connectionState === 'disconnected' ? 'Sin red' : '…'}</span>
+          </button>
+
           {/* Local Device Storage Active Badge */}
           <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 text-[11px] font-bold" title="Tus fotos y datos se guardan en la memoria de tu PC o celular">
             <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>

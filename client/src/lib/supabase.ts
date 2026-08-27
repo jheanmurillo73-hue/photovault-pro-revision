@@ -4,6 +4,8 @@ import { createClient, SupabaseClient, User, Session } from '@supabase/supabase-
 // por las políticas RLS configuradas en el proyecto Supabase.
 const DEFAULT_SUPABASE_URL = 'https://aorhmskjhvdcrrmopzrt.supabase.co';
 const DEFAULT_SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFvcmhtc2tqaHZkY3JybW9wenJ0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODcxNDc2MjcsImV4cCI6MjEwMjcyMzYyN30.4kOu7kl0ktfwAnzq0aUbvX4SIzE3fBaRQgj33xdxIFQ';
+const CUSTOM_CONFIG_VERSION_KEY = 'photovault_supabase_config_version';
+export const SUPABASE_CONFIG_VERSION = '2';
 
 const env = (import.meta as any).env || {};
 
@@ -26,8 +28,11 @@ export function cleanSupabaseUrl(rawUrl: string): string {
 export function getActiveSupabaseConfig(): { url: string; anonKey: string; isCustom: boolean } {
   const localUrl = localStorage.getItem('photovault_supabase_url') || '';
   const localKey = localStorage.getItem('photovault_supabase_anon_key') || '';
+  const customConfigVersion = localStorage.getItem(CUSTOM_CONFIG_VERSION_KEY);
   
-  if (localUrl && localKey) {
+  // Las credenciales locales creadas antes de esta versión se ignoran una sola vez.
+  // Así los dispositivos que conservan la clave anterior vuelven a usar las variables vigentes.
+  if (localUrl && localKey && customConfigVersion === SUPABASE_CONFIG_VERSION) {
     return {
       url: cleanSupabaseUrl(localUrl),
       anonKey: localKey.trim(),
@@ -90,9 +95,11 @@ export const saveCustomSupabaseConfig = (url: string, anonKey: string) => {
   if (url && anonKey) {
     localStorage.setItem('photovault_supabase_url', cleanSupabaseUrl(url));
     localStorage.setItem('photovault_supabase_anon_key', anonKey.trim());
+    localStorage.setItem(CUSTOM_CONFIG_VERSION_KEY, SUPABASE_CONFIG_VERSION);
   } else {
     localStorage.removeItem('photovault_supabase_url');
     localStorage.removeItem('photovault_supabase_anon_key');
+    localStorage.removeItem(CUSTOM_CONFIG_VERSION_KEY);
   }
   supabaseInstance = null;
   currentClientKey = '';
@@ -101,6 +108,7 @@ export const saveCustomSupabaseConfig = (url: string, anonKey: string) => {
 export const resetSupabaseConfig = () => {
   localStorage.removeItem('photovault_supabase_url');
   localStorage.removeItem('photovault_supabase_anon_key');
+  localStorage.removeItem(CUSTOM_CONFIG_VERSION_KEY);
   supabaseInstance = null;
   currentClientKey = '';
 };

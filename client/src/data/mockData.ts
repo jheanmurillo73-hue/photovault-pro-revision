@@ -29,6 +29,7 @@ export const INITIAL_SETTINGS: AppSettings = {
   pushNotifications: false,
   syncWifiOnly: true,
   highQualityUploads: false,
+  allowInspectorActaAssignment: true,
   autoVerifyPassed: true,
   offlineStorageLimitMb: 500,
 };
@@ -62,5 +63,4 @@ export const TRAMO_PRESETS: string[] = [
 ];
 
 export const METRAJE_PRESETS: number[] = [3, 6, 10, 15, 20, 30, 50, 100];
-
 

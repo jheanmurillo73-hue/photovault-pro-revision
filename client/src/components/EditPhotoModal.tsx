@@ -3,15 +3,16 @@
  * objeto seleccionado; una tubería nunca guarda datos de cámara, y viceversa.
  */
 import React, { useRef, useState } from 'react';
-import { CableGauge, CableType, CABLE_TYPE_OPTIONS, getCableGaugeOptionsForPlanArea, InspectionPhoto, ExecutionStatus, CameraCode, CameraType, ElementType, ActaLabelPosition, getElectricalElementOption, getElectricalPlanArea, getElementType, getPipeNetworkOption, PIPE_NETWORK_OPTIONS, PipeConduit, PipeNetworkType, getDefaultPipeConfiguration, normalizePipeConduits } from '../types';
+import { CableGauge, CableType, CABLE_TYPE_OPTIONS, getCableGaugeOptionsForPlanArea, InspectionPhoto, ExecutionStatus, CameraCode, CameraType, ElementType, ActaLabelPosition, getElectricalElementOption, getElectricalPlanArea, getElementType, getPipeNetworkOption, PIPE_NETWORK_OPTIONS, PipeConduit, PipeNetworkType, getDefaultPipeConfiguration, normalizeEvidenceTimeline, normalizePipeConduits } from '../types';
 import { WAREHOUSE_LOCATIONS, CAMERA_CODES, CAMERA_TYPES } from '../data/mockData';
 import { ACTA_ITEM_OPTIONS, getActaItemKey } from '../data/actaItems';
-import { compressImageForDevice } from '../services/deviceStorageService';
+import { compressEvidenceImageForUpload, formatImageBytes } from '../services/deviceStorageService';
 import { TramoSelector } from './TramoSelector';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from './ui/command';
 
 const ACTAS_STORAGE_KEY = 'photovault_actas_catalog';
 const DEFAULT_ACTAS = Array.from({ length: 10 }, (_, index) => `Acta ${index + 1}`);
+const MAX_EVIDENCE_PHOTOS = 20;
 const PIPE_NETWORK_ORDER: PipeNetworkType[] = ['media_tension', 'baja_tension', 'datos'];
 const ACTA_ITEMS_BY_SECTION = ACTA_ITEM_OPTIONS.reduce<Record<string, typeof ACTA_ITEM_OPTIONS[number][]>>((groups, item) => {
   (groups[item.section] ||= []).push(item);
@@ -40,6 +41,7 @@ interface EditPhotoModalProps {
   photo: InspectionPhoto;
   isOpen: boolean;
   isAdmin: boolean;
+  canAssignActa?: boolean;
   onClose: () => void;
   onSave: (updated: InspectionPhoto) => void;
 }
@@ -48,6 +50,7 @@ export const EditPhotoModal: React.FC<EditPhotoModalProps> = ({
   photo,
   isOpen,
   isAdmin,
+  canAssignActa = false,
   onClose,
   onSave,
 }) => {
@@ -79,14 +82,12 @@ export const EditPhotoModal: React.FC<EditPhotoModalProps> = ({
   const [executionStatus, setExecutionStatus] = useState<ExecutionStatus>(photo.executionStatus || 'En proceso');
   const [requiresImmediateAction, setRequiresImmediateAction] = useState(photo.requiresImmediateAction ?? false);
   const [verified, setVerified] = useState(photo.verified ?? false);
-  const [imageUrls, setImageUrls] = useState<string[]>(() => {
-    return Array.isArray(photo.imageUrls)
-      ? photo.imageUrls.filter((url): url is string => Boolean(url) && !url.startsWith('data:image/svg+xml'))
-      : [];
-  });
+  const [evidenceTimeline, setEvidenceTimeline] = useState(() => normalizeEvidenceTimeline(photo));
+  const imageUrls = evidenceTimeline.map((entry) => entry.url);
   const [imageSize, setImageSize] = useState(photo.fileSize ?? '');
   const [isProcessingImage, setIsProcessingImage] = useState(false);
   const [imageError, setImageError] = useState<string | null>(null);
+  const [imageOptimizationNotice, setImageOptimizationNotice] = useState<string | null>(null);
   const [photoIndexPendingRemoval, setPhotoIndexPendingRemoval] = useState<number | null>(null);
   const [draggedPhotoIndex, setDraggedPhotoIndex] = useState<number | null>(null);
   const [dragOverPhotoIndex, setDragOverPhotoIndex] = useState<number | null>(null);
@@ -133,25 +134,33 @@ export const EditPhotoModal: React.FC<EditPhotoModalProps> = ({
       return;
     }
 
-    const remainingSlots = Math.max(0, 6 - imageUrls.length);
+    const remainingSlots = Math.max(0, MAX_EVIDENCE_PHOTOS - imageUrls.length);
     if (remainingSlots === 0) {
-      setImageError('Cada elemento puede conservar hasta 6 fotos de evidencia. Elimina una para agregar otra.');
+      setImageError(`Cada elemento puede conservar hasta ${MAX_EVIDENCE_PHOTOS} fotos de evidencia. Elimina una para agregar otra.`);
       event.target.value = '';
       return;
     }
 
     setImageError(null);
+    setImageOptimizationNotice(null);
     setIsProcessingImage(true);
     try {
       const filesToProcess = validFiles.slice(0, remainingSlots);
-      const optimizedImages = await Promise.all(filesToProcess.map((file) => compressImageForDevice(file, 1280, 960, 0.76)));
+      const optimizedImages = await Promise.all(filesToProcess.map((file) => compressEvidenceImageForUpload(file)));
       const originalSize = filesToProcess.reduce((total, file) => total + file.size, 0);
-      setImageUrls((previous) => [...previous, ...optimizedImages].slice(0, 6));
-      setImageSize(originalSize > 1024 * 1024
-        ? `${(originalSize / (1024 * 1024)).toFixed(1)} MB`
-        : `${Math.max(1, Math.round(originalSize / 1024))} KB`);
+      const optimizedSize = optimizedImages.reduce((total, image) => total + image.optimizedBytes, 0);
+      const reinforcedImages = optimizedImages.filter((image) => image.profile.level !== 'estándar').length;
+      const capturedAt = new Date().toISOString();
+      setEvidenceTimeline((previous) => [
+        ...previous,
+        ...optimizedImages.map(({ dataUrl }) => ({ url: dataUrl, capturedAt })),
+      ].slice(0, MAX_EVIDENCE_PHOTOS));
+      setImageSize(formatImageBytes(originalSize));
+      setImageOptimizationNotice(reinforcedImages > 0
+        ? `Compresión ${reinforcedImages === 1 ? 'reforzada' : 'reforzada en ' + reinforcedImages + ' fotos'}: ${formatImageBytes(originalSize)} → ${formatImageBytes(optimizedSize)}. Listas para sincronizar.`
+        : `Fotos optimizadas: ${formatImageBytes(originalSize)} → ${formatImageBytes(optimizedSize)} antes de sincronizar.`);
       if (filesToProcess.length < selectedFiles.length) {
-        setImageError('Se agregaron las fotos disponibles hasta el máximo de 6 por elemento.');
+        setImageError(`Se agregaron las fotos disponibles hasta el máximo de ${MAX_EVIDENCE_PHOTOS} por elemento.`);
       }
     } catch {
       setImageError('No se pudo optimizar la foto. Intenta con otro archivo.');
@@ -172,13 +181,13 @@ export const EditPhotoModal: React.FC<EditPhotoModalProps> = ({
 
   const confirmPhotoRemoval = () => {
     if (photoIndexPendingRemoval === null) return;
-    setImageUrls((previous) => previous.filter((_, index) => index !== photoIndexPendingRemoval));
+    setEvidenceTimeline((previous) => previous.filter((_, index) => index !== photoIndexPendingRemoval));
     setPhotoIndexPendingRemoval(null);
   };
 
   const movePhoto = (fromIndex: number, toIndex: number) => {
     if (fromIndex === toIndex) return;
-    setImageUrls((previous) => {
+    setEvidenceTimeline((previous) => {
       const reordered = [...previous];
       const [movedPhoto] = reordered.splice(fromIndex, 1);
       reordered.splice(toIndex, 0, movedPhoto);
@@ -198,12 +207,13 @@ export const EditPhotoModal: React.FC<EditPhotoModalProps> = ({
       location: location.trim() || photo.location,
       imageUrl: savedImageUrls[0] || photo.imageUrl,
       imageUrls: savedImageUrls,
+      evidenceTimeline,
       fileSize: imageSize || photo.fileSize,
       resolution: JSON.stringify(savedImageUrls) !== JSON.stringify(photo.imageUrls || [photo.imageUrl]) ? 'Fotos adjuntas desde propiedades' : photo.resolution,
       elementType: isAdmin ? elementType : photo.elementType,
       cameraCode: elementType === 'camara' ? cameraCode : undefined,
       cameraType: isAdmin ? (elementType === 'camara' ? cameraType : undefined) : photo.cameraType,
-      acta: isAdmin ? acta || undefined : photo.acta,
+      acta: isAdmin || canAssignActa ? acta || undefined : photo.acta,
       actaItem: isAdmin ? selectedActaItem : photo.actaItem,
       actaLabelPosition: isAdmin ? (acta ? actaLabelPosition : undefined) : photo.actaLabelPosition,
       tramo: elementType === 'tuberia' ? primaryConduit?.configuration : undefined,
@@ -247,20 +257,20 @@ export const EditPhotoModal: React.FC<EditPhotoModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
-      <div className="bg-white rounded-xl max-w-lg w-full border border-[#c2c6d4] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-150 flex flex-col max-h-[90vh]">
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-0 backdrop-blur-xs sm:items-center sm:p-4">
+      <div role="dialog" aria-modal="true" aria-labelledby="edit-photo-modal-title" className="flex max-h-[calc(100dvh-0.5rem)] w-full max-w-lg flex-col overflow-hidden rounded-t-2xl border border-[#c2c6d4] bg-white shadow-2xl animate-in zoom-in-95 duration-150 sm:max-h-[90vh] sm:rounded-xl">
         {/* Header */}
-        <div className="bg-[#e6f6ff] p-4 border-b border-[#c2c6d4] flex items-center justify-between">
+        <div className="flex items-center justify-between border-b border-[#c2c6d4] bg-[#e6f6ff] px-4 py-3 sm:p-4">
           <div className="flex items-center gap-2">
             <span className="material-symbols-outlined text-[#004d99]">edit_document</span>
-            <h3 className="font-['Hanken_Grotesk'] font-bold text-lg text-[#071e27]">
+            <h3 id="edit-photo-modal-title" className="font-['Hanken_Grotesk'] text-base font-bold text-[#071e27] sm:text-lg">
               Editar Detalles de la Inspección
             </h3>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="text-[#424752] hover:text-[#ba1a1a]"
+            className="grid h-10 w-10 place-items-center rounded-lg text-[#424752] transition hover:bg-white/70 hover:text-[#ba1a1a]"
             title="Cerrar ventana"
           >
             <span className="material-symbols-outlined">close</span>
@@ -268,7 +278,7 @@ export const EditPhotoModal: React.FC<EditPhotoModalProps> = ({
         </div>
 
         {/* Form Body */}
-        <form onSubmit={handleSubmit} className="p-6 overflow-y-auto space-y-4">
+        <form onSubmit={handleSubmit} className="min-h-0 flex-1 space-y-4 overflow-y-auto p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] sm:p-6">
           <div>
             <label className="block font-['Inter'] font-bold text-[13px] text-[#071e27] mb-1">
               Nombre de la Inspección
@@ -287,7 +297,7 @@ export const EditPhotoModal: React.FC<EditPhotoModalProps> = ({
             <div className="mb-2 flex items-center justify-between gap-3">
               <div>
                 <p className="font-['Inter'] text-[13px] font-bold text-[#071e27]">Fotos de evidencia</p>
-                <p className="mt-0.5 text-[11px] text-[#607d8b]">Agrega hasta 6 fotos desde la galería o la cámara. La primera es la portada del elemento.</p>
+                <p className="mt-0.5 text-[11px] text-[#607d8b]">Agrega hasta {MAX_EVIDENCE_PHOTOS} fotos desde la galería o la cámara. La primera es la portada del elemento.</p>
               </div>
               <span className="material-symbols-outlined text-[21px] text-[#0566aa]">add_a_photo</span>
             </div>
@@ -329,7 +339,7 @@ export const EditPhotoModal: React.FC<EditPhotoModalProps> = ({
                     }}
                     className={`group relative aspect-square overflow-hidden rounded-lg border bg-[#e6f6ff] transition ${draggedPhotoIndex === index ? 'scale-95 border-[#0566aa] opacity-55' : dragOverPhotoIndex === index ? 'border-[#0566aa] ring-2 ring-cyan-300 ring-offset-1' : 'border-[#a7c8da]'} ${imageUrls.length > 1 ? 'cursor-grab active:cursor-grabbing' : ''}`}
                   >
-                    <button type="button" onClick={() => setImageUrls((previous) => [previous[index], ...previous.filter((_, itemIndex) => itemIndex !== index)])} className="h-full w-full" title={index === 0 ? 'Foto de portada' : 'Usar como foto de portada'}>
+                    <button type="button" onClick={() => setEvidenceTimeline((previous) => [previous[index], ...previous.filter((_, itemIndex) => itemIndex !== index)])} className="h-full w-full" title={index === 0 ? 'Foto de portada' : 'Usar como foto de portada'}>
                       <img src={url} alt={`Foto de evidencia ${index + 1}`} className="h-full w-full object-cover" />
                     </button>
                     {index === 0 && <span className="absolute left-1 top-1 rounded bg-[#073f74] px-1 py-0.5 text-[8px] font-bold text-white">PORTADA</span>}
@@ -358,13 +368,14 @@ export const EditPhotoModal: React.FC<EditPhotoModalProps> = ({
                   className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-[#0566aa] px-3 text-[12px] font-bold text-white transition hover:bg-[#004d99] disabled:cursor-wait disabled:opacity-60"
                 >
                   <span className="material-symbols-outlined text-[16px]">{isProcessingImage ? 'progress_activity' : 'photo_camera'}</span>
-                  {isProcessingImage ? 'Optimizando…' : 'Tomar foto'}
+                  {isProcessingImage ? 'Optimizando…' : 'Galería'}
                 </button>
                 </div>
-                <p className="mt-1.5 text-[10px] text-[#607d8b]">{imageUrls.length === 0 ? 'Sin evidencia cargada. Usa Galería o Tomar foto para adjuntarla. ' : `${imageUrls.length}/6 fotos. ${imageUrls.length > 1 ? 'Arrastra las miniaturas para ordenarlas; la primera es la portada. ' : ''}`}{imageSize ? `Última carga original: ${imageSize}.` : 'Cada imagen se optimiza antes de guardarse.'}</p>
+                <p className="mt-1.5 text-[10px] text-[#607d8b]">{imageUrls.length === 0 ? 'Sin evidencia cargada. Usa Galería o Tomar foto para adjuntarla. ' : `${imageUrls.length}/${MAX_EVIDENCE_PHOTOS} fotos. ${imageUrls.length > 1 ? 'Arrastra las miniaturas para ordenarlas; la primera es la portada. ' : ''}`}{imageSize ? `Última carga original: ${imageSize}.` : 'Cada imagen se optimiza antes de guardarse.'}</p>
               </div>
             </div>
             {imageError && <p className="mt-2 text-[11px] font-medium text-[#ba1a1a]">{imageError}</p>}
+            {imageOptimizationNotice && <p className="mt-2 rounded-md border border-[#9fc7d9] bg-[#edf9ff] px-2.5 py-2 text-[11px] font-medium text-[#075a91]" role="status">{imageOptimizationNotice}</p>}
             <input ref={galleryInputRef} type="file" accept="image/*" multiple onChange={handlePhotoChange} className="hidden" />
             <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" onChange={handlePhotoChange} className="hidden" />
           </div>
@@ -489,7 +500,7 @@ export const EditPhotoModal: React.FC<EditPhotoModalProps> = ({
             <div className="mb-2 flex items-start justify-between gap-3">
               <div>
                 <label htmlFor="inspection-acta" className="block font-['Inter'] text-[13px] font-bold text-[#071e27]">Acta asignada</label>
-                <p className="mt-0.5 text-[11px] text-[#607d8b]">Selecciona un acta del listado o incorpora una nueva para futuras asignaciones.</p>
+                <p className="mt-0.5 text-[11px] text-[#607d8b]">Selecciona un acta del listado. Solo administración puede incorporar nuevas actas.</p>
               </div>
               <span className="material-symbols-outlined text-[21px] text-[#0566aa]">assignment</span>
             </div>
@@ -500,14 +511,19 @@ export const EditPhotoModal: React.FC<EditPhotoModalProps> = ({
                 setActa(event.target.value);
                 setActaMessage(null);
               }}
-              disabled={!isAdmin}
-              className="w-full rounded-lg border border-[#c2c6d4] bg-white p-2.5 text-[14px] text-[#071e27] outline-none focus:border-[#004d99]"
+              disabled={!isAdmin && !canAssignActa}
+              className="w-full rounded-lg border border-[#c2c6d4] bg-white p-2.5 text-[14px] text-[#071e27] outline-none focus:border-[#004d99] disabled:cursor-not-allowed disabled:bg-[#eef3f5] disabled:text-[#607d8b]"
             >
               <option value="">Sin acta asignada</option>
               {actas.map((option) => (
                 <option key={option} value={option}>{option}</option>
               ))}
             </select>
+            {!isAdmin && !canAssignActa && (
+              <p className="mt-2 text-[11px] font-medium text-[#7a4e00]" role="status">
+                La administración inhabilitó la asignación de actas para inspectores.
+              </p>
+            )}
             {isAdmin && <div className="mt-2 flex gap-2">
               <input
                 type="text"
@@ -876,17 +892,17 @@ export const EditPhotoModal: React.FC<EditPhotoModalProps> = ({
           </div>
 
           {/* Footer actions */}
-          <div className="flex justify-end gap-3 pt-4 border-t border-[#c2c6d4]">
+          <div className="sticky bottom-0 -mx-4 flex justify-end gap-3 border-t border-[#c2c6d4] bg-white px-4 pb-[calc(0.75rem+env(safe-area-inset-bottom))] pt-3 sm:-mx-6 sm:px-6">
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 border border-[#c2c6d4] text-[#424752] font-bold text-[13px] rounded-lg hover:bg-[#e6f6ff]"
+              className="h-10 px-4 border border-[#c2c6d4] text-[#424752] font-bold text-[13px] rounded-lg hover:bg-[#e6f6ff] sm:h-9"
             >
               Cancelar
             </button>
             <button
               type="submit"
-              className="px-5 py-2 bg-[#004d99] text-white font-bold text-[13px] rounded-lg hover:bg-[#1565c0]"
+              className="h-10 px-5 bg-[#004d99] text-white font-bold text-[13px] rounded-lg hover:bg-[#1565c0] sm:h-9"
             >
               Guardar Cambios
             </button>

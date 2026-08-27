@@ -6,8 +6,9 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ActaLabelPosition, BlueprintCalibration, BlueprintOverlay, ElectricalElementType, ELECTRICAL_ELEMENT_OPTIONS, getCableTypeOption, getElectricalElementOption, getElectricalPlanArea, getElementType, getPipeNetworkOption, InspectionPhoto, InspectorProfile, isElectricalElementType, PlanArea } from '../types';
 import { compressImageForDevice } from '../services/deviceStorageService';
-import { isQuotaExceededError, loadBlueprintImage, saveBlueprintImage } from '../services/blueprintStorageService';
-import { getCloudBlueprintUrl, isSupabaseStorageUrl, uploadBlueprintToSupabase } from '../services/supabaseStorageService';
+import { isQuotaExceededError, loadBlueprintImage, restoreBlueprintFromSources, saveBlueprintImage } from '../services/blueprintStorageService';
+import { BlueprintRevision, getCloudBlueprintRevision, isSupabaseStorageUrl, uploadBlueprintToSupabase } from '../services/supabaseStorageService';
+import { getBlueprintSyncPresentation } from '../services/blueprintSyncPresentation';
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from './ui/breadcrumb';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from './ui/alert-dialog';
 
@@ -267,6 +268,8 @@ export const MapView: React.FC<MapViewProps> = ({
   const [dragTarget, setDragTarget] = useState<DragTarget | null>(null);
   const [isPanelOpen, setIsPanelOpen] = useState<boolean>(false);
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
+  const [activeMapPopover, setActiveMapPopover] = useState<'view' | 'tools' | null>(null);
+  const [areSecondaryAccessesCollapsed, setAreSecondaryAccessesCollapsed] = useState(false);
   const [isHandToolActive, setIsHandToolActive] = useState(false);
   const [panOffset, setPanOffset] = useState({ x: 0, y: 0 });
   const [iconScale, setIconScale] = useState<number>(() => {
@@ -284,6 +287,9 @@ export const MapView: React.FC<MapViewProps> = ({
     localStorage.getItem('photovault_plan_camera_names_visible') !== 'false',
   );
   const [blueprintStorageNotice, setBlueprintStorageNotice] = useState<string | null>(null);
+  const [blueprintUpdateNotice, setBlueprintUpdateNotice] = useState<string | null>(null);
+  const [blueprintRevision, setBlueprintRevision] = useState<BlueprintRevision | null>(null);
+  const [isBlueprintLoading, setIsBlueprintLoading] = useState(true);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const blueprintStorageReadyRef = useRef(false);
   const dragTargetRef = useRef<DragTarget | null>(null);
@@ -291,6 +297,12 @@ export const MapView: React.FC<MapViewProps> = ({
   const activeFilter: PlanFilter = selectedPlanArea && selectedPlanArea !== 'electrical'
     ? filtersByPlanArea[selectedPlanArea]
     : 'all';
+  const blueprintSyncPresentation = getBlueprintSyncPresentation({
+    isLoading: isBlueprintLoading,
+    isAdmin,
+    previousVersion: null,
+    revision: blueprintRevision,
+  });
 
   const setActiveFilter = (filter: PlanFilter) => {
     if (!selectedPlanArea || selectedPlanArea === 'electrical') return;
@@ -329,12 +341,37 @@ export const MapView: React.FC<MapViewProps> = ({
     let active = true;
     const restoreUserBlueprint = async () => {
       try {
-        const storedImage = await loadBlueprintImage();
-        const cloudImage = storedImage ? null : await getCloudBlueprintUrl();
-        const imageUrl = storedImage || cloudImage;
+        const cloudRevisionRequest = getCloudBlueprintRevision().catch(() => null);
+        const { cloudImage, imageUrl } = await restoreBlueprintFromSources(
+          async () => (await cloudRevisionRequest)?.url || null,
+          loadBlueprintImage,
+        );
+        const cloudRevision = await cloudRevisionRequest;
+        // El plano del administrador en Storage es la fuente de verdad. La copia
+        // local solo permite continuar trabajando cuando no hay conexión remota.
         const isLegacySvg = imageUrl?.startsWith('data:image/svg+xml');
+        if (active && cloudRevision) {
+          setBlueprintRevision(cloudRevision);
+          if (!isAdmin && cloudRevision.version) {
+            const previousVersion = localStorage.getItem('photovault_seen_blueprint_version');
+            const message = getBlueprintSyncPresentation({
+              isLoading: false,
+              isAdmin,
+              previousVersion,
+              revision: cloudRevision,
+            }).updateNotice;
+            if (!previousVersion || previousVersion !== cloudRevision.version) {
+              setBlueprintUpdateNotice(message);
+              try {
+                localStorage.setItem('photovault_seen_blueprint_version', cloudRevision.version);
+              } catch {
+                // El aviso sigue siendo visible durante la sesión aunque el navegador bloquee localStorage.
+              }
+            }
+          }
+        }
         if (active && imageUrl && !isLegacySvg) {
-          if (cloudImage && !storedImage) {
+          if (cloudImage) {
             try {
               await saveBlueprintImage(cloudImage);
             } catch {
@@ -346,7 +383,10 @@ export const MapView: React.FC<MapViewProps> = ({
       } catch {
         // El usuario siempre puede volver a cargar un JPG si el navegador no expone IndexedDB.
       } finally {
-        blueprintStorageReadyRef.current = true;
+        if (active) {
+          setIsBlueprintLoading(false);
+          blueprintStorageReadyRef.current = true;
+        }
       }
     };
 
@@ -354,7 +394,7 @@ export const MapView: React.FC<MapViewProps> = ({
     return () => {
       active = false;
     };
-  }, []);
+  }, [isAdmin]);
 
   useEffect(() => {
     if (!blueprintStorageReadyRef.current) return;
@@ -597,6 +637,10 @@ export const MapView: React.FC<MapViewProps> = ({
   };
 
   const startCalibration = () => {
+    if (!isAdmin) {
+      setBlueprintStorageNotice('La calibración del plano está disponible únicamente para el administrador.');
+      return;
+    }
     if (!blueprint.imageUrl) {
       setBlueprintStorageNotice('Carga primero el plano JPG para poder calibrarlo.');
       return;
@@ -761,8 +805,20 @@ export const MapView: React.FC<MapViewProps> = ({
       setHasPendingPlanChanges(true);
       event.target.value = '';
       try {
-        await uploadBlueprintToSupabase(optimizedImage);
-        setBlueprintStorageNotice('Plano JPG guardado localmente y sincronizado con Supabase Storage.');
+        const remoteUrl = await uploadBlueprintToSupabase(optimizedImage, {
+          id: inspector.id,
+          name: inspector.name || inspector.email || 'Administrador',
+        });
+        const uploadedAt = new Date().toISOString();
+        if (remoteUrl) {
+          setBlueprintRevision({
+            url: remoteUrl,
+            updatedAt: uploadedAt,
+            updatedByName: inspector.name || inspector.email || 'Administrador',
+            version: uploadedAt,
+          });
+        }
+        setBlueprintStorageNotice('Plano JPG sincronizado con Supabase Storage y disponible para inspectores.');
       } catch (error) {
         setBlueprintStorageNotice('El plano quedó guardado en este dispositivo, pero no se pudo sincronizar con Supabase Storage.');
         console.warn('No se pudo cargar el plano a Supabase Storage:', error);
@@ -1180,6 +1236,15 @@ export const MapView: React.FC<MapViewProps> = ({
           </button>
         </div>
       )}
+      {blueprintUpdateNotice && !isAdmin && (
+        <div role="status" className="absolute right-4 top-20 z-50 flex max-w-sm items-start gap-2 rounded-xl border border-cyan-300 bg-cyan-50 px-3 py-2.5 text-xs text-cyan-950 shadow-lg motion-safe:animate-[pulse_900ms_ease-out_1]">
+          <span className="material-symbols-outlined mt-0.5 text-[17px] text-cyan-700">cloud_done</span>
+          <span className="flex-1 font-medium">{blueprintUpdateNotice}</span>
+          <button type="button" onClick={() => setBlueprintUpdateNotice(null)} aria-label="Cerrar aviso de plano actualizado">
+            <span className="material-symbols-outlined text-[17px]">close</span>
+          </button>
+        </div>
+      )}
 
       <header className="relative z-30 flex shrink-0 flex-col gap-3 border-b border-[#c7d7df] bg-white/95 px-4 py-3 shadow-sm backdrop-blur xl:flex-row xl:items-center xl:justify-between">
         <div className="flex min-w-0 items-center gap-3">
@@ -1212,6 +1277,14 @@ export const MapView: React.FC<MapViewProps> = ({
               </BreadcrumbList>
             </Breadcrumb>
             <h1 className="truncate text-sm font-bold text-[#0b2940]">{blueprint.imageUrl ? blueprint.name : 'Carga un plano JPG para comenzar'}</h1>
+            {blueprintRevision && (
+              <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[10px] text-[#527284]">
+                <span className="inline-flex items-center gap-1 font-semibold text-[#0566aa]"><span className="material-symbols-outlined text-[13px]">history</span>Última modificación</span>
+                <span>{blueprintSyncPresentation.lastModifiedLabel}</span>
+                <span className="text-[#aabcc6]">•</span>
+                <span>Por: <strong className="font-semibold text-[#24485b]">{blueprintSyncPresentation.authorLabel}</strong></span>
+              </div>
+            )}
           </div>
         </div>
 
@@ -1356,6 +1429,17 @@ export const MapView: React.FC<MapViewProps> = ({
       </div>
 
       <main className="relative min-h-0 flex-1 overflow-auto p-5">
+        {blueprintSyncPresentation.isLoading && (
+          <div role="status" aria-live="polite" className="absolute inset-0 z-20 flex items-center justify-center bg-[#e7edf1]/80 backdrop-blur-[1px]">
+            <div className="flex min-w-[250px] items-center gap-3 rounded-2xl border border-[#b6d4e4] bg-white/95 px-5 py-4 shadow-[0_16px_38px_rgba(7,63,116,0.16)]">
+              <span className="material-symbols-outlined text-[28px] text-[#0566aa] motion-safe:animate-spin">sync</span>
+              <div>
+                <p className="text-sm font-bold text-[#0b2940]">Actualizando plano compartido</p>
+                <p className="mt-0.5 text-xs text-[#527284]">Descargando la versión más reciente…</p>
+              </div>
+            </div>
+          </div>
+        )}
         {blueprint.imageUrl ? (
           <div className="flex min-h-full min-w-full items-center justify-center py-3">
             <div
@@ -1711,7 +1795,7 @@ export const MapView: React.FC<MapViewProps> = ({
       )}
 
       {selectedPlanPhoto && !placementInstruction && !isMultipleSelectionMode && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" role="presentation">
+        <div className="fixed inset-0 z-50 flex items-end justify-center p-2 sm:items-center sm:p-4" role="presentation">
           <button
             type="button"
             className="absolute inset-0 cursor-default bg-transparent"
@@ -1722,18 +1806,18 @@ export const MapView: React.FC<MapViewProps> = ({
             role="dialog"
             aria-modal="true"
             aria-labelledby="selected-element-title"
-            className="relative z-10 flex max-h-[min(86vh,720px)] w-full max-w-lg flex-col overflow-hidden border border-[#8eb4c7] bg-white shadow-[0_24px_72px_rgba(7,63,116,0.34)]"
+            className="relative z-10 flex max-h-[calc(100dvh-1rem)] w-full max-w-lg flex-col overflow-hidden rounded-t-2xl border border-[#8eb4c7] bg-white shadow-[0_24px_72px_rgba(7,63,116,0.34)] sm:max-h-[min(86vh,720px)] sm:rounded-xl"
           >
-          <div className="flex items-start justify-between gap-3 border-b border-[#d3e1e8] bg-[#f4fbfe] px-5 py-4">
+          <div className="flex items-start justify-between gap-3 border-b border-[#d3e1e8] bg-[#f4fbfe] px-4 py-3 sm:px-5 sm:py-4">
             <div className="min-w-0">
               <p className="font-mono text-[9px] font-bold tracking-[0.14em] text-[#527284]">ELEMENTO SELECCIONADO</p>
-              <h2 id="selected-element-title" className="mt-0.5 truncate text-lg font-bold text-[#0b2940]">{elementLabel(selectedPlanPhoto)}</h2>
+              <h2 id="selected-element-title" className="mt-0.5 truncate text-base font-bold text-[#0b2940] sm:text-lg">{elementLabel(selectedPlanPhoto)}</h2>
             </div>
-            <button type="button" onClick={() => setSelectedPlanPhotoId(null)} className="flex h-9 w-9 shrink-0 items-center justify-center border border-[#b4cbd8] bg-white text-[#315c70] transition hover:bg-[#eaf6fb]" aria-label="Cerrar propiedades del elemento">
+            <button type="button" onClick={() => setSelectedPlanPhotoId(null)} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-[#b4cbd8] bg-white text-[#315c70] transition hover:bg-[#eaf6fb]" aria-label="Cerrar propiedades del elemento">
               <span className="material-symbols-outlined text-[20px]">close</span>
             </button>
           </div>
-          <div className="min-h-0 overflow-y-auto px-5 py-4">
+          <div className="min-h-0 overflow-y-auto px-4 py-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] sm:px-5 sm:py-4">
           {getElementType(selectedPlanPhoto) === 'tuberia' && (
             <>
               <div className="mt-3 flex items-center justify-between rounded-lg border border-[#b7d5e4] bg-[#eaf6fb] px-2.5 py-2">
@@ -1894,19 +1978,19 @@ export const MapView: React.FC<MapViewProps> = ({
               </button>
             </div>
           )}
-          <div className="mt-4 grid grid-cols-[1fr_1fr_auto] gap-2 border-t border-[#d3e1e8] pt-4">
-            <button type="button" onClick={() => onEditPhoto(selectedPlanPhoto)} className="inline-flex h-9 items-center justify-center gap-1.5 bg-[#0566aa] px-3 text-xs font-bold text-white transition hover:bg-[#004d84]">
+          <div className="sticky bottom-0 -mx-4 mt-4 grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] gap-2 border-t border-[#d3e1e8] bg-white px-4 pb-[calc(0.75rem+env(safe-area-inset-bottom))] pt-3 sm:-mx-5 sm:px-5">
+            <button type="button" onClick={() => onEditPhoto(selectedPlanPhoto)} className="inline-flex h-10 items-center justify-center gap-1.5 bg-[#0566aa] px-2 text-xs font-bold text-white transition hover:bg-[#004d84] sm:h-9 sm:px-3">
               <span className="material-symbols-outlined text-[16px]">edit</span>
               Propiedades
             </button>
-            <button type="button" onClick={() => onSelectPhoto(selectedPlanPhoto)} className="inline-flex h-9 items-center justify-center gap-1.5 border border-[#b4cbd8] bg-white px-3 text-xs font-bold text-[#154860] transition hover:bg-[#eaf6fb]">
+            <button type="button" onClick={() => onSelectPhoto(selectedPlanPhoto)} className="inline-flex h-10 items-center justify-center gap-1.5 border border-[#b4cbd8] bg-white px-2 text-xs font-bold text-[#154860] transition hover:bg-[#eaf6fb] sm:h-9 sm:px-3">
               <span className="material-symbols-outlined text-[16px]">open_in_new</span>
               Detalle
             </button>
             <button
               type="button"
               onClick={() => setPhotosPendingDeletion([selectedPlanPhoto])}
-              className="inline-flex h-9 w-9 items-center justify-center border border-[#f0b4b0] bg-[#fff7f6] text-[#b42318] transition hover:bg-[#ffdad6]"
+              className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-[#f0b4b0] bg-[#fff7f6] text-[#b42318] transition hover:bg-[#ffdad6] sm:h-9 sm:w-9"
               title="Eliminar elemento"
               aria-label={`Eliminar ${elementLabel(selectedPlanPhoto)}`}
             >
@@ -2068,78 +2152,86 @@ export const MapView: React.FC<MapViewProps> = ({
         </div>
       )}
 
-      <div className="absolute bottom-4 right-4 z-20 flex items-center gap-2">
+      <div className="absolute bottom-[max(0.75rem,env(safe-area-inset-bottom))] right-2 z-20 flex items-center gap-1.5 sm:bottom-4 sm:right-4 sm:gap-2">
+        {blueprint.imageUrl && <button
+          type="button"
+          onClick={() => {
+            setAreSecondaryAccessesCollapsed((collapsed) => {
+              if (!collapsed) setActiveMapPopover(null);
+              return !collapsed;
+            });
+          }}
+          aria-label={areSecondaryAccessesCollapsed ? 'Mostrar accesos secundarios' : 'Ocultar accesos secundarios'}
+          aria-expanded={!areSecondaryAccessesCollapsed}
+          className="flex h-11 w-11 items-center justify-center rounded-xl border border-[#9fc4d4] bg-[#eaf6fb] text-[#075a91] shadow-sm transition hover:bg-[#dff2fa] sm:hidden"
+          title={areSecondaryAccessesCollapsed ? 'Mostrar accesos' : 'Ocultar accesos'}
+        >
+          <span className="material-symbols-outlined text-[21px]">{areSecondaryAccessesCollapsed ? 'unfold_more' : 'unfold_less'}</span>
+        </button>}
+        <div data-testid="secondary-map-accesses" className={areSecondaryAccessesCollapsed ? 'hidden sm:contents' : 'contents'}>
         {blueprint.imageUrl && (
-          <div className="flex max-w-[calc(100vw-2rem)] flex-wrap items-center divide-x divide-[#c7d7df] overflow-hidden rounded-xl border border-[#c7d7df] bg-white/95 shadow-sm">
-            <div className="flex items-center gap-1.5 px-2 py-1.5">
-              <span className="material-symbols-outlined text-[16px] text-[#0566aa]">zoom_in</span>
-              <span className="font-mono text-[10px] font-bold text-[#355c70]">PLANO {Math.round(planScale * 100)}%</span>
-              <button type="button" onClick={() => adjustPlanScale(-0.25)} disabled={planScale <= 0.45} className="flex h-6 w-6 items-center justify-center rounded text-[#285b72] transition hover:bg-[#eaf6fb] disabled:cursor-not-allowed disabled:opacity-35" aria-label="Reducir tamaño del plano" title="Reducir plano en incrementos de 25%">
-                <span className="material-symbols-outlined text-[16px]">remove</span>
-              </button>
-              <button type="button" onClick={() => adjustPlanScale(0.25)} disabled={planScale >= 8} className="flex h-6 w-6 items-center justify-center rounded text-[#285b72] transition hover:bg-[#eaf6fb] disabled:cursor-not-allowed disabled:opacity-35" aria-label="Aumentar tamaño del plano" title="Aumentar plano hasta 800%">
-                <span className="material-symbols-outlined text-[16px]">add</span>
-              </button>
-            </div>
-            <div className="flex items-center gap-1.5 px-2 py-1.5">
-              <span className="material-symbols-outlined text-[16px] text-[#b77812]">ads_click</span>
-              <span className="font-mono text-[10px] font-bold text-[#355c70]">ICONOS {Math.round(iconScale * 100)}%</span>
-              <button type="button" onClick={() => adjustIconScale(-0.1)} disabled={iconScale <= 0.2} className="flex h-6 w-6 items-center justify-center rounded text-[#285b72] transition hover:bg-[#eaf6fb] disabled:cursor-not-allowed disabled:opacity-35" aria-label="Reducir tamaño de los iconos" title="Reducir iconos hasta 20%">
-                <span className="material-symbols-outlined text-[16px]">remove</span>
-              </button>
-              <button type="button" onClick={() => adjustIconScale(0.1)} disabled={iconScale >= 1.8} className="flex h-6 w-6 items-center justify-center rounded text-[#285b72] transition hover:bg-[#eaf6fb] disabled:cursor-not-allowed disabled:opacity-35" aria-label="Aumentar tamaño de los iconos" title="Aumentar iconos">
-                <span className="material-symbols-outlined text-[16px]">add</span>
-              </button>
-            </div>
-            <div className="flex items-center gap-1.5 px-2 py-1.5">
-              <span className="material-symbols-outlined text-[16px] text-[#0b5d8c]">text_fields</span>
-              <span className="font-mono text-[10px] font-bold text-[#355c70]">TEXTOS {Math.round(textScale * 100)}%</span>
-              <button type="button" onClick={() => adjustTextScale(-0.1)} disabled={textScale <= 0.25} className="flex h-6 w-6 items-center justify-center rounded text-[#285b72] transition hover:bg-[#eaf6fb] disabled:cursor-not-allowed disabled:opacity-35" aria-label="Reducir tamaño de los textos del plano" title="Reducir textos hasta 25%">
-                <span className="material-symbols-outlined text-[16px]">remove</span>
-              </button>
-              <button type="button" onClick={() => adjustTextScale(0.1)} disabled={textScale >= 1.8} className="flex h-6 w-6 items-center justify-center rounded text-[#285b72] transition hover:bg-[#eaf6fb] disabled:cursor-not-allowed disabled:opacity-35" aria-label="Aumentar tamaño de los textos del plano" title="Aumentar textos">
-                <span className="material-symbols-outlined text-[16px]">add</span>
-              </button>
-            </div>
+          <div className="static sm:relative">
+            {activeMapPopover === 'view' && (
+              <div role="dialog" aria-label="Ajustes de vista del plano" className="fixed bottom-[calc(3.75rem+env(safe-area-inset-bottom))] left-2 right-2 max-h-[calc(100dvh-5.25rem)] overflow-y-auto rounded-xl border border-[#b7d4e1] bg-white shadow-[0_14px_30px_rgba(10,54,83,0.22)] sm:absolute sm:bottom-12 sm:left-auto sm:right-0 sm:max-h-[min(75vh,32rem)] sm:w-[min(20rem,calc(100vw-2rem))]">
+                <div className="flex items-center justify-between border-b border-[#d7e5eb] bg-[#f3faff] px-3 py-2.5">
+                  <div><p className="font-mono text-[10px] font-bold tracking-[0.12em] text-[#0566aa]">VISTA DEL PLANO</p><p className="mt-0.5 text-xs font-semibold text-[#24485b]">Escala y legibilidad</p></div>
+                  <button type="button" onClick={() => setActiveMapPopover(null)} className="grid h-7 w-7 place-items-center rounded-md text-[#486a7c] hover:bg-white" aria-label="Cerrar ajustes de vista"><span className="material-symbols-outlined text-[18px]">close</span></button>
+                </div>
+                <div className="divide-y divide-[#e1ebef] px-3">
+                  {[
+                    { label: 'Plano', value: Math.round(planScale * 100), icon: 'zoom_in', iconClass: 'text-[#0566aa]', decrease: () => adjustPlanScale(-0.25), increase: () => adjustPlanScale(0.25), decreaseDisabled: planScale <= 0.45, increaseDisabled: planScale >= 8, decreaseLabel: 'Reducir tamaño del plano', increaseLabel: 'Aumentar tamaño del plano' },
+                    { label: 'Iconos', value: Math.round(iconScale * 100), icon: 'ads_click', iconClass: 'text-[#b77812]', decrease: () => adjustIconScale(-0.1), increase: () => adjustIconScale(0.1), decreaseDisabled: iconScale <= 0.2, increaseDisabled: iconScale >= 1.8, decreaseLabel: 'Reducir tamaño de los iconos', increaseLabel: 'Aumentar tamaño de los iconos' },
+                    { label: 'Textos', value: Math.round(textScale * 100), icon: 'text_fields', iconClass: 'text-[#0b5d8c]', decrease: () => adjustTextScale(-0.1), increase: () => adjustTextScale(0.1), decreaseDisabled: textScale <= 0.25, increaseDisabled: textScale >= 1.8, decreaseLabel: 'Reducir tamaño de los textos del plano', increaseLabel: 'Aumentar tamaño de los textos del plano' },
+                  ].map((control) => (
+                    <div key={control.label} className="flex items-center gap-2 py-2.5">
+                      <span className={`material-symbols-outlined text-[18px] ${control.iconClass}`}>{control.icon}</span>
+                      <span className="flex-1 text-xs font-bold text-[#355c70]">{control.label} <span className="font-mono text-[#0b2940]">{control.value}%</span></span>
+                      <button type="button" onClick={control.decrease} disabled={control.decreaseDisabled} className="grid h-7 w-7 place-items-center rounded-md text-[#285b72] hover:bg-[#eaf6fb] disabled:cursor-not-allowed disabled:opacity-35" aria-label={control.decreaseLabel}><span className="material-symbols-outlined text-[17px]">remove</span></button>
+                      <button type="button" onClick={control.increase} disabled={control.increaseDisabled} className="grid h-7 w-7 place-items-center rounded-md text-[#285b72] hover:bg-[#eaf6fb] disabled:cursor-not-allowed disabled:opacity-35" aria-label={control.increaseLabel}><span className="material-symbols-outlined text-[17px]">add</span></button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            <button type="button" onClick={() => setActiveMapPopover((current) => current === 'view' ? null : 'view')} aria-label="Abrir ajustes de vista" aria-expanded={activeMapPopover === 'view'} aria-haspopup="dialog" className={`flex h-11 w-11 items-center justify-center rounded-xl border p-0 text-xs font-bold shadow-sm transition sm:h-10 sm:w-auto sm:gap-1.5 sm:px-3 ${activeMapPopover === 'view' ? 'border-[#073f74] bg-[#073f74] text-white' : 'border-[#c7d7df] bg-white text-[#285b72] hover:bg-[#eaf6fb]'}`} title="Abrir ajustes de vista">
+              <span className="material-symbols-outlined text-[20px] sm:text-[19px]">tune</span><span className="hidden md:inline">Vista</span>
+            </button>
           </div>
         )}
         {blueprint.imageUrl && (
-          <button type="button" onClick={startCalibration} className={`inline-flex h-10 items-center gap-1.5 rounded-xl border px-3 text-xs font-bold shadow-sm transition ${blueprint.calibration ? 'border-[#6ca9c5] bg-[#eaf6fb] text-[#075a91] hover:bg-[#dff2fa]' : 'border-[#e0bf78] bg-white text-[#8b5d05] hover:bg-[#fff6df]'}`} title="Calibrar el plano con una distancia conocida">
-            <span className="material-symbols-outlined text-[18px]">straighten</span>
-            <span className="hidden sm:inline">{blueprint.calibration ? 'Escala activa' : 'Calibrar'}</span>
-          </button>
+          <div className="static sm:relative">
+            {activeMapPopover === 'tools' && (
+              <div role="dialog" aria-label="Herramientas del plano" className="fixed bottom-[calc(3.75rem+env(safe-area-inset-bottom))] left-2 right-2 max-h-[calc(100dvh-5.25rem)] overflow-y-auto rounded-xl border border-[#b7d4e1] bg-white shadow-[0_14px_30px_rgba(10,54,83,0.22)] sm:absolute sm:bottom-12 sm:left-auto sm:right-0 sm:max-h-[min(75vh,32rem)] sm:w-[min(20rem,calc(100vw-2rem))]">
+                <div className="flex items-center justify-between border-b border-[#d7e5eb] bg-[#f3faff] px-3 py-2.5">
+                  <div><p className="font-mono text-[10px] font-bold tracking-[0.12em] text-[#0566aa]">OPERACIÓN</p><p className="mt-0.5 text-xs font-semibold text-[#24485b]">Herramientas del plano</p></div>
+                  <button type="button" onClick={() => setActiveMapPopover(null)} className="grid h-7 w-7 place-items-center rounded-md text-[#486a7c] hover:bg-white" aria-label="Cerrar herramientas del plano"><span className="material-symbols-outlined text-[18px]">close</span></button>
+                </div>
+                <div className="space-y-2.5 p-3">
+                  {isAdmin ? (
+                    <button type="button" onClick={() => { setActiveMapPopover(null); startCalibration(); }} className={`flex w-full items-center gap-2 rounded-lg border px-3 py-2.5 text-left text-xs font-bold transition ${blueprint.calibration ? 'border-[#6ca9c5] bg-[#eaf6fb] text-[#075a91] hover:bg-[#dff2fa]' : 'border-[#e0bf78] bg-[#fffaf0] text-[#8b5d05] hover:bg-[#fff2d6]'}`}>
+                      <span className="material-symbols-outlined text-[19px]">straighten</span><span className="flex-1">{blueprint.calibration ? 'Escala activa' : 'Calibrar plano'}</span><span className="material-symbols-outlined text-[17px]">chevron_right</span>
+                    </button>
+                  ) : (
+                    <button type="button" disabled aria-label="Calibración disponible solo para administradores" className="flex w-full cursor-not-allowed items-center gap-2 rounded-lg border border-[#d7e2e7] bg-[#f5f8fa] px-3 py-2.5 text-left text-xs font-bold text-[#718692] opacity-85">
+                      <span className="material-symbols-outlined text-[19px]">lock</span><span className="flex-1">Calibración del administrador</span><span className="text-[10px] font-medium">Solo lectura</span>
+                    </button>
+                  )}
+                  <div className="rounded-lg border border-[#d7e5eb] bg-[#fbfdfe] px-3 py-2 text-xs text-[#426373]"><strong className="text-[#0b2940]">{photos.filter((photo) => isPlaced(photo)).length}</strong> ubicados · <strong className="text-[#0b2940]">{totalPipelineMeters.toFixed(1)} m</strong> de tubería</div>
+                  <button type="button" onClick={() => { const nextHandMode = !isHandToolActive; setIsHandToolActive(nextHandMode); setActiveMapPopover(null); if (nextHandMode) { exitMultipleSelection(); setPlacement(null); setCreationMode(null); setPipeStart(null); setPipePreview(null); if (calibrationMode) cancelCalibration(); } }} className={`flex w-full items-center gap-2 rounded-lg border px-3 py-2.5 text-left text-xs font-bold transition ${isHandToolActive ? 'border-[#073f74] bg-[#073f74] text-white' : 'border-[#c7d7df] bg-white text-[#285b72] hover:bg-[#eaf6fb]'}`} aria-pressed={isHandToolActive}>
+                    <span className="material-symbols-outlined text-[19px]">pan_tool_alt</span><span className="flex-1">{isHandToolActive ? 'Mano activa' : 'Activar mano'}</span><span className="text-[10px] font-medium">Mover plano</span>
+                  </button>
+                </div>
+              </div>
+            )}
+            <button type="button" onClick={() => setActiveMapPopover((current) => current === 'tools' ? null : 'tools')} aria-label="Abrir herramientas del plano" aria-expanded={activeMapPopover === 'tools'} aria-haspopup="dialog" className={`flex h-11 w-11 items-center justify-center rounded-xl border p-0 text-xs font-bold shadow-sm transition sm:h-10 sm:w-auto sm:gap-1.5 sm:px-3 ${activeMapPopover === 'tools' ? 'border-[#073f74] bg-[#073f74] text-white' : 'border-[#c7d7df] bg-white text-[#285b72] hover:bg-[#eaf6fb]'}`} title="Abrir herramientas del plano">
+              <span className="material-symbols-outlined text-[20px] sm:text-[19px]">construction</span><span className="hidden md:inline">Herramientas</span>
+            </button>
+          </div>
         )}
-        <div className="hidden rounded-xl border border-[#c7d7df] bg-white/95 px-3 py-2 text-[11px] text-[#426373] shadow-sm sm:block">
-          <strong className="text-[#0b2940]">{photos.filter((photo) => isPlaced(photo)).length}</strong> ubicados · <strong className="text-[#0b2940]">{totalPipelineMeters.toFixed(1)} m</strong> de tubería
+        <button type="button" onClick={() => { setActiveMapPopover(null); setIsFullscreen((value) => !value); }} className="flex h-11 w-11 items-center justify-center rounded-xl border border-[#c7d7df] bg-white text-[#285b72] shadow-sm transition hover:bg-[#eaf6fb] sm:h-10 sm:w-10" title={isFullscreen ? 'Salir de pantalla completa' : 'Pantalla completa'}>
+          <span className="material-symbols-outlined text-[21px] sm:text-[20px]">{isFullscreen ? 'fullscreen_exit' : 'fullscreen'}</span>
+        </button>
         </div>
-        <button
-          type="button"
-          onClick={() => {
-            const nextHandMode = !isHandToolActive;
-            setIsHandToolActive(nextHandMode);
-            if (nextHandMode) {
-              exitMultipleSelection();
-              setPlacement(null);
-              setCreationMode(null);
-              setPipeStart(null);
-              setPipePreview(null);
-              if (calibrationMode) cancelCalibration();
-            }
-          }}
-          className={`flex h-10 items-center gap-1.5 rounded-xl border px-3 text-xs font-bold shadow-sm transition ${
-            isHandToolActive
-              ? 'border-[#073f74] bg-[#073f74] text-white'
-              : 'border-[#c7d7df] bg-white text-[#285b72] hover:bg-[#eaf6fb]'
-          }`}
-          title={isHandToolActive ? 'Desactivar mano para mover el plano' : 'Activar mano para mover el plano'}
-          aria-pressed={isHandToolActive}
-        >
-          <span className="material-symbols-outlined text-[20px]">pan_tool_alt</span>
-          <span className="hidden sm:inline">Mano</span>
-        </button>
-        <button type="button" onClick={() => setIsFullscreen((value) => !value)} className="flex h-10 w-10 items-center justify-center rounded-xl border border-[#c7d7df] bg-white text-[#285b72] shadow-sm transition hover:bg-[#eaf6fb]" title={isFullscreen ? 'Salir de pantalla completa' : 'Pantalla completa'}>
-          <span className="material-symbols-outlined text-[20px]">{isFullscreen ? 'fullscreen_exit' : 'fullscreen'}</span>
-        </button>
       </div>
 
       {isPanelOpen && (

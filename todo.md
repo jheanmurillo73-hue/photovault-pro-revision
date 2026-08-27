@@ -126,3 +126,64 @@
 - [x] Promover la versión validada de Storage y restablecimiento a desarrollo, produccion y main.
 - [x] Confirmar la ejecución correcta de la migración SQL de restablecimiento en Supabase.
 - [x] Sincronizar la versión más reciente en desarrollo, produccion y main.
+- [x] Crear una GitHub Action para validar pruebas, tipos y compilación en cada pull request.
+- [x] Priorizar y actualizar el plano JPG remoto de Supabase Storage en las sesiones de inspector.
+- [x] Verificar que un inspector vea el último plano cargado por el administrador sin conservar una copia obsoleta.
+- [x] Añadir una prueba automatizada que compruebe que el plano remoto actualizado prevalece sobre una copia local obsoleta.
+- [x] Probar el flujo administrador a inspector con el plano remoto actualizado y una caché local previa.
+- [x] Añadir una prueba integrada de restauración inicial con plano remoto actualizado y caché local previa.
+- [x] Documentar la validación controlada del flujo administrador a inspector para la actualización de plano.
+- [x] Guardar un registro verificable de la validación automatizada administrador a inspector con caché local obsoleta.
+- [x] Mostrar una notificación visual al inspector cuando se descargue un plano actualizado desde Supabase.
+- [x] Registrar y mostrar fecha, hora y autor de la última modificación del plano.
+- [x] Añadir una animación de carga suave mientras se recupera la versión remota del plano.
+- [x] Validar la interfaz y las pruebas de recuperación del plano actualizado.
+- [x] Añadir una prueba de presentación que cubra la carga, el aviso de actualización y el registro de autor del plano.
+- [x] Validar de forma verificable los estados visuales del inspector durante la restauración del plano remoto.
+- [x] Añadir una prueba de integración de MapView que renderice carga, aviso y registro de actualización remota.
+- [x] Validar el flujo visible del inspector con una revisión remota nueva en el componente del mapa.
+- [x] Clasificar las fotos de cada elemento por fecha de captura o registro.
+- [x] Mostrar un timeline de avance fotográfico en la vista de detalle del elemento.
+- [x] Validar la agrupación cronológica y la navegación del historial fotográfico.
+- [x] Añadir una prueba de navegación que abra la evidencia correcta desde una tarjeta del timeline.
+- [x] Validar de forma explícita el clic y visor de una evidencia dentro del historial fotográfico.
+- [x] Convertir los controles de escala de plano, iconos y textos en un panel emergente compacto.
+- [x] Convertir calibración y herramientas auxiliares del plano en controles emergentes no obstructivos.
+- [x] Validar que los controles emergentes preserven la visibilidad y operación del plano.
+- [x] Añadir una prueba integrada que active la herramienta Mano desde el panel emergente sin perder el plano cargado.
+- [x] Verificar de forma explícita la persistencia visual del plano mientras se abre un panel emergente compacto.
+- [x] Corregir las claves duplicadas de tarjetas de evidencia en el historial fotográfico.
+- [x] Probar el timeline con fotos que comparten URL y fecha para garantizar claves únicas.
+- [x] Ajustar el cuadro de elemento seleccionado para que se adapte a pantallas móviles.
+- [x] Ajustar el modal de propiedades con desplazamiento interno y acciones accesibles en móvil.
+- [x] Validar la selección y edición de elementos en una vista móvil de referencia.
+- [x] Ajustar los accesos Vista y Herramientas para que no se recorten en móvil.
+- [x] Reposicionar dinámicamente los paneles emergentes dentro del ancho disponible.
+- [x] Validar accesos y paneles en una referencia móvil estrecha.
+- [x] Añadir una prueba móvil del acceso Herramientas y de su panel emergente contenido.
+- [x] Validar explícitamente Vista y Herramientas a 375 px antes de cerrar la adaptación responsiva.
+- [x] Añadir un control móvil para contraer y expandir los accesos secundarios del plano.
+- [x] Ocultar Vista, Herramientas y pantalla completa cuando la barra secundaria esté contraída.
+- [x] Validar la restauración de accesos secundarios en una pantalla móvil estrecha.
+- [x] Crear un timeline gráfico de evolución con las evidencias fotográficas de cada elemento.
+- [x] Mantener navegación desde cada hito gráfico hacia su evidencia correspondiente.
+- [x] Restringir la calibración del plano y su acceso visual al perfil administrador.
+- [x] Validar el timeline gráfico y los permisos de calibración para inspector y administrador.
+- [x] Inspeccionar la rama activa, las ramas locales y las referencias de GitHub.
+- [x] Comparar main, desarrollo y produccion para identificar divergencias pendientes.
+- [x] Aumentar el límite de fotos adjuntables desde las propiedades del elemento.
+- [x] Ajustar la interfaz para comunicar la nueva capacidad de evidencias.
+- [x] Validar la selección, orden y guardado de más de seis fotos por elemento.
+- [x] Definir y aplicar compresión reforzada para imágenes de evidencia pesadas.
+- [x] Mostrar al usuario el resultado de la optimización antes de sincronizar las fotos.
+- [x] Validar la compresión adaptativa y la carga de múltiples imágenes pesadas.
+- [x] Habilitar la edición del acta asignada para el perfil inspector.
+- [x] Conservar restringidos para el inspector los campos administrativos no solicitados.
+- [x] Validar que el inspector pueda guardar la modificación de acta.
+- [x] Añadir una configuración administrativa para permitir o bloquear la asignación de actas por inspectores.
+- [x] Aplicar la configuración al selector y guardado de actas en las propiedades del elemento.
+- [x] Validar los estados habilitado y bloqueado para el perfil inspector.
+- [x] Diagnosticar la causa del fallo de sincronización de cambios con Supabase Storage y definir la corrección segura.
+- [x] Investigar y corregir el fallo persistente de sincronización con Supabase Storage, incluyendo la causa técnica exacta.
+- [x] Añadir un indicador visual y accesible del estado conectado o desconectado de Supabase.
+- [ ] Promover el indicador de conectividad validado a las ramas desarrollo, produccion y main mediante el flujo seguro de Git.
