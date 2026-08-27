@@ -187,3 +187,5 @@
 - [x] Investigar y corregir el fallo persistente de sincronización con Supabase Storage, incluyendo la causa técnica exacta.
 - [x] Añadir un indicador visual y accesible del estado conectado o desconectado de Supabase.
 - [x] Promover el indicador de conectividad validado a las ramas desarrollo, produccion y main mediante el flujo seguro de Git.
+- [x] Diagnosticar y corregir la incompatibilidad entre el estado de ejecución de elementos y la restricción de Supabase.
+- [x] Asignar automáticamente el tipo de cámara Datos al seleccionar el código SB858 en Propiedades.

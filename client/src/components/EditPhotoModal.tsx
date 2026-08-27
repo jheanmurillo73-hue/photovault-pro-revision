@@ -7,6 +7,7 @@ import { CableGauge, CableType, CABLE_TYPE_OPTIONS, getCableGaugeOptionsForPlanA
 import { WAREHOUSE_LOCATIONS, CAMERA_CODES, CAMERA_TYPES } from '../data/mockData';
 import { ACTA_ITEM_OPTIONS, getActaItemKey } from '../data/actaItems';
 import { compressEvidenceImageForUpload, formatImageBytes } from '../services/deviceStorageService';
+import { getCameraTypeForCode } from '../lib/cameraCodeMapping';
 import { TramoSelector } from './TramoSelector';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from './ui/command';
 
@@ -121,6 +122,11 @@ export const EditPhotoModal: React.FC<EditPhotoModalProps> = ({
   const removePipeConduit = (id: string) => {
     if (pipeConduits.length <= 1) return;
     setPipeConduits((previous) => previous.filter((conduit) => conduit.id !== id));
+  };
+
+  const handleCameraCodeChange = (code: CameraCode) => {
+    setCameraCode(code);
+    setCameraType((currentType) => getCameraTypeForCode(code, currentType));
   };
 
   if (!isOpen) return null;
@@ -711,7 +717,7 @@ export const EditPhotoModal: React.FC<EditPhotoModalProps> = ({
                   <button
                     key={code}
                     type="button"
-                    onClick={() => setCameraCode(code)}
+                    onClick={() => handleCameraCodeChange(code)}
                     className={`py-2 px-1 rounded-lg border font-['Inter'] font-bold text-[12px] flex items-center justify-center gap-1 transition-all ${
                       cameraCode === code
                         ? 'bg-[#004d99] text-white border-[#004d99] shadow-xs'
@@ -723,6 +729,7 @@ export const EditPhotoModal: React.FC<EditPhotoModalProps> = ({
                   </button>
                 ))}
               </div>
+              <p className="mt-2 text-[11px] font-medium text-[#075a91]">SB858 ajusta automáticamente el tipo de cámara a Datos.</p>
             </div>
 
             <div>
