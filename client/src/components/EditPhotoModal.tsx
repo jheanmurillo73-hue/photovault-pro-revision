@@ -41,6 +41,7 @@ interface EditPhotoModalProps {
   photo: InspectionPhoto;
   isOpen: boolean;
   isAdmin: boolean;
+  canAssignActa?: boolean;
   onClose: () => void;
   onSave: (updated: InspectionPhoto) => void;
 }
@@ -49,6 +50,7 @@ export const EditPhotoModal: React.FC<EditPhotoModalProps> = ({
   photo,
   isOpen,
   isAdmin,
+  canAssignActa = false,
   onClose,
   onSave,
 }) => {
@@ -211,7 +213,7 @@ export const EditPhotoModal: React.FC<EditPhotoModalProps> = ({
       elementType: isAdmin ? elementType : photo.elementType,
       cameraCode: elementType === 'camara' ? cameraCode : undefined,
       cameraType: isAdmin ? (elementType === 'camara' ? cameraType : undefined) : photo.cameraType,
-      acta: acta || undefined,
+      acta: isAdmin || canAssignActa ? acta || undefined : photo.acta,
       actaItem: isAdmin ? selectedActaItem : photo.actaItem,
       actaLabelPosition: isAdmin ? (acta ? actaLabelPosition : undefined) : photo.actaLabelPosition,
       tramo: elementType === 'tuberia' ? primaryConduit?.configuration : undefined,
@@ -509,13 +511,19 @@ export const EditPhotoModal: React.FC<EditPhotoModalProps> = ({
                 setActa(event.target.value);
                 setActaMessage(null);
               }}
-              className="w-full rounded-lg border border-[#c2c6d4] bg-white p-2.5 text-[14px] text-[#071e27] outline-none focus:border-[#004d99]"
+              disabled={!isAdmin && !canAssignActa}
+              className="w-full rounded-lg border border-[#c2c6d4] bg-white p-2.5 text-[14px] text-[#071e27] outline-none focus:border-[#004d99] disabled:cursor-not-allowed disabled:bg-[#eef3f5] disabled:text-[#607d8b]"
             >
               <option value="">Sin acta asignada</option>
               {actas.map((option) => (
                 <option key={option} value={option}>{option}</option>
               ))}
             </select>
+            {!isAdmin && !canAssignActa && (
+              <p className="mt-2 text-[11px] font-medium text-[#7a4e00]" role="status">
+                La administración inhabilitó la asignación de actas para inspectores.
+              </p>
+            )}
             {isAdmin && <div className="mt-2 flex gap-2">
               <input
                 type="text"

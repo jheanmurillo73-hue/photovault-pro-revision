@@ -180,3 +180,6 @@
 - [x] Habilitar la edición del acta asignada para el perfil inspector.
 - [x] Conservar restringidos para el inspector los campos administrativos no solicitados.
 - [x] Validar que el inspector pueda guardar la modificación de acta.
+- [x] Añadir una configuración administrativa para permitir o bloquear la asignación de actas por inspectores.
+- [x] Aplicar la configuración al selector y guardado de actas en las propiedades del elemento.
+- [x] Validar los estados habilitado y bloqueado para el perfil inspector.

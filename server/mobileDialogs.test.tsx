@@ -4,6 +4,7 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-li
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { EditPhotoModal } from '../client/src/components/EditPhotoModal';
 import { MapView } from '../client/src/components/MapView';
+import { applyPhotoUpdatePermissions } from '../client/src/lib/photoPermissions';
 import type { InspectionPhoto } from '../client/src/types';
 
 const mobileElement: InspectionPhoto = {
@@ -141,9 +142,9 @@ describe('Diálogos del plano en móvil', () => {
     expect(screen.getByText('Cancelar').className).toContain('h-10');
   });
 
-  it('permite al inspector actualizar el acta asignada sin habilitar el ítem contractual', () => {
+  it('permite al inspector actualizar el acta cuando administración habilita el permiso', () => {
     const onSave = vi.fn();
-    const { container } = render(<EditPhotoModal photo={mobileElement} isOpen isAdmin={false} onClose={vi.fn()} onSave={onSave} />);
+    const { container } = render(<EditPhotoModal photo={mobileElement} isOpen isAdmin={false} canAssignActa onClose={vi.fn()} onSave={onSave} />);
 
     const actaSelect = screen.getByLabelText('Acta asignada');
     expect(actaSelect.hasAttribute('disabled')).toBe(false);
@@ -153,6 +154,56 @@ describe('Diálogos del plano en móvil', () => {
     expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ acta: 'Acta 2' }));
     expect(container.querySelector<HTMLButtonElement>('#inspection-acta-item-picker')?.disabled).toBe(true);
     expect(screen.queryByRole('button', { name: 'Agregar' })).toBeNull();
+  });
+
+  it('bloquea la edición y el guardado del acta al inspector cuando administración deshabilita el permiso', () => {
+    const onSave = vi.fn();
+    const photoWithActa = { ...mobileElement, acta: 'Acta 1' };
+    render(<EditPhotoModal photo={photoWithActa} isOpen isAdmin={false} canAssignActa={false} onClose={vi.fn()} onSave={onSave} />);
+
+    const actaSelect = screen.getByLabelText('Acta asignada');
+    expect(actaSelect.hasAttribute('disabled')).toBe(true);
+    expect(screen.getByText('La administración inhabilitó la asignación de actas para inspectores.')).toBeTruthy();
+    fireEvent.click(screen.getByText('Guardar Cambios'));
+
+    expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ acta: 'Acta 1' }));
+  });
+
+  it('conserva para administración la edición del acta aun cuando inspectores estén bloqueados', () => {
+    const onSave = vi.fn();
+    render(<EditPhotoModal photo={mobileElement} isOpen isAdmin canAssignActa={false} onClose={vi.fn()} onSave={onSave} />);
+
+    const actaSelect = screen.getByLabelText('Acta asignada');
+    expect(actaSelect.hasAttribute('disabled')).toBe(false);
+    fireEvent.change(actaSelect, { target: { value: 'Acta 3' } });
+    fireEvent.click(screen.getByText('Guardar Cambios'));
+
+    expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ acta: 'Acta 3' }));
+  });
+
+  it('protege el acta actual ante un intento de actualización no autorizado fuera del formulario', () => {
+    const current: InspectionPhoto = {
+      ...mobileElement,
+      acta: 'Acta 1',
+      actaItem: { code: '1.01', description: 'Ítem contractual vigente', unit: 'UND', quantity: '1', section: 'Obra civil' },
+    };
+    const updated: InspectionPhoto = {
+      ...current,
+      acta: 'Acta 8',
+      actaItem: { code: '9.99', description: 'Ítem contractual alterado', unit: 'UND', quantity: '1', section: 'Obra civil' },
+    };
+
+    const protectedUpdate = applyPhotoUpdatePermissions({
+      current,
+      updated,
+      isAdmin: false,
+      canAssignActa: false,
+    });
+
+    expect(protectedUpdate).toMatchObject({
+      acta: 'Acta 1',
+      actaItem: { code: '1.01', description: 'Ítem contractual vigente' },
+    });
   });
 
   it('permite guardar más de seis fotos de evidencia en las propiedades del elemento', async () => {

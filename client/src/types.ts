@@ -318,6 +318,7 @@ export interface AppSettings {
   pushNotifications: boolean;
   syncWifiOnly: boolean;
   highQualityUploads: boolean;
+  allowInspectorActaAssignment: boolean;
   autoVerifyPassed: boolean;
   offlineStorageLimitMb: number;
 }
