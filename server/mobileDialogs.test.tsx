@@ -141,6 +141,20 @@ describe('Diálogos del plano en móvil', () => {
     expect(screen.getByText('Cancelar').className).toContain('h-10');
   });
 
+  it('permite al inspector actualizar el acta asignada sin habilitar el ítem contractual', () => {
+    const onSave = vi.fn();
+    const { container } = render(<EditPhotoModal photo={mobileElement} isOpen isAdmin={false} onClose={vi.fn()} onSave={onSave} />);
+
+    const actaSelect = screen.getByLabelText('Acta asignada');
+    expect(actaSelect.hasAttribute('disabled')).toBe(false);
+    fireEvent.change(actaSelect, { target: { value: 'Acta 2' } });
+    fireEvent.click(screen.getByText('Guardar Cambios'));
+
+    expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ acta: 'Acta 2' }));
+    expect(container.querySelector<HTMLButtonElement>('#inspection-acta-item-picker')?.disabled).toBe(true);
+    expect(screen.queryByRole('button', { name: 'Agregar' })).toBeNull();
+  });
+
   it('permite guardar más de seis fotos de evidencia en las propiedades del elemento', async () => {
     const onSave = vi.fn();
     const { container } = render(<EditPhotoModal photo={mobileElement} isOpen isAdmin onClose={vi.fn()} onSave={onSave} />);

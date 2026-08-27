@@ -177,3 +177,6 @@
 - [x] Definir y aplicar compresión reforzada para imágenes de evidencia pesadas.
 - [x] Mostrar al usuario el resultado de la optimización antes de sincronizar las fotos.
 - [x] Validar la compresión adaptativa y la carga de múltiples imágenes pesadas.
+- [x] Habilitar la edición del acta asignada para el perfil inspector.
+- [x] Conservar restringidos para el inspector los campos administrativos no solicitados.
+- [x] Validar que el inspector pueda guardar la modificación de acta.

@@ -211,7 +211,7 @@ export const EditPhotoModal: React.FC<EditPhotoModalProps> = ({
       elementType: isAdmin ? elementType : photo.elementType,
       cameraCode: elementType === 'camara' ? cameraCode : undefined,
       cameraType: isAdmin ? (elementType === 'camara' ? cameraType : undefined) : photo.cameraType,
-      acta: isAdmin ? acta || undefined : photo.acta,
+      acta: acta || undefined,
       actaItem: isAdmin ? selectedActaItem : photo.actaItem,
       actaLabelPosition: isAdmin ? (acta ? actaLabelPosition : undefined) : photo.actaLabelPosition,
       tramo: elementType === 'tuberia' ? primaryConduit?.configuration : undefined,
@@ -498,7 +498,7 @@ export const EditPhotoModal: React.FC<EditPhotoModalProps> = ({
             <div className="mb-2 flex items-start justify-between gap-3">
               <div>
                 <label htmlFor="inspection-acta" className="block font-['Inter'] text-[13px] font-bold text-[#071e27]">Acta asignada</label>
-                <p className="mt-0.5 text-[11px] text-[#607d8b]">Selecciona un acta del listado o incorpora una nueva para futuras asignaciones.</p>
+                <p className="mt-0.5 text-[11px] text-[#607d8b]">Selecciona un acta del listado. Solo administración puede incorporar nuevas actas.</p>
               </div>
               <span className="material-symbols-outlined text-[21px] text-[#0566aa]">assignment</span>
             </div>
@@ -509,7 +509,6 @@ export const EditPhotoModal: React.FC<EditPhotoModalProps> = ({
                 setActa(event.target.value);
                 setActaMessage(null);
               }}
-              disabled={!isAdmin}
               className="w-full rounded-lg border border-[#c2c6d4] bg-white p-2.5 text-[14px] text-[#071e27] outline-none focus:border-[#004d99]"
             >
               <option value="">Sin acta asignada</option>
