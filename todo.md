@@ -169,6 +169,3 @@
 - [x] Mantener navegación desde cada hito gráfico hacia su evidencia correspondiente.
 - [x] Restringir la calibración del plano y su acceso visual al perfil administrador.
 - [x] Validar el timeline gráfico y los permisos de calibración para inspector y administrador.
-- [x] Calcular el progreso cronológico de cada hito fotográfico del elemento.
-- [x] Mostrar un porcentaje de avance visual en cada hito del timeline gráfico.
-- [x] Validar la progresión de porcentajes y su accesibilidad en el historial.
