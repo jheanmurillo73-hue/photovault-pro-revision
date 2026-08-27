@@ -9,6 +9,7 @@ import { compressImageForDevice } from '../services/deviceStorageService';
 import { isQuotaExceededError, loadBlueprintImage, restoreBlueprintFromSources, saveBlueprintImage } from '../services/blueprintStorageService';
 import { BlueprintRevision, getCloudBlueprintRevision, isSupabaseStorageUrl, uploadBlueprintToSupabase } from '../services/supabaseStorageService';
 import { getBlueprintSyncPresentation } from '../services/blueprintSyncPresentation';
+import { getCameraSelectionLabel } from '../lib/cameraSelectionLabel';
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from './ui/breadcrumb';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from './ui/alert-dialog';
 
@@ -1811,7 +1812,11 @@ export const MapView: React.FC<MapViewProps> = ({
           <div className="flex items-start justify-between gap-3 border-b border-[#d3e1e8] bg-[#f4fbfe] px-4 py-3 sm:px-5 sm:py-4">
             <div className="min-w-0">
               <p className="font-mono text-[9px] font-bold tracking-[0.14em] text-[#527284]">ELEMENTO SELECCIONADO</p>
-              <h2 id="selected-element-title" className="mt-0.5 truncate text-base font-bold text-[#0b2940] sm:text-lg">{elementLabel(selectedPlanPhoto)}</h2>
+              <h2 id="selected-element-title" className="mt-0.5 truncate text-base font-bold text-[#0b2940] sm:text-lg">
+                {getElementType(selectedPlanPhoto) === 'camara'
+                  ? getCameraSelectionLabel(selectedPlanPhoto.cameraCode, selectedPlanPhoto.name)
+                  : elementLabel(selectedPlanPhoto)}
+              </h2>
             </div>
             <button type="button" onClick={() => setSelectedPlanPhotoId(null)} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-[#b4cbd8] bg-white text-[#315c70] transition hover:bg-[#eaf6fb]" aria-label="Cerrar propiedades del elemento">
               <span className="material-symbols-outlined text-[20px]">close</span>

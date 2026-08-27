@@ -125,7 +125,7 @@ describe('Diálogos del plano en móvil', () => {
     const marker = await screen.findByRole('button', { name: 'Abrir o mover SB850' });
     fireEvent.click(marker);
 
-    const dialog = screen.getByRole('dialog', { name: 'SB850' });
+    const dialog = screen.getByRole('dialog', { name: 'SB850 · Cámara móvil' });
     expect(dialog.className).toContain('max-h-[calc(100dvh-1rem)]');
     expect(dialog.className).toContain('rounded-t-2xl');
     expect(screen.getByText('Propiedades').closest('button')?.className).toContain('h-10');

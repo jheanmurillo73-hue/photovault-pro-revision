@@ -189,3 +189,4 @@
 - [x] Promover el indicador de conectividad validado a las ramas desarrollo, produccion y main mediante el flujo seguro de Git.
 - [x] Diagnosticar y corregir la incompatibilidad entre el estado de ejecución de elementos y la restricción de Supabase.
 - [x] Asignar automáticamente el tipo de cámara Datos al seleccionar el código SB858 en Propiedades.
+- [x] Mostrar el nombre de la cámara seleccionada junto a su código en el panel Elemento seleccionado.
