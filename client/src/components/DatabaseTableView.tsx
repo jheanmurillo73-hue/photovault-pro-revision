@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
-import { InspectionPhoto, InspectorProfile, CameraType, ExecutionStatus } from '../types';
+import { InspectionPhoto, InspectorProfile, CameraType, ExecutionStatus, getElementType } from '../types';
+import { StatusBreakdown, getWorkElementStatistics } from '../lib/workElementStatistics';
 
 interface DatabaseTableViewProps {
   photos: InspectionPhoto[];
@@ -14,6 +15,54 @@ interface DatabaseTableViewProps {
 
 type SortField = 'cameraCode' | 'cameraType' | 'name' | 'tramo' | 'metraje' | 'executionStatus' | 'date' | 'inspectorName';
 type SortOrder = 'asc' | 'desc';
+
+const StatusMatrixCard: React.FC<{
+  title: string;
+  icon: string;
+  accentClass: string;
+  data: Record<'MT' | 'BT' | 'Datos', StatusBreakdown>;
+  total: number;
+  note?: string;
+}> = ({ title, icon, accentClass, data, total, note }) => (
+  <section className="overflow-hidden rounded-2xl border border-[#c2c6d4] bg-white shadow-xs" aria-label={title}>
+    <div className="flex items-center justify-between border-b border-[#dbe5e9] bg-[#f7fbfd] px-4 py-3">
+      <div>
+        <h2 className="font-['Hanken_Grotesk'] text-sm font-bold text-[#071e27]">{title}</h2>
+        <p className="mt-0.5 text-[11px] text-[#607d8b]">Estado de ejecución por clasificación técnica</p>
+      </div>
+      <span className={`flex h-8 w-8 items-center justify-center rounded-lg ${accentClass}`}>
+        <span className="material-symbols-outlined text-[18px]">{icon}</span>
+      </span>
+    </div>
+    <div className="overflow-x-auto">
+      <table className="w-full min-w-[460px] text-left text-xs">
+        <thead className="bg-white text-[10px] uppercase tracking-wide text-[#607d8b]">
+          <tr>
+            <th className="px-4 py-2.5 font-bold">Tipo</th>
+            <th className="px-3 py-2.5 text-center font-bold">No iniciado</th>
+            <th className="px-3 py-2.5 text-center font-bold">En proceso</th>
+            <th className="px-3 py-2.5 text-center font-bold">Terminado</th>
+            <th className="px-4 py-2.5 text-right font-bold">Total</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-[#e5edf1] text-[#173f58]">
+          {(['MT', 'BT', 'Datos'] as const).map((type) => (
+            <tr key={type}>
+              <td className="px-4 py-2.5 font-bold">{type}</td>
+              <td className="px-3 py-2.5 text-center text-slate-600">{data[type]['No iniciado']}</td>
+              <td className="px-3 py-2.5 text-center text-amber-700">{data[type]['En proceso']}</td>
+              <td className="px-3 py-2.5 text-center text-emerald-700">{data[type].Terminado}</td>
+              <td className="px-4 py-2.5 text-right font-bold">{data[type].total}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+    <div className="border-t border-[#e5edf1] px-4 py-2.5 text-[11px] text-[#607d8b]">
+      <span className="font-bold text-[#173f58]">{total} elementos físicos.</span>{note ? ` ${note}` : ''}
+    </div>
+  </section>
+);
 
 export const DatabaseTableView: React.FC<DatabaseTableViewProps> = ({
   photos,
@@ -55,7 +104,7 @@ export const DatabaseTableView: React.FC<DatabaseTableViewProps> = ({
   const uniqueTramos = useMemo(() => {
     const tramos = new Set<string>();
     photos.forEach((p) => {
-      if (p.tramo) tramos.add(p.tramo);
+      if (getElementType(p) === 'tuberia' && p.tramo) tramos.add(p.tramo);
     });
     return Array.from(tramos).sort();
   }, [photos]);
@@ -159,14 +208,17 @@ export const DatabaseTableView: React.FC<DatabaseTableViewProps> = ({
 
   // Summary Metrics
   const metrics = useMemo(() => {
-    const total = photos.length;
-    const mtCount = photos.filter((p) => (p.cameraType || '').toUpperCase() === 'MT').length;
-    const btCount = photos.filter((p) => (p.cameraType || '').toUpperCase() === 'BT').length;
-    const datosCount = photos.filter((p) => (p.cameraType || '').toUpperCase() === 'DATOS').length;
-    const terminadosCount = photos.filter((p) => p.executionStatus === 'Terminado').length;
-    const enProcesoCount = total - terminadosCount;
+    const cameras = photos.filter((p) => getElementType(p) === 'camara');
+    const pipes = photos.filter((p) => getElementType(p) === 'tuberia');
+    const total = cameras.length;
+    const mtCount = cameras.filter((p) => (p.cameraType || '').toUpperCase() === 'MT').length;
+    const btCount = cameras.filter((p) => (p.cameraType || '').toUpperCase() === 'BT').length;
+    const datosCount = cameras.filter((p) => (p.cameraType || '').toUpperCase() === 'DATOS').length;
+    const terminadosCount = cameras.filter((p) => p.executionStatus === 'Terminado').length;
+    const enProcesoCount = cameras.filter((p) => p.executionStatus === 'En proceso').length;
+    const noIniciadosCount = cameras.filter((p) => p.executionStatus === 'No iniciado').length;
 
-    const totalMetros = photos.reduce((acc, curr) => {
+    const totalMetros = pipes.reduce((acc, curr) => {
       const m = typeof curr.metraje === 'number' ? curr.metraje : parseFloat(String(curr.metraje || '0'));
       return acc + (isNaN(m) ? 0 : m);
     }, 0);
@@ -181,11 +233,14 @@ export const DatabaseTableView: React.FC<DatabaseTableViewProps> = ({
       datosCount,
       terminadosCount,
       enProcesoCount,
+      noIniciadosCount,
       totalMetros: Math.round(totalMetros * 10) / 10,
       positionedOnPlanCount,
       percentTerminado,
     };
   }, [photos]);
+
+  const workElementStatistics = useMemo(() => getWorkElementStatistics(photos), [photos]);
 
   // Handle Sort Click
   const handleSort = (field: SortField) => {
@@ -424,6 +479,9 @@ export const DatabaseTableView: React.FC<DatabaseTableViewProps> = ({
             <span>•</span>
             <span className="text-teal-600 font-bold">{metrics.datosCount} Datos</span>
           </div>
+          <div className="mt-1 text-[10px] text-[#607d8b]">
+            {metrics.noIniciadosCount} sin iniciar · {metrics.enProcesoCount} en proceso
+          </div>
         </div>
 
         {/* Metraje Total */}
@@ -507,6 +565,24 @@ export const DatabaseTableView: React.FC<DatabaseTableViewProps> = ({
             Marcadas sobre el JPG
           </div>
         </div>
+      </div>
+
+      <div className="grid gap-3.5 xl:grid-cols-2">
+        <StatusMatrixCard
+          title="Cámaras por estado"
+          icon="videocam"
+          accentClass="bg-[#e6f6ff] text-[#004d99]"
+          data={workElementStatistics.cameras}
+          total={workElementStatistics.totalCameras}
+        />
+        <StatusMatrixCard
+          title="Tramos de tubería por estado"
+          icon="timeline"
+          accentClass="bg-indigo-50 text-indigo-700"
+          data={workElementStatistics.pipes}
+          total={workElementStatistics.totalPipes}
+          note="Un tramo con varias conducciones se cuenta en cada tipo asociado."
+        />
       </div>
 
       {/* ----------------- SEARCH & FILTERS TOOLBAR ----------------- */}

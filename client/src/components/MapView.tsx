@@ -194,6 +194,7 @@ const elementLabel = (photo: InspectionPhoto) => {
 };
 
 const cameraNameLabel = (photo: InspectionPhoto) => photo.name?.trim() || photo.cameraCode || 'Cámara sin nombre';
+const pipeNameLabel = (photo: InspectionPhoto) => photo.name?.trim() || (photo.tramo ? `Tramo ${photo.tramo}` : 'Tramo de tubería');
 
 export const MapView: React.FC<MapViewProps> = ({
   photos,
@@ -286,6 +287,9 @@ export const MapView: React.FC<MapViewProps> = ({
   );
   const [areCameraNamesVisible, setAreCameraNamesVisible] = useState<boolean>(() =>
     localStorage.getItem('photovault_plan_camera_names_visible') !== 'false',
+  );
+  const [arePipeNamesVisible, setArePipeNamesVisible] = useState<boolean>(() =>
+    localStorage.getItem('photovault_plan_pipe_names_visible') !== 'false',
   );
   const [blueprintStorageNotice, setBlueprintStorageNotice] = useState<string | null>(null);
   const [blueprintUpdateNotice, setBlueprintUpdateNotice] = useState<string | null>(null);
@@ -454,6 +458,14 @@ export const MapView: React.FC<MapViewProps> = ({
       // El estado se conserva durante la sesión aunque el navegador no permita persistirlo.
     }
   }, [areCameraNamesVisible]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('photovault_plan_pipe_names_visible', String(arePipeNamesVisible));
+    } catch {
+      // La preferencia permanece activa durante la sesión aunque el navegador no permita persistirla.
+    }
+  }, [arePipeNamesVisible]);
 
   useEffect(() => {
     if (!selectedPlanArea) return;
@@ -1426,6 +1438,20 @@ export const MapView: React.FC<MapViewProps> = ({
           <span className="material-symbols-outlined text-[16px]">{areCameraNamesVisible ? 'visibility' : 'visibility_off'}</span>
           Nombres
         </button>
+        <button
+          type="button"
+          onClick={() => setArePipeNamesVisible((visible) => !visible)}
+          className={`inline-flex h-8 items-center gap-1.5 rounded-full border px-3 text-[11px] font-bold shadow-sm transition ${
+            arePipeNamesVisible
+              ? 'border-[#4f46e5] bg-white text-[#3730a3] hover:bg-indigo-50'
+              : 'border-[#afc0c9] bg-[#eef3f5] text-[#58717d] hover:bg-white'
+          }`}
+          title={arePipeNamesVisible ? 'Ocultar nombres de tramos' : 'Mostrar nombres de tramos'}
+          aria-pressed={arePipeNamesVisible}
+        >
+          <span className="material-symbols-outlined text-[16px]">{arePipeNamesVisible ? 'visibility' : 'visibility_off'}</span>
+          Tramos
+        </button>
       </div>
       </div>
 
@@ -1673,6 +1699,15 @@ export const MapView: React.FC<MapViewProps> = ({
                     >
                       <span className="material-symbols-outlined text-[18px]">{cable ? 'cable' : 'timeline'}</span>
                     </button>
+                    {arePipeNamesVisible && (
+                      <span
+                        className="pointer-events-none absolute z-20 max-w-[160px] truncate rounded-md border border-indigo-500/35 bg-white/95 px-1.5 py-1 font-mono text-[9px] font-bold text-indigo-800 shadow-[0_3px_10px_rgba(55,48,163,0.22)]"
+                        style={getCameraNameStyle(midpointX, midpointY, 5 + iconScale * 16, textScale)}
+                        title={pipeNameLabel(photo)}
+                      >
+                        {pipeNameLabel(photo)}
+                      </span>
+                    )}
                     {actaName && areActaLabelsVisible && photo.showActaLabel !== false && (
                       <span
                         className="pointer-events-none absolute z-20 flex max-w-[150px] items-center gap-1 whitespace-nowrap rounded-md border border-[#0b5d8c]/35 bg-white/95 px-1.5 py-1 font-mono text-[9px] font-bold text-[#0b4770] shadow-[0_3px_10px_rgba(7,63,116,0.24)]"

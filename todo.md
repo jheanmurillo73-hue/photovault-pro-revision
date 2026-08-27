@@ -193,3 +193,6 @@
 - [x] Corregir la lógica que reclasifica cámaras como cajas al guardar cambios.
 - [x] Restaurar de forma segura a cámaras los elementos afectados que conservan código de cámara.
 - [x] Añadir y verificar la columna element_type en inspection_photos de Supabase para persistir la clasificación.
+- [x] Mostrar en Base de Datos el desglose de cámaras por estado de ejecución y tipo MT, BT y Datos.
+- [x] Mostrar el mismo desglose de estado y tipo para los tramos de tubería.
+- [x] Mostrar el nombre de cada tramo de tubería como etiqueta en el plano.
