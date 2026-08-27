@@ -3,7 +3,28 @@
  * categorías distintas y comunica el alcance real del elemento seleccionado.
  */
 import React, { useEffect, useState } from 'react';
-import { InspectionPhoto, getElementType } from '../types';
+import { groupEvidenceTimelineByDate, InspectionPhoto, normalizeEvidenceTimeline, getElementType } from '../types';
+
+const formatTimelineDay = (day: string) => {
+  if (day === 'Sin fecha') return day;
+  return new Date(`${day}T12:00:00`).toLocaleDateString('es-CO', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  });
+};
+
+const formatTimelineTime = (value: string) => {
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? 'Hora no disponible' : date.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' });
+};
+
+const formatGraphicTimelineDate = (value: string) => {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return 'Sin fecha';
+  return date.toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' });
+};
 
 interface PhotoDetailViewProps {
   photo: InspectionPhoto;
@@ -72,9 +93,20 @@ export const PhotoDetailView: React.FC<PhotoDetailViewProps> = ({
 
   const currentExecutionStatus = photo.executionStatus || 'En proceso';
   const elementType = getElementType(photo);
-  const galleryImages = Array.isArray(photo.imageUrls)
-    ? photo.imageUrls.filter((url): url is string => typeof url === 'string' && url.trim().length > 0 && !url.startsWith('data:image/svg+xml'))
-    : [];
+  const evidenceTimeline = normalizeEvidenceTimeline(photo);
+  const galleryImages = evidenceTimeline.map((entry) => entry.url);
+  const timelineGroups = groupEvidenceTimelineByDate(evidenceTimeline);
+  const graphicalTimelineEntries = evidenceTimeline
+    .map((entry, originalIndex) => ({ ...entry, originalIndex }))
+    .sort((left, right) => Date.parse(left.capturedAt) - Date.parse(right.capturedAt));
+  const graphicalTimelineWidth = Math.max(360, graphicalTimelineEntries.length * 118);
+  const graphicalTimelinePoints = graphicalTimelineEntries.map((entry, index) => {
+    const x = graphicalTimelineEntries.length === 1
+      ? graphicalTimelineWidth / 2
+      : 58 + index * ((graphicalTimelineWidth - 116) / (graphicalTimelineEntries.length - 1));
+    const y = [132, 88, 148, 106, 138, 94][index % 6];
+    return { ...entry, x, y };
+  });
   const hasEvidence = galleryImages.length > 0;
   const activeImageUrl = galleryImages[activeImageIndex] || galleryImages[0];
   const hasMultipleImages = galleryImages.length > 1;
@@ -650,6 +682,115 @@ export const PhotoDetailView: React.FC<PhotoDetailViewProps> = ({
           </div>
         </div>
       </div>
+
+      <section aria-labelledby="photo-timeline-title" className="overflow-hidden rounded-xl border border-[#c2c6d4] bg-white shadow-xs">
+        <div className="flex flex-col gap-2 border-b border-[#d7e3e8] bg-[#f3faff] px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="font-mono text-[10px] font-bold tracking-[0.14em] text-[#0566aa]">AVANCE DOCUMENTADO</p>
+            <h2 id="photo-timeline-title" className="mt-1 text-base font-bold text-[#0b2940]">Historial fotográfico</h2>
+          </div>
+          <span className="inline-flex w-fit items-center gap-1.5 rounded-full border border-[#b7d7e6] bg-white px-2.5 py-1 text-[11px] font-semibold text-[#285b72]">
+            <span className="material-symbols-outlined text-[15px]">photo_library</span>
+            {evidenceTimeline.length} evidencia{evidenceTimeline.length === 1 ? '' : 's'}
+          </span>
+        </div>
+
+        {timelineGroups.length === 0 ? (
+          <div className="flex items-center gap-3 px-5 py-6 text-sm text-[#607d8b]">
+            <span className="material-symbols-outlined grid h-10 w-10 place-items-center rounded-full bg-[#f3faff] text-[21px]">history_toggle_off</span>
+            <p>Aún no hay fotos para construir el avance cronológico de este elemento.</p>
+          </div>
+        ) : (
+          <div className="space-y-6 px-5 py-5">
+            <figure aria-labelledby="graphic-evolution-title" className="overflow-hidden rounded-xl border border-[#b7d7e6] bg-[linear-gradient(135deg,#f8fcfe_0%,#edf7fb_100%)]">
+              <div className="flex items-center justify-between gap-3 border-b border-[#d5e6ee] bg-white/80 px-3 py-2.5">
+                <div>
+                  <p className="font-mono text-[9px] font-bold tracking-[0.12em] text-[#0566aa]">EVOLUCIÓN VISUAL</p>
+                  <h3 id="graphic-evolution-title" className="mt-0.5 text-sm font-bold text-[#0b2940]">Ruta gráfica del avance</h3>
+                </div>
+                <span className="material-symbols-outlined text-[22px] text-[#0b5d8c]" aria-hidden="true">insights</span>
+              </div>
+              <div className="overflow-x-auto px-2 py-3" aria-label="Línea de tiempo gráfica de evidencias">
+                <div className="relative h-[13.5rem]" style={{ width: `${graphicalTimelineWidth}px` }}>
+                  <svg viewBox={`0 0 ${graphicalTimelineWidth} 200`} className="absolute inset-0 h-full w-full" preserveAspectRatio="none" aria-hidden="true">
+                    <polyline
+                      points={graphicalTimelinePoints.map((point) => `${point.x},${point.y}`).join(' ')}
+                      fill="none"
+                      stroke="#527f96"
+                      strokeWidth="3"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                    {graphicalTimelinePoints.map((point) => (
+                      <g key={`graphic-node-${point.originalIndex}`}>
+                        <circle cx={point.x} cy={point.y} r="7" fill="#ffffff" stroke="#0b5d8c" strokeWidth="3" />
+                        <circle cx={point.x} cy={point.y} r="2.5" fill="#00a8c6" />
+                      </g>
+                    ))}
+                  </svg>
+                  {graphicalTimelinePoints.map((point) => (
+                    <button
+                      key={`graphic-evidence-${point.originalIndex}`}
+                      type="button"
+                      onClick={() => openImageFullscreen(point.originalIndex)}
+                      aria-label={`Abrir hito de evolución del ${formatGraphicTimelineDate(point.capturedAt)}`}
+                      className="group absolute z-10 flex w-[5.25rem] -translate-x-1/2 flex-col items-center text-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0566aa] focus-visible:ring-offset-2"
+                      style={{ left: `${point.x}px`, top: `${Math.max(10, point.y - 88)}px` }}
+                    >
+                      <span className="relative block w-[4.6rem] overflow-hidden rounded-md border-2 border-white bg-white p-1 shadow-[0_5px_14px_rgba(7,63,116,0.24)] transition duration-200 group-hover:-translate-y-1 group-hover:border-[#56b5cd]">
+                        <img src={point.url} alt={`Hito fotográfico de ${formatGraphicTimelineDate(point.capturedAt)}`} className="h-14 w-full object-cover" />
+                        <span className="absolute -bottom-1.5 left-1/2 h-3 w-3 -translate-x-1/2 rotate-45 border-b-2 border-r-2 border-white bg-white" aria-hidden="true" />
+                      </span>
+                      <time dateTime={point.capturedAt} className="mt-3 max-w-full truncate rounded-full bg-white/85 px-1.5 py-0.5 font-mono text-[8px] font-bold text-[#315c70]">
+                        {formatGraphicTimelineDate(point.capturedAt)}
+                      </time>
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <figcaption className="border-t border-[#d5e6ee] bg-white/70 px-3 py-2 text-[10px] leading-4 text-[#527284]">Cada hito representa una evidencia registrada. Selecciónalo para abrir la foto y revisar su avance.</figcaption>
+            </figure>
+            {timelineGroups.map((group) => (
+              <div key={group.day} className="relative pl-8">
+                <span className="absolute left-[7px] top-2 h-full w-px bg-[#b7d7e6]" aria-hidden="true" />
+                <span className="absolute left-0 top-1.5 grid h-4 w-4 place-items-center rounded-full border-2 border-white bg-[#0566aa] shadow-sm" aria-hidden="true" />
+                <time dateTime={group.day} className="mb-3 block text-xs font-bold capitalize text-[#0b4f7a]">{formatTimelineDay(group.day)}</time>
+                <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                  {group.entries.map((entry, entryIndex) => {
+                    const duplicateOrdinal = group.entries
+                      .slice(0, entryIndex)
+                      .filter((candidate) => candidate.url === entry.url && candidate.capturedAt === entry.capturedAt)
+                      .length;
+                    let matchedOccurrences = 0;
+                    const imageIndex = evidenceTimeline.findIndex((candidate) => {
+                      if (candidate.url !== entry.url || candidate.capturedAt !== entry.capturedAt) return false;
+                      const isRequestedOccurrence = matchedOccurrences === duplicateOrdinal;
+                      matchedOccurrences += 1;
+                      return isRequestedOccurrence;
+                    });
+                    return (
+                      <button
+                        key={`${group.day}-${entryIndex}`}
+                        type="button"
+                        onClick={() => openImageFullscreen(Math.max(0, imageIndex))}
+                        className="group flex overflow-hidden rounded-lg border border-[#c7dce5] bg-white text-left shadow-sm transition hover:-translate-y-0.5 hover:border-[#0566aa] hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0566aa] focus-visible:ring-offset-2"
+                        aria-label={`Abrir evidencia tomada a las ${formatTimelineTime(entry.capturedAt)}`}
+                      >
+                        <img src={entry.url} alt={`Evidencia de avance del ${formatTimelineDay(group.day)}`} className="h-20 w-24 shrink-0 object-cover" />
+                        <span className="flex min-w-0 flex-1 flex-col justify-center gap-1 px-3 py-2">
+                          <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide text-[#0566aa]"><span className="material-symbols-outlined text-[14px]">schedule</span>{formatTimelineTime(entry.capturedAt)}</span>
+                          <span className="truncate text-xs font-semibold text-[#24485b]">Evidencia de avance</span>
+                          <span className="text-[10px] text-[#607d8b]">Abrir en visor</span>
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
 
       {/* Fullscreen Lightbox Modal */}
       {isFullscreen && hasEvidence && (

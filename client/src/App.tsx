@@ -47,6 +47,8 @@ import { UserManagementView } from './components/UserManagementView';
 import { supabaseService } from './services/supabaseService';
 import { clearBlueprintImage, clearEvidenceImages, loadEvidenceImages, saveEvidenceImages } from './services/blueprintStorageService';
 import { canAccessModule, createFallbackAccess, MODULE_DEFINITIONS } from './lib/accessControl';
+import { applyPhotoUpdatePermissions } from './lib/photoPermissions';
+import { useSupabaseConnection } from './hooks/useSupabaseConnection';
 import { Footer } from './components/Footer';
 import { Toast } from './components/Toast';
 
@@ -55,6 +57,7 @@ const normalizeSettings = (candidate?: Partial<AppSettings> | null): AppSettings
   pushNotifications: candidate?.pushNotifications ?? INITIAL_SETTINGS.pushNotifications,
   syncWifiOnly: candidate?.syncWifiOnly ?? INITIAL_SETTINGS.syncWifiOnly,
   highQualityUploads: candidate?.highQualityUploads ?? INITIAL_SETTINGS.highQualityUploads,
+  allowInspectorActaAssignment: candidate?.allowInspectorActaAssignment ?? INITIAL_SETTINGS.allowInspectorActaAssignment,
   autoVerifyPassed: candidate?.autoVerifyPassed ?? INITIAL_SETTINGS.autoVerifyPassed,
   offlineStorageLimitMb: typeof candidate?.offlineStorageLimitMb === 'number'
     ? candidate.offlineStorageLimitMb
@@ -153,6 +156,7 @@ const createMapElementPreview = (elementType: ElementType) => {
 };
 
 export default function App() {
+  const { connectionState, refreshConnection } = useSupabaseConnection();
   // Session Authentication State
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
     return sessionStorage.getItem('photovault_authenticated') === 'true';
@@ -318,9 +322,17 @@ export default function App() {
   };
 
   const syncPhotoToSupabase = (photo: InspectionPhoto, actionLabel: string) => {
-    void supabaseService.savePhoto(photo, inspector.id).then((saved) => {
-      if (!saved) {
-        showToast(`${actionLabel} quedó guardado en este dispositivo, pero no se pudo sincronizar con Supabase Storage. Intenta nuevamente cuando tengas conexión.`, 'error');
+    void supabaseService.savePhoto(photo, inspector.id).then((result) => {
+      if (!result.success) {
+        const destination = result.stage === 'storage'
+          ? 'Supabase Storage'
+          : result.stage === 'database'
+            ? 'la base de datos de Supabase'
+            : 'la conexión de Supabase';
+        showToast(
+          `${actionLabel} quedó guardado en este dispositivo, pero ${destination} rechazó la sincronización. ${result.message}`,
+          'error',
+        );
       }
     });
   };
@@ -381,21 +393,13 @@ export default function App() {
   const handleUpdatePhoto = (updated: InspectionPhoto) => {
     const current = photos.find((photo) => photo.id === updated.id);
     if (!current) return;
-    const protectedUpdate = userAccess.role === 'admin'
-      ? updated
-      : {
-        ...updated,
-        name: current.name,
-        acta: current.acta,
-        actaItem: current.actaItem,
-        actaLabelPosition: current.actaLabelPosition,
-        cameraType: current.cameraType,
-        elementType: current.elementType,
-        planX: current.planX,
-        planY: current.planY,
-        planEndX: current.planEndX,
-        planEndY: current.planEndY,
-      };
+    const canAssignActa = userAccess.role === 'admin' || settings.allowInspectorActaAssignment;
+    const protectedUpdate = applyPhotoUpdatePermissions({
+      current,
+      updated,
+      isAdmin: userAccess.role === 'admin',
+      canAssignActa,
+    });
     setPhotos((prev) =>
       prev.map((p) => (p.id === protectedUpdate.id ? protectedUpdate : p))
     );
@@ -576,7 +580,15 @@ export default function App() {
   };
 
   const handleSaveSettings = (newSettings: AppSettings) => {
-    setSettings(normalizeSettings(newSettings));
+    const normalizedSettings = normalizeSettings(newSettings);
+    setSettings(
+      userAccess.role === 'admin'
+        ? normalizedSettings
+        : {
+          ...normalizedSettings,
+          allowInspectorActaAssignment: settings.allowInspectorActaAssignment,
+        },
+    );
     showToast('Preferencias actualizadas');
   };
 
@@ -725,6 +737,8 @@ export default function App() {
         onToggleMobileMenu={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
         onOpenAuth={() => setIsAuthModalOpen(true)}
         onOpenSupabaseModal={() => setIsSupabaseModalOpen(true)}
+        connectionState={connectionState}
+        onRefreshConnection={refreshConnection}
       />
 
       <div className="flex flex-1 pt-16">
@@ -814,6 +828,7 @@ export default function App() {
                 onRestoreBackup={handleRestoreBackup}
                 canResetOperationalData={userAccess.role === 'admin'}
                 onResetOperationalData={handleResetOperationalData}
+                canManageActaAssignment={userAccess.role === 'admin'}
               />
             ) : currentTab === 'history' || currentTab === 'collections' ? (
               <HistoryView
@@ -869,6 +884,7 @@ export default function App() {
           photo={editingPhoto}
           isOpen={!!editingPhoto}
           isAdmin={userAccess.role === 'admin'}
+          canAssignActa={userAccess.role === 'admin' || settings.allowInspectorActaAssignment}
           onClose={() => setEditingPhoto(null)}
           onSave={(updatedPhoto) => {
             handleUpdatePhoto(updatedPhoto);

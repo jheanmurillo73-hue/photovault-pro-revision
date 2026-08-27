@@ -131,6 +131,8 @@ export const UploadPhotoView: React.FC<UploadPhotoViewProps> = ({
       displayId: `INSP-${new Date().getFullYear()}-${randomSuffix}`,
       name: photoName.trim(),
       imageUrl: previewImage,
+      imageUrls: [previewImage],
+      evidenceTimeline: [{ url: previewImage, capturedAt: new Date().toISOString() }],
       date: new Date(date).toLocaleDateString('es-ES', {
         day: 'numeric',
         month: 'short',

@@ -1,0 +1,82 @@
+name: Validar pull request
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize, ready_for_review]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pr-validation-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Pruebas unitarias
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Obtener código
+        uses: actions/checkout@v4
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Activar pnpm
+        run: corepack enable
+
+      - name: Instalar dependencias bloqueadas
+        run: pnpm install --frozen-lockfile
+
+      - name: Ejecutar pruebas
+        run: pnpm test
+
+  types:
+    name: Comprobación de tipos
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Obtener código
+        uses: actions/checkout@v4
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Activar pnpm
+        run: corepack enable
+
+      - name: Instalar dependencias bloqueadas
+        run: pnpm install --frozen-lockfile
+
+      - name: Verificar TypeScript
+        run: pnpm run check
+
+  build:
+    name: Compilación de producción
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Obtener código
+        uses: actions/checkout@v4
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Activar pnpm
+        run: corepack enable
+
+      - name: Instalar dependencias bloqueadas
+        run: pnpm install --frozen-lockfile
+
+      - name: Compilar aplicación
+        run: pnpm run build

@@ -1,19 +1,38 @@
 import { getSupabaseClient, isSupabaseConfigured, getActiveSupabaseConfig } from '../lib/supabase';
-import { ActaItem, InspectionPhoto, InspectorProfile, ActivityItem, InspectionCollection, AppSettings, AppModule, AppRole, UserAccess, normalizePipeConduits } from '../types';
+import { ActaItem, EvidenceTimelineEntry, InspectionPhoto, InspectorProfile, ActivityItem, InspectionCollection, AppSettings, AppModule, AppRole, UserAccess, normalizeEvidenceTimeline, normalizePipeConduits } from '../types';
 import { ALL_OPERATIONAL_MODULES, createFallbackAccess, isPrimaryAdmin, normalizeModules } from '../lib/accessControl';
 import { removeEvidenceFromSupabase, uploadEvidenceToSupabase } from './supabaseStorageService';
 
-const parseImageUrls = (value: unknown, fallback?: string): string[] => {
-  if (Array.isArray(value)) return value.filter((url): url is string => typeof url === 'string' && url.trim().length > 0);
+const parseEvidenceTimeline = (value: unknown, fallback?: string, fallbackDate?: string): EvidenceTimelineEntry[] => {
+  const defaultDate = fallbackDate || new Date().toISOString();
+  const parseEntries = (candidate: unknown): EvidenceTimelineEntry[] => {
+    if (!Array.isArray(candidate)) return [];
+    return candidate.flatMap((entry) => {
+      if (typeof entry === 'string' && entry.trim()) return [{ url: entry, capturedAt: defaultDate }];
+      if (!entry || typeof entry !== 'object' || Array.isArray(entry)) return [];
+      const item = entry as Partial<EvidenceTimelineEntry>;
+      return typeof item.url === 'string' && item.url.trim()
+        ? [{ url: item.url, capturedAt: typeof item.capturedAt === 'string' && item.capturedAt.trim() ? item.capturedAt : defaultDate }]
+        : [];
+    });
+  };
+
+  if (Array.isArray(value)) return parseEntries(value);
   if (typeof value === 'string' && value.trim()) {
     try {
       const parsed = JSON.parse(value);
-      if (Array.isArray(parsed)) return parsed.filter((url): url is string => typeof url === 'string' && url.trim().length > 0);
+      return parseEntries(parsed);
     } catch {
-      return fallback ? [fallback] : [];
+      return fallback ? [{ url: fallback, capturedAt: defaultDate }] : [];
     }
   }
-  return fallback ? [fallback] : [];
+  return fallback ? [{ url: fallback, capturedAt: defaultDate }] : [];
+};
+
+const serializeEvidenceTimeline = (photo: InspectionPhoto, urls: string[]): string => {
+  const sourceTimeline = normalizeEvidenceTimeline(photo);
+  const fallbackDate = photo.dateRaw || new Date().toISOString();
+  return JSON.stringify(urls.map((url, index) => ({ url, capturedAt: sourceTimeline[index]?.capturedAt || fallbackDate })));
 };
 
 const parsePipeConduits = (value: unknown) => {
@@ -49,7 +68,7 @@ const parseActaItem = (value: unknown): ActaItem | undefined => {
 };
 
 const getCloudEvidenceUrls = async (photo: InspectionPhoto): Promise<string[]> => {
-  const evidence = Array.isArray(photo.imageUrls) ? photo.imageUrls : [];
+  const evidence = normalizeEvidenceTimeline(photo).map((entry) => entry.url);
   return uploadEvidenceToSupabase(photo.id, evidence);
 };
 
@@ -60,6 +79,10 @@ export interface SupabaseConnectionStatus {
   missingTables?: string[];
   existingTables?: string[];
 }
+
+export type SupabaseSaveResult =
+  | { success: true }
+  | { success: false; stage: 'configuration' | 'storage' | 'database'; message: string };
 
 export const supabaseService = {
   isConfigured: () => isSupabaseConfigured(),
@@ -242,21 +265,32 @@ export const supabaseService = {
   },
 
   // Photos: Save or sync photo to Supabase
-  savePhoto: async (photo: InspectionPhoto, userId?: string): Promise<boolean> => {
+  savePhoto: async (photo: InspectionPhoto, userId?: string): Promise<SupabaseSaveResult> => {
     const client = getSupabaseClient();
     if (!client || !isSupabaseConfigured()) {
-      return false;
+      return {
+        success: false,
+        stage: 'configuration',
+        message: 'No hay una conexión válida con Supabase. Verifica la URL y la clave pública.',
+      };
     }
 
     try {
-      const cloudEvidenceUrls = await getCloudEvidenceUrls(photo);
+      let cloudEvidenceUrls: string[];
+      try {
+        cloudEvidenceUrls = await getCloudEvidenceUrls(photo);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'No se pudieron cargar las evidencias.';
+        console.warn('Supabase Storage upload error:', message);
+        return { success: false, stage: 'storage', message };
+      }
       const cloudImageUrl = cloudEvidenceUrls[0] || (photo.imageUrl.startsWith('data:image/') ? '' : photo.imageUrl);
       const { error } = await client.from('inspection_photos').upsert({
         id: photo.id,
         display_id: photo.displayId,
         name: photo.name,
         image_url: cloudImageUrl,
-        image_urls: JSON.stringify(cloudEvidenceUrls),
+        image_urls: serializeEvidenceTimeline(photo, cloudEvidenceUrls),
         date: photo.date,
         date_raw: photo.dateRaw,
         status: photo.status,
@@ -300,12 +334,16 @@ export const supabaseService = {
 
       if (error) {
         console.warn('Supabase upsert note:', error.message);
-        return false;
+        return { success: false, stage: 'database', message: error.message };
       }
-      return true;
+      return { success: true };
     } catch (err) {
       console.warn('Error saving to Supabase:', err);
-      return false;
+      return {
+        success: false,
+        stage: 'database',
+        message: err instanceof Error ? err.message : 'No se pudo actualizar el registro de inspección.',
+      };
     }
   },
 
@@ -326,7 +364,7 @@ export const supabaseService = {
       display_id: photo.displayId,
       name: photo.name,
       image_url: cloudImageUrl,
-      image_urls: JSON.stringify(cloudEvidenceUrls),
+      image_urls: serializeEvidenceTimeline(photo, cloudEvidenceUrls),
       date: photo.date,
       date_raw: photo.dateRaw,
       status: photo.status,
@@ -402,13 +440,15 @@ export const supabaseService = {
       if (!data) return [];
 
       return data.map((item: any) => {
-        const imageUrls = parseImageUrls(item.image_urls, item.image_url);
+        const evidenceTimeline = parseEvidenceTimeline(item.image_urls, item.image_url, item.date_raw || item.created_at);
+        const imageUrls = evidenceTimeline.map((entry) => entry.url);
         return {
         id: item.id,
         displayId: item.display_id || item.id,
         name: item.name || 'Sin título',
         imageUrl: imageUrls[0] || item.image_url,
         imageUrls,
+        evidenceTimeline,
         date: item.date,
         dateRaw: item.date_raw || item.created_at || new Date().toISOString(),
         status: item.status || 'Synced',
