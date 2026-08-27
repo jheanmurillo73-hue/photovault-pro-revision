@@ -105,7 +105,8 @@ export const PhotoDetailView: React.FC<PhotoDetailViewProps> = ({
       ? graphicalTimelineWidth / 2
       : 58 + index * ((graphicalTimelineWidth - 116) / (graphicalTimelineEntries.length - 1));
     const y = [132, 88, 148, 106, 138, 94][index % 6];
-    return { ...entry, x, y };
+    const progress = Math.round(((index + 1) / graphicalTimelineEntries.length) * 100);
+    return { ...entry, x, y, progress };
   });
   const hasEvidence = galleryImages.length > 0;
   const activeImageUrl = galleryImages[activeImageIndex] || galleryImages[0];
@@ -733,22 +734,25 @@ export const PhotoDetailView: React.FC<PhotoDetailViewProps> = ({
                       key={`graphic-evidence-${point.originalIndex}`}
                       type="button"
                       onClick={() => openImageFullscreen(point.originalIndex)}
-                      aria-label={`Abrir hito de evolución del ${formatGraphicTimelineDate(point.capturedAt)}`}
+                      aria-label={`Abrir hito de evolución del ${formatGraphicTimelineDate(point.capturedAt)} con ${point.progress}% de avance documentado`}
                       className="group absolute z-10 flex w-[5.25rem] -translate-x-1/2 flex-col items-center text-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0566aa] focus-visible:ring-offset-2"
                       style={{ left: `${point.x}px`, top: `${Math.max(10, point.y - 88)}px` }}
                     >
                       <span className="relative block w-[4.6rem] overflow-hidden rounded-md border-2 border-white bg-white p-1 shadow-[0_5px_14px_rgba(7,63,116,0.24)] transition duration-200 group-hover:-translate-y-1 group-hover:border-[#56b5cd]">
                         <img src={point.url} alt={`Hito fotográfico de ${formatGraphicTimelineDate(point.capturedAt)}`} className="h-14 w-full object-cover" />
+                        <span className="absolute left-1 top-1 inline-flex min-w-8 items-center justify-center rounded-full border border-white/80 bg-[#073f74] px-1.5 py-0.5 text-[9px] font-extrabold leading-none text-white shadow-sm" aria-hidden="true">{point.progress}%</span>
                         <span className="absolute -bottom-1.5 left-1/2 h-3 w-3 -translate-x-1/2 rotate-45 border-b-2 border-r-2 border-white bg-white" aria-hidden="true" />
                       </span>
                       <time dateTime={point.capturedAt} className="mt-3 max-w-full truncate rounded-full bg-white/85 px-1.5 py-0.5 font-mono text-[8px] font-bold text-[#315c70]">
                         {formatGraphicTimelineDate(point.capturedAt)}
                       </time>
+                      <span className="mt-1 h-1.5 w-[4.6rem] overflow-hidden rounded-full bg-[#cfe4ec]" aria-hidden="true"><span className="block h-full rounded-full bg-[#00a8c6]" style={{ width: `${point.progress}%` }} /></span>
+                      <span className="sr-only">{point.progress}% de avance documentado</span>
                     </button>
                   ))}
                 </div>
               </div>
-              <figcaption className="border-t border-[#d5e6ee] bg-white/70 px-3 py-2 text-[10px] leading-4 text-[#527284]">Cada hito representa una evidencia registrada. Selecciónalo para abrir la foto y revisar su avance.</figcaption>
+              <figcaption className="border-t border-[#d5e6ee] bg-white/70 px-3 py-2 text-[10px] leading-4 text-[#527284]">Cada hito representa una evidencia registrada. El porcentaje muestra el avance documentado según su posición cronológica; selecciónalo para abrir la foto.</figcaption>
             </figure>
             {timelineGroups.map((group) => (
               <div key={group.day} className="relative pl-8">

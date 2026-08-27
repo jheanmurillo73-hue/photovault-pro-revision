@@ -80,6 +80,9 @@ describe('Historial fotográfico por elemento', () => {
     expect(screen.getByRole('heading', { name: 'Ruta gráfica del avance' })).toBeTruthy();
     const graphicalMilestones = screen.getAllByRole('button', { name: /Abrir hito de evolución/i });
     expect(graphicalMilestones).toHaveLength(3);
+    expect(graphicalMilestones[0].getAttribute('aria-label')).toContain('33% de avance documentado');
+    expect(graphicalMilestones[1].getAttribute('aria-label')).toContain('67% de avance documentado');
+    expect(graphicalMilestones[2].getAttribute('aria-label')).toContain('100% de avance documentado');
     fireEvent.click(graphicalMilestones[2]);
 
     expect(screen.getByText(/Foto 3 de 3/)).toBeTruthy();
