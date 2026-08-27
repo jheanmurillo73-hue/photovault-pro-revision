@@ -174,3 +174,6 @@
 - [x] Aumentar el límite de fotos adjuntables desde las propiedades del elemento.
 - [x] Ajustar la interfaz para comunicar la nueva capacidad de evidencias.
 - [x] Validar la selección, orden y guardado de más de seis fotos por elemento.
+- [x] Definir y aplicar compresión reforzada para imágenes de evidencia pesadas.
+- [x] Mostrar al usuario el resultado de la optimización antes de sincronizar las fotos.
+- [x] Validar la compresión adaptativa y la carga de múltiples imágenes pesadas.

@@ -52,7 +52,13 @@ vi.mock('../client/src/services/supabaseStorageService', async () => {
 });
 
 vi.mock('../client/src/services/deviceStorageService', () => ({
-  compressImageForDevice: vi.fn(async (file: File) => `data:image/jpeg;base64,${file.name}`),
+  compressEvidenceImageForUpload: vi.fn(async (file: File) => ({
+    dataUrl: `data:image/jpeg;base64,${file.name}`,
+    originalBytes: file.size,
+    optimizedBytes: Math.max(1, Math.floor(file.size / 2)),
+    profile: { level: 'reforzada', maxWidth: 1600, maxHeight: 1200, quality: 0.72, targetBytes: 1400 * 1024 },
+  })),
+  formatImageBytes: vi.fn((bytes: number) => `${bytes} B`),
 }));
 
 describe('Diálogos del plano en móvil', () => {
@@ -144,6 +150,7 @@ describe('Diálogos del plano en móvil', () => {
     fireEvent.change(galleryInput!, { target: { files: additionalPhotos } });
 
     await waitFor(() => expect(screen.getByText(/8\/20 fotos/)).toBeTruthy());
+    expect(screen.getByRole('status').textContent).toContain('Compresión reforzada');
     fireEvent.click(screen.getByText('Guardar Cambios'));
     expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ imageUrls: expect.arrayContaining(['https://example.com/camera.jpg']) }));
     expect(onSave.mock.calls[0][0].imageUrls).toHaveLength(8);

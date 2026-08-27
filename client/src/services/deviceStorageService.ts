@@ -9,6 +9,46 @@ export interface DeviceStorageStats {
   storageType: 'localStorage' | 'indexedDB';
 }
 
+export type EvidenceCompressionLevel = 'estándar' | 'reforzada' | 'intensiva';
+
+export interface EvidenceCompressionProfile {
+  level: EvidenceCompressionLevel;
+  maxWidth: number;
+  maxHeight: number;
+  quality: number;
+  targetBytes: number;
+}
+
+export interface CompressedEvidenceImage {
+  dataUrl: string;
+  originalBytes: number;
+  optimizedBytes: number;
+  profile: EvidenceCompressionProfile;
+}
+
+const MB = 1024 * 1024;
+
+export function getEvidenceImageCompressionProfile(fileSize: number): EvidenceCompressionProfile {
+  if (fileSize >= 8 * MB) {
+    return { level: 'intensiva', maxWidth: 1280, maxHeight: 960, quality: 0.66, targetBytes: 900 * 1024 };
+  }
+  if (fileSize >= 3 * MB) {
+    return { level: 'reforzada', maxWidth: 1600, maxHeight: 1200, quality: 0.72, targetBytes: 1400 * 1024 };
+  }
+  return { level: 'estándar', maxWidth: 1920, maxHeight: 1440, quality: 0.8, targetBytes: 2 * MB };
+}
+
+export function getDataUrlByteSize(dataUrl: string): number {
+  const base64 = dataUrl.includes(',') ? dataUrl.slice(dataUrl.indexOf(',') + 1) : dataUrl;
+  return Math.max(0, Math.floor((base64.length * 3) / 4) - (base64.endsWith('==') ? 2 : base64.endsWith('=') ? 1 : 0));
+}
+
+export function formatImageBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < MB) return `${Math.round(bytes / 1024)} KB`;
+  return `${(bytes / MB).toFixed(1)} MB`;
+}
+
 // Compress image on mobile or PC before storing to keep local device memory fast and lightweight
 export function compressImageForDevice(
   file: File | string,
@@ -71,6 +111,20 @@ export function compressImageForDevice(
       reader.readAsDataURL(file);
     }
   });
+}
+
+export async function compressEvidenceImageForUpload(file: File): Promise<CompressedEvidenceImage> {
+  const profile = getEvidenceImageCompressionProfile(file.size);
+  let dataUrl = await compressImageForDevice(file, profile.maxWidth, profile.maxHeight, profile.quality);
+  let optimizedBytes = getDataUrlByteSize(dataUrl);
+
+  if (optimizedBytes > profile.targetBytes) {
+    const retryQuality = Math.max(0.58, profile.quality - 0.1);
+    dataUrl = await compressImageForDevice(dataUrl, 1280, 960, retryQuality);
+    optimizedBytes = getDataUrlByteSize(dataUrl);
+  }
+
+  return { dataUrl, originalBytes: file.size, optimizedBytes, profile };
 }
 
 // Calculate approximate local device memory usage

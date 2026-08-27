@@ -6,7 +6,7 @@ import React, { useRef, useState } from 'react';
 import { CableGauge, CableType, CABLE_TYPE_OPTIONS, getCableGaugeOptionsForPlanArea, InspectionPhoto, ExecutionStatus, CameraCode, CameraType, ElementType, ActaLabelPosition, getElectricalElementOption, getElectricalPlanArea, getElementType, getPipeNetworkOption, PIPE_NETWORK_OPTIONS, PipeConduit, PipeNetworkType, getDefaultPipeConfiguration, normalizeEvidenceTimeline, normalizePipeConduits } from '../types';
 import { WAREHOUSE_LOCATIONS, CAMERA_CODES, CAMERA_TYPES } from '../data/mockData';
 import { ACTA_ITEM_OPTIONS, getActaItemKey } from '../data/actaItems';
-import { compressImageForDevice } from '../services/deviceStorageService';
+import { compressEvidenceImageForUpload, formatImageBytes } from '../services/deviceStorageService';
 import { TramoSelector } from './TramoSelector';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from './ui/command';
 
@@ -85,6 +85,7 @@ export const EditPhotoModal: React.FC<EditPhotoModalProps> = ({
   const [imageSize, setImageSize] = useState(photo.fileSize ?? '');
   const [isProcessingImage, setIsProcessingImage] = useState(false);
   const [imageError, setImageError] = useState<string | null>(null);
+  const [imageOptimizationNotice, setImageOptimizationNotice] = useState<string | null>(null);
   const [photoIndexPendingRemoval, setPhotoIndexPendingRemoval] = useState<number | null>(null);
   const [draggedPhotoIndex, setDraggedPhotoIndex] = useState<number | null>(null);
   const [dragOverPhotoIndex, setDragOverPhotoIndex] = useState<number | null>(null);
@@ -139,19 +140,23 @@ export const EditPhotoModal: React.FC<EditPhotoModalProps> = ({
     }
 
     setImageError(null);
+    setImageOptimizationNotice(null);
     setIsProcessingImage(true);
     try {
       const filesToProcess = validFiles.slice(0, remainingSlots);
-      const optimizedImages = await Promise.all(filesToProcess.map((file) => compressImageForDevice(file, 1280, 960, 0.76)));
+      const optimizedImages = await Promise.all(filesToProcess.map((file) => compressEvidenceImageForUpload(file)));
       const originalSize = filesToProcess.reduce((total, file) => total + file.size, 0);
+      const optimizedSize = optimizedImages.reduce((total, image) => total + image.optimizedBytes, 0);
+      const reinforcedImages = optimizedImages.filter((image) => image.profile.level !== 'estándar').length;
       const capturedAt = new Date().toISOString();
       setEvidenceTimeline((previous) => [
         ...previous,
-        ...optimizedImages.map((url) => ({ url, capturedAt })),
+        ...optimizedImages.map(({ dataUrl }) => ({ url: dataUrl, capturedAt })),
       ].slice(0, MAX_EVIDENCE_PHOTOS));
-      setImageSize(originalSize > 1024 * 1024
-        ? `${(originalSize / (1024 * 1024)).toFixed(1)} MB`
-        : `${Math.max(1, Math.round(originalSize / 1024))} KB`);
+      setImageSize(formatImageBytes(originalSize));
+      setImageOptimizationNotice(reinforcedImages > 0
+        ? `Compresión ${reinforcedImages === 1 ? 'reforzada' : 'reforzada en ' + reinforcedImages + ' fotos'}: ${formatImageBytes(originalSize)} → ${formatImageBytes(optimizedSize)}. Listas para sincronizar.`
+        : `Fotos optimizadas: ${formatImageBytes(originalSize)} → ${formatImageBytes(optimizedSize)} antes de sincronizar.`);
       if (filesToProcess.length < selectedFiles.length) {
         setImageError(`Se agregaron las fotos disponibles hasta el máximo de ${MAX_EVIDENCE_PHOTOS} por elemento.`);
       }
@@ -361,13 +366,14 @@ export const EditPhotoModal: React.FC<EditPhotoModalProps> = ({
                   className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-[#0566aa] px-3 text-[12px] font-bold text-white transition hover:bg-[#004d99] disabled:cursor-wait disabled:opacity-60"
                 >
                   <span className="material-symbols-outlined text-[16px]">{isProcessingImage ? 'progress_activity' : 'photo_camera'}</span>
-                  {isProcessingImage ? 'Optimizando…' : 'Tomar foto'}
+                  {isProcessingImage ? 'Optimizando…' : 'Galería'}
                 </button>
                 </div>
                 <p className="mt-1.5 text-[10px] text-[#607d8b]">{imageUrls.length === 0 ? 'Sin evidencia cargada. Usa Galería o Tomar foto para adjuntarla. ' : `${imageUrls.length}/${MAX_EVIDENCE_PHOTOS} fotos. ${imageUrls.length > 1 ? 'Arrastra las miniaturas para ordenarlas; la primera es la portada. ' : ''}`}{imageSize ? `Última carga original: ${imageSize}.` : 'Cada imagen se optimiza antes de guardarse.'}</p>
               </div>
             </div>
             {imageError && <p className="mt-2 text-[11px] font-medium text-[#ba1a1a]">{imageError}</p>}
+            {imageOptimizationNotice && <p className="mt-2 rounded-md border border-[#9fc7d9] bg-[#edf9ff] px-2.5 py-2 text-[11px] font-medium text-[#075a91]" role="status">{imageOptimizationNotice}</p>}
             <input ref={galleryInputRef} type="file" accept="image/*" multiple onChange={handlePhotoChange} className="hidden" />
             <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" onChange={handlePhotoChange} className="hidden" />
           </div>
