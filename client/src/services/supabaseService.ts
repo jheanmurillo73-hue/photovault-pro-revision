@@ -80,6 +80,10 @@ export interface SupabaseConnectionStatus {
   existingTables?: string[];
 }
 
+export type SupabaseSaveResult =
+  | { success: true }
+  | { success: false; stage: 'configuration' | 'storage' | 'database'; message: string };
+
 export const supabaseService = {
   isConfigured: () => isSupabaseConfigured(),
   getConfig: () => getActiveSupabaseConfig(),
@@ -261,14 +265,25 @@ export const supabaseService = {
   },
 
   // Photos: Save or sync photo to Supabase
-  savePhoto: async (photo: InspectionPhoto, userId?: string): Promise<boolean> => {
+  savePhoto: async (photo: InspectionPhoto, userId?: string): Promise<SupabaseSaveResult> => {
     const client = getSupabaseClient();
     if (!client || !isSupabaseConfigured()) {
-      return false;
+      return {
+        success: false,
+        stage: 'configuration',
+        message: 'No hay una conexión válida con Supabase. Verifica la URL y la clave pública.',
+      };
     }
 
     try {
-      const cloudEvidenceUrls = await getCloudEvidenceUrls(photo);
+      let cloudEvidenceUrls: string[];
+      try {
+        cloudEvidenceUrls = await getCloudEvidenceUrls(photo);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'No se pudieron cargar las evidencias.';
+        console.warn('Supabase Storage upload error:', message);
+        return { success: false, stage: 'storage', message };
+      }
       const cloudImageUrl = cloudEvidenceUrls[0] || (photo.imageUrl.startsWith('data:image/') ? '' : photo.imageUrl);
       const { error } = await client.from('inspection_photos').upsert({
         id: photo.id,
@@ -319,12 +334,16 @@ export const supabaseService = {
 
       if (error) {
         console.warn('Supabase upsert note:', error.message);
-        return false;
+        return { success: false, stage: 'database', message: error.message };
       }
-      return true;
+      return { success: true };
     } catch (err) {
       console.warn('Error saving to Supabase:', err);
-      return false;
+      return {
+        success: false,
+        stage: 'database',
+        message: err instanceof Error ? err.message : 'No se pudo actualizar el registro de inspección.',
+      };
     }
   },
 

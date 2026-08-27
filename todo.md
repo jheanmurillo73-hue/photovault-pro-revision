@@ -183,3 +183,5 @@
 - [x] Añadir una configuración administrativa para permitir o bloquear la asignación de actas por inspectores.
 - [x] Aplicar la configuración al selector y guardado de actas en las propiedades del elemento.
 - [x] Validar los estados habilitado y bloqueado para el perfil inspector.
+- [x] Diagnosticar la causa del fallo de sincronización de cambios con Supabase Storage y definir la corrección segura.
+- [x] Investigar y corregir el fallo persistente de sincronización con Supabase Storage, incluyendo la causa técnica exacta.

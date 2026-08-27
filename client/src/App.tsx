@@ -320,9 +320,17 @@ export default function App() {
   };
 
   const syncPhotoToSupabase = (photo: InspectionPhoto, actionLabel: string) => {
-    void supabaseService.savePhoto(photo, inspector.id).then((saved) => {
-      if (!saved) {
-        showToast(`${actionLabel} quedó guardado en este dispositivo, pero no se pudo sincronizar con Supabase Storage. Intenta nuevamente cuando tengas conexión.`, 'error');
+    void supabaseService.savePhoto(photo, inspector.id).then((result) => {
+      if (!result.success) {
+        const destination = result.stage === 'storage'
+          ? 'Supabase Storage'
+          : result.stage === 'database'
+            ? 'la base de datos de Supabase'
+            : 'la conexión de Supabase';
+        showToast(
+          `${actionLabel} quedó guardado en este dispositivo, pero ${destination} rechazó la sincronización. ${result.message}`,
+          'error',
+        );
       }
     });
   };
