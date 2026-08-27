@@ -185,3 +185,4 @@
 - [x] Validar los estados habilitado y bloqueado para el perfil inspector.
 - [x] Diagnosticar la causa del fallo de sincronización de cambios con Supabase Storage y definir la corrección segura.
 - [x] Investigar y corregir el fallo persistente de sincronización con Supabase Storage, incluyendo la causa técnica exacta.
+- [x] Añadir un indicador visual y accesible del estado conectado o desconectado de Supabase.

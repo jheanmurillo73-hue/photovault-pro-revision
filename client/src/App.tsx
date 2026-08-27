@@ -48,6 +48,7 @@ import { supabaseService } from './services/supabaseService';
 import { clearBlueprintImage, clearEvidenceImages, loadEvidenceImages, saveEvidenceImages } from './services/blueprintStorageService';
 import { canAccessModule, createFallbackAccess, MODULE_DEFINITIONS } from './lib/accessControl';
 import { applyPhotoUpdatePermissions } from './lib/photoPermissions';
+import { useSupabaseConnection } from './hooks/useSupabaseConnection';
 import { Footer } from './components/Footer';
 import { Toast } from './components/Toast';
 
@@ -155,6 +156,7 @@ const createMapElementPreview = (elementType: ElementType) => {
 };
 
 export default function App() {
+  const { connectionState, refreshConnection } = useSupabaseConnection();
   // Session Authentication State
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
     return sessionStorage.getItem('photovault_authenticated') === 'true';
@@ -735,6 +737,8 @@ export default function App() {
         onToggleMobileMenu={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
         onOpenAuth={() => setIsAuthModalOpen(true)}
         onOpenSupabaseModal={() => setIsSupabaseModalOpen(true)}
+        connectionState={connectionState}
+        onRefreshConnection={refreshConnection}
       />
 
       <div className="flex flex-1 pt-16">
