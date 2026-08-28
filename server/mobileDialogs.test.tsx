@@ -7,6 +7,15 @@ import { MapView } from '../client/src/components/MapView';
 import { applyPhotoUpdatePermissions } from '../client/src/lib/photoPermissions';
 import type { InspectionPhoto } from '../client/src/types';
 
+class ResizeObserverMock {
+  observe() {}
+  unobserve() {}
+  disconnect() {}
+}
+
+Object.assign(globalThis, { ResizeObserver: ResizeObserverMock });
+Object.assign(HTMLElement.prototype, { scrollIntoView: () => undefined });
+
 const mobileElement: InspectionPhoto = {
   id: 'mobile-camera-01',
   displayId: 'MOB-001',
@@ -204,6 +213,26 @@ describe('Diálogos del plano en móvil', () => {
       acta: 'Acta 1',
       actaItem: { code: '1.01', description: 'Ítem contractual vigente' },
     });
+  });
+
+  it('permite asociar varios ítems de acta al mismo elemento', () => {
+    const onSave = vi.fn();
+    render(<EditPhotoModal photo={mobileElement} isOpen isAdmin onClose={vi.fn()} onSave={onSave} />);
+
+    fireEvent.click(screen.getByRole('button', { name: /Buscar y seleccionar ítems de acta/i }));
+    const options = screen.getAllByRole('option').filter((option) => option.hasAttribute('data-value') && option.getAttribute('data-value') !== 'sin item de acta');
+    fireEvent.click(options[0]);
+    fireEvent.click(options[1]);
+    fireEvent.click(screen.getByText('Guardar Cambios'));
+
+    expect(onSave).toHaveBeenCalledWith(expect.objectContaining({
+      actaItems: expect.arrayContaining([
+        expect.objectContaining({ code: expect.any(String) }),
+        expect.objectContaining({ code: expect.any(String) }),
+      ]),
+    }));
+    expect(onSave.mock.calls[0][0].actaItems).toHaveLength(2);
+    expect(onSave.mock.calls[0][0].actaItem).toEqual(onSave.mock.calls[0][0].actaItems[0]);
   });
 
   it('permite guardar más de seis fotos de evidencia en las propiedades del elemento', async () => {

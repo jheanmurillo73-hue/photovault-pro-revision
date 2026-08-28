@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { InspectionPhoto, InspectorProfile, CameraType, ExecutionStatus, getElementType } from '../types';
 import { StatusBreakdown, getWorkElementStatistics } from '../lib/workElementStatistics';
+import { getActaItemKey } from '../data/actaItems';
 
 interface DatabaseTableViewProps {
   photos: InspectionPhoto[];
@@ -15,6 +16,10 @@ interface DatabaseTableViewProps {
 
 type SortField = 'cameraCode' | 'cameraType' | 'name' | 'tramo' | 'metraje' | 'executionStatus' | 'date' | 'inspectorName';
 type SortOrder = 'asc' | 'desc';
+
+const getPhotoActaItems = (photo: InspectionPhoto) => photo.actaItems?.length
+  ? photo.actaItems
+  : photo.actaItem ? [photo.actaItem] : [];
 
 const StatusMatrixCard: React.FC<{
   title: string;
@@ -159,8 +164,8 @@ export const DatabaseTableView: React.FC<DatabaseTableViewProps> = ({
         const matchType = (photo.cameraType || '').toLowerCase().includes(query);
         const matchMetraje = String(photo.metraje || '').toLowerCase().includes(query);
         const matchCategory = (photo.categoryLabel || '').toLowerCase().includes(query);
-        const matchActaItem = [photo.actaItem?.code, photo.actaItem?.description, photo.actaItem?.section]
-          .filter(Boolean)
+        const matchActaItem = getPhotoActaItems(photo)
+          .flatMap((item) => [item.code, item.description, item.section])
           .some((value) => String(value).toLowerCase().includes(query));
 
         if (
@@ -304,10 +309,10 @@ export const DatabaseTableView: React.FC<DatabaseTableViewProps> = ({
       'Código Cámara',
       'Tipo de Red',
       'Nombre Elemento',
-      'Ítem de Acta - Código',
-      'Ítem de Acta - Descripción',
-      'Ítem de Acta - Unidad',
-      'Ítem de Acta - Cantidad Contractual',
+      'Ítems de Acta - Códigos',
+      'Ítems de Acta - Descripciones',
+      'Ítems de Acta - Unidades',
+      'Ítems de Acta - Cantidades Contractuales',
       'Tramo',
       'Metraje (m)',
       'Latitud',
@@ -328,10 +333,10 @@ export const DatabaseTableView: React.FC<DatabaseTableViewProps> = ({
       `"${p.cameraCode || 'N/A'}"`,
       `"${p.cameraType || 'MT'}"`,
       `"${(p.name || '').replace(/"/g, '""')}"`,
-      `"${(p.actaItem?.code || '').replace(/"/g, '""')}"`,
-      `"${(p.actaItem?.description || '').replace(/"/g, '""')}"`,
-      `"${(p.actaItem?.unit || '').replace(/"/g, '""')}"`,
-      `"${(p.actaItem?.quantity || '').replace(/"/g, '""')}"`,
+      `"${getPhotoActaItems(p).map((item) => item.code).join(' | ').replace(/"/g, '""')}"`,
+      `"${getPhotoActaItems(p).map((item) => item.description).join(' | ').replace(/"/g, '""')}"`,
+      `"${getPhotoActaItems(p).map((item) => item.unit || '—').join(' | ').replace(/"/g, '""')}"`,
+      `"${getPhotoActaItems(p).map((item) => item.quantity || '—').join(' | ').replace(/"/g, '""')}"`,
       `"${(p.tramo || '').replace(/"/g, '""')}"`,
       `"${p.metraje || '0'}"`,
       `"${p.latitude || ''}"`,
@@ -1018,15 +1023,18 @@ export const DatabaseTableView: React.FC<DatabaseTableViewProps> = ({
                         </div>
                       </td>
 
-                      {/* Ítem de acta */}
+                      {/* Ítems de acta */}
                       <td className="px-3 py-3">
-                        {photo.actaItem ? (
-                          <div className="max-w-[260px]">
-                            <div className="flex items-center gap-1.5">
-                              <span className="rounded border border-cyan-200 bg-cyan-50 px-1.5 py-0.5 font-mono text-[10px] font-bold text-[#075a91]">{photo.actaItem.code}</span>
-                              {photo.actaItem.unit && <span className="text-[10px] font-bold text-[#547181]">{photo.actaItem.unit} · {photo.actaItem.quantity || '—'}</span>}
+                        {getPhotoActaItems(photo).length > 0 ? (
+                          <div className="max-w-[280px]">
+                            <div className="flex flex-wrap items-center gap-1">
+                              {getPhotoActaItems(photo).map((item) => (
+                                <span key={getActaItemKey(item)} className="rounded border border-cyan-200 bg-cyan-50 px-1.5 py-0.5 font-mono text-[10px] font-bold text-[#075a91]" title={item.description}>{item.code}</span>
+                              ))}
                             </div>
-                            <p className="mt-1 line-clamp-2 text-[10px] leading-4 text-[#315c70]" title={photo.actaItem.description}>{photo.actaItem.description}</p>
+                            <p className="mt-1 line-clamp-2 text-[10px] leading-4 text-[#315c70]" title={getPhotoActaItems(photo).map((item) => item.description).join(' | ')}>
+                              {getPhotoActaItems(photo).map((item) => item.description).join(' · ')}
+                            </p>
                           </div>
                         ) : (
                           <span className="text-xs text-slate-400">—</span>

@@ -70,6 +70,23 @@ const parseActaItem = (value: unknown): ActaItem | undefined => {
   };
 };
 
+const parseActaItems = (value: unknown, fallback?: unknown): ActaItem[] => {
+  let candidates = value;
+  if (typeof value === 'string') {
+    try {
+      candidates = JSON.parse(value);
+    } catch {
+      candidates = [];
+    }
+  }
+  const parsed = Array.isArray(candidates)
+    ? candidates.map((item) => parseActaItem(item)).filter((item): item is ActaItem => Boolean(item))
+    : [];
+  if (parsed.length > 0) return parsed;
+  const legacyItem = parseActaItem(fallback);
+  return legacyItem ? [legacyItem] : [];
+};
+
 const getCloudEvidenceUrls = async (photo: InspectionPhoto): Promise<string[]> => {
   const evidence = normalizeEvidenceTimeline(photo).map((entry) => entry.url);
   return uploadEvidenceToSupabase(photo.id, evidence);
@@ -305,7 +322,7 @@ export const supabaseService = {
         camera_code: getElementType(photo) === 'camara' ? photo.cameraCode || 'SB850' : null,
         camera_type: getElementType(photo) === 'camara' ? photo.cameraType || 'MT' : null,
         acta: photo.acta || null,
-        acta_item: photo.actaItem || null,
+        acta_item: photo.actaItems?.length ? photo.actaItems : photo.actaItem || null,
         show_acta_label: photo.showActaLabel ?? true,
         acta_label_position: photo.actaLabelPosition || 'derecha',
         tramo: photo.tramo || null,
@@ -474,7 +491,8 @@ export const supabaseService = {
         cameraCode: elementType === 'camara' ? item.camera_code || 'SB850' : undefined,
         cameraType: elementType === 'camara' ? item.camera_type || 'MT' : undefined,
         acta: item.acta || undefined,
-        actaItem: parseActaItem(item.acta_item),
+        actaItem: parseActaItems(item.acta_item)[0],
+        actaItems: parseActaItems(item.acta_item),
         showActaLabel: item.show_acta_label !== false,
         actaLabelPosition: ['arriba', 'abajo', 'izquierda', 'derecha'].includes(item.acta_label_position)
           ? item.acta_label_position

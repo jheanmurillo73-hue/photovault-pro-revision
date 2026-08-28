@@ -202,3 +202,7 @@
 - [x] Completar el diagnóstico pendiente de tramos registrados en Supabase que no aparecen en el plano.
 - [x] Mostrar en el dashboard de Base de Datos el total de tubos por cada red MT, BT y Datos.
 - [x] Validar el cálculo con tramos de una y varias conducciones.
+- [x] Permitir seleccionar y guardar varios ítems de acta en un mismo elemento desde Propiedades.
+- [x] Persistir múltiples ítems de acta y conservar compatibilidad con el ítem único existente.
+- [x] Mostrar y exportar los múltiples ítems de acta asociados al elemento.
+- [x] Añadir pruebas de selección, persistencia y compatibilidad de múltiples ítems.

@@ -61,7 +61,10 @@ export const EditPhotoModal: React.FC<EditPhotoModalProps> = ({
   const [cameraCode, setCameraCode] = useState<CameraCode>(photo.cameraCode || 'SB850');
   const [cameraType, setCameraType] = useState<CameraType>(photo.cameraType || 'MT');
   const [acta, setActa] = useState(photo.acta ?? '');
-  const [actaItemKey, setActaItemKey] = useState(() => photo.actaItem ? getActaItemKey(photo.actaItem) : '');
+  const [actaItemKeys, setActaItemKeys] = useState<string[]>(() => {
+    const initialItems = photo.actaItems?.length ? photo.actaItems : photo.actaItem ? [photo.actaItem] : [];
+    return initialItems.map((item) => getActaItemKey(item));
+  });
   const [isActaItemPickerOpen, setIsActaItemPickerOpen] = useState(false);
   const [actaLabelPosition, setActaLabelPosition] = useState<ActaLabelPosition>(photo.actaLabelPosition || 'derecha');
   const [actas, setActas] = useState<string[]>(loadActas);
@@ -97,7 +100,9 @@ export const EditPhotoModal: React.FC<EditPhotoModalProps> = ({
   const electricalOption = getElectricalElementOption(photo.electricalType);
   const electricalArea = getElectricalPlanArea(photo.electricalType);
   const cableGaugeOptions = getCableGaugeOptionsForPlanArea(photo.planArea);
-  const selectedActaItem = ACTA_ITEM_OPTIONS.find((item) => getActaItemKey(item) === actaItemKey);
+  const selectedActaItems = actaItemKeys
+    .map((key) => ACTA_ITEM_OPTIONS.find((item) => getActaItemKey(item) === key))
+    .filter((item): item is typeof ACTA_ITEM_OPTIONS[number] => Boolean(item));
 
   const orderedPipeConduits = [...pipeConduits].sort(
     (left, right) => PIPE_NETWORK_ORDER.indexOf(left.networkType) - PIPE_NETWORK_ORDER.indexOf(right.networkType),
@@ -220,7 +225,8 @@ export const EditPhotoModal: React.FC<EditPhotoModalProps> = ({
       cameraCode: elementType === 'camara' ? cameraCode : undefined,
       cameraType: isAdmin ? (elementType === 'camara' ? cameraType : undefined) : photo.cameraType,
       acta: isAdmin || canAssignActa ? acta || undefined : photo.acta,
-      actaItem: isAdmin ? selectedActaItem : photo.actaItem,
+      actaItem: isAdmin ? selectedActaItems[0] : photo.actaItem,
+      actaItems: isAdmin ? selectedActaItems : photo.actaItems || (photo.actaItem ? [photo.actaItem] : undefined),
       actaLabelPosition: isAdmin ? (acta ? actaLabelPosition : undefined) : photo.actaLabelPosition,
       tramo: elementType === 'tuberia' ? primaryConduit?.configuration : undefined,
       metraje: elementType === 'tuberia' ? primaryConduit?.meters : undefined,
@@ -556,12 +562,13 @@ export const EditPhotoModal: React.FC<EditPhotoModalProps> = ({
               <button
                 id="inspection-acta-item-picker"
                 type="button"
+                aria-label="Buscar y seleccionar ítems de acta"
                 onClick={() => isAdmin && setIsActaItemPickerOpen((open) => !open)}
                 disabled={!isAdmin}
                 aria-expanded={isActaItemPickerOpen}
                 className="mt-2 flex w-full items-center justify-between gap-2 rounded-lg border border-[#c2c6d4] bg-white p-2.5 text-left text-[12px] text-[#071e27] outline-none transition hover:bg-[#f8fbfd] focus:border-[#004d99] disabled:cursor-not-allowed disabled:opacity-60"
               >
-                <span className="min-w-0 truncate">{selectedActaItem ? `${selectedActaItem.code} · ${selectedActaItem.description}` : 'Buscar y seleccionar ítem de acta'}</span>
+                <span className="min-w-0 truncate">{selectedActaItems.length > 0 ? `${selectedActaItems.length} ítem${selectedActaItems.length === 1 ? '' : 's'} seleccionado${selectedActaItems.length === 1 ? '' : 's'}` : 'Buscar y seleccionar ítems de acta'}</span>
                 <span className="material-symbols-outlined shrink-0 text-[18px] text-[#0566aa]">{isActaItemPickerOpen ? 'expand_less' : 'search'}</span>
               </button>
               {isActaItemPickerOpen && (
@@ -573,8 +580,7 @@ export const EditPhotoModal: React.FC<EditPhotoModalProps> = ({
                       <CommandItem
                         value="sin item de acta"
                         onSelect={() => {
-                          setActaItemKey('');
-                          setIsActaItemPickerOpen(false);
+                          setActaItemKeys([]);
                         }}
                         className="text-xs text-[#547181]"
                       >
@@ -589,8 +595,10 @@ export const EditPhotoModal: React.FC<EditPhotoModalProps> = ({
                             key={getActaItemKey(item)}
                             value={`${item.code} ${item.description} ${item.section}`}
                             onSelect={() => {
-                              setActaItemKey(getActaItemKey(item));
-                              setIsActaItemPickerOpen(false);
+                              const itemKey = getActaItemKey(item);
+                              setActaItemKeys((current) => current.includes(itemKey)
+                                ? current.filter((key) => key !== itemKey)
+                                : [...current, itemKey]);
                             }}
                             className="items-start py-2"
                           >
@@ -603,14 +611,23 @@ export const EditPhotoModal: React.FC<EditPhotoModalProps> = ({
                   </CommandList>
                 </Command>
               )}
-              {selectedActaItem && (
-                <div className="mt-2 rounded-md border border-[#cfe0e9] bg-white px-2.5 py-2 text-[10px] leading-4 text-[#315c70]" title={selectedActaItem.description}>
-                  <div className="flex items-center justify-between gap-2">
-                    <strong className="font-mono text-[#073f74]">Ítem {selectedActaItem.code}</strong>
-                    <span className="shrink-0 font-semibold text-[#547181]">{selectedActaItem.unit || 'Sin unidad'} · Cantidad {selectedActaItem.quantity || '—'}</span>
-                  </div>
-                  <p className="mt-1 line-clamp-2"><span className="font-semibold text-[#173f58]">Descripción: </span>{selectedActaItem.description}</p>
-                  <p className="mt-0.5 text-[9px] text-[#607d8b]">Pasa el cursor sobre esta ficha para consultar la descripción completa.</p>
+              {selectedActaItems.length > 0 && (
+                <div className="mt-2 space-y-2">
+                  {selectedActaItems.map((item) => {
+                    const itemKey = getActaItemKey(item);
+                    return (
+                      <div key={itemKey} className="rounded-md border border-[#cfe0e9] bg-white px-2.5 py-2 text-[10px] leading-4 text-[#315c70]" title={item.description}>
+                        <div className="flex items-start justify-between gap-2">
+                          <strong className="font-mono text-[#073f74]">Ítem {item.code}</strong>
+                          <button type="button" onClick={() => setActaItemKeys((current) => current.filter((key) => key !== itemKey))} className="grid h-5 w-5 shrink-0 place-items-center rounded text-[#8b1d1d] hover:bg-red-50" aria-label={`Quitar ítem ${item.code}`} title="Quitar ítem">
+                            <span className="material-symbols-outlined text-[14px]">close</span>
+                          </button>
+                        </div>
+                        <p className="mt-1 line-clamp-2"><span className="font-semibold text-[#173f58]">Descripción: </span>{item.description}</p>
+                        <p className="mt-0.5 text-[9px] text-[#607d8b]">{item.unit || 'Sin unidad'} · Cantidad {item.quantity || '—'}</p>
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </div>

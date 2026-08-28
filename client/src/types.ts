@@ -192,6 +192,7 @@ export interface InspectionPhoto {
   cameraType?: CameraType;
   acta?: string;
   actaItem?: ActaItem;
+  actaItems?: ActaItem[];
   showActaLabel?: boolean;
   actaLabelPosition?: ActaLabelPosition;
   tramo?: string;

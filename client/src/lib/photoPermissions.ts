@@ -21,6 +21,7 @@ export function applyPhotoUpdatePermissions({
     name: current.name,
     acta: canAssignActa ? updated.acta : current.acta,
     actaItem: current.actaItem,
+    actaItems: current.actaItems,
     actaLabelPosition: current.actaLabelPosition,
     cameraType: current.cameraType,
     elementType: current.elementType,
