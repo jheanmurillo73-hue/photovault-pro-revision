@@ -196,7 +196,7 @@
 - [x] Mostrar en Base de Datos el desglose de cámaras por estado de ejecución y tipo MT, BT y Datos.
 - [x] Mostrar el mismo desglose de estado y tipo para los tramos de tubería.
 - [x] Mostrar el nombre de cada tramo de tubería como etiqueta en el plano.
-- [ ] Diagnosticar y corregir por qué los tramos registrados en Supabase no se muestran en el plano.
-- [ ] Permitir hasta 21 tubos por tramo en la categoría de baja tensión.
-- [ ] Validar que la cantidad ampliada se persista y se recupere correctamente.
-- [ ] Completar el diagnóstico pendiente de tramos registrados en Supabase que no aparecen en el plano.
+- [x] Diagnosticar y corregir por qué los tramos registrados en Supabase no se muestran en el plano.
+- [x] Permitir hasta 21 tubos por tramo en la categoría de baja tensión.
+- [x] Validar que la cantidad ampliada se persista y se recupere correctamente.
+- [x] Completar el diagnóstico pendiente de tramos registrados en Supabase que no aparecen en el plano.
