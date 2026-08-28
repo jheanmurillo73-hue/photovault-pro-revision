@@ -502,6 +502,33 @@ export const DatabaseTableView: React.FC<DatabaseTableViewProps> = ({
           </div>
         </div>
 
+        {/* Tubos por red */}
+        <div className="bg-white p-4 rounded-2xl border border-[#c2c6d4] shadow-xs">
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-['Inter'] font-bold text-[#727783] uppercase tracking-wider">
+              Tubos por red
+            </span>
+            <span className="w-7 h-7 rounded-lg bg-violet-50 text-violet-700 flex items-center justify-center">
+              <span className="material-symbols-outlined text-[16px]">account_tree</span>
+            </span>
+          </div>
+          <div className="mt-2 grid grid-cols-3 gap-1.5 text-center">
+            <div className="rounded-lg bg-[#eef6ff] px-1.5 py-1.5">
+              <div className="text-lg font-bold font-['Hanken_Grotesk'] text-[#075a91]">{workElementStatistics.tubeTotals.MT}</div>
+              <div className="text-[9px] font-bold uppercase tracking-wide text-[#547181]">MT</div>
+            </div>
+            <div className="rounded-lg bg-amber-50 px-1.5 py-1.5">
+              <div className="text-lg font-bold font-['Hanken_Grotesk'] text-amber-700">{workElementStatistics.tubeTotals.BT}</div>
+              <div className="text-[9px] font-bold uppercase tracking-wide text-amber-800">BT</div>
+            </div>
+            <div className="rounded-lg bg-teal-50 px-1.5 py-1.5">
+              <div className="text-lg font-bold font-['Hanken_Grotesk'] text-teal-700">{workElementStatistics.tubeTotals.Datos}</div>
+              <div className="text-[9px] font-bold uppercase tracking-wide text-teal-800">Datos</div>
+            </div>
+          </div>
+          <div className="mt-1 text-[10px] text-[#607d8b]">Cantidad física de tubos registrados</div>
+        </div>
+
         {/* Avance de Obra */}
         <div className="bg-white p-4 rounded-2xl border border-[#c2c6d4] shadow-xs">
           <div className="flex items-center justify-between">

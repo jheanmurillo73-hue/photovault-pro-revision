@@ -200,3 +200,5 @@
 - [x] Permitir hasta 21 tubos por tramo en la categoría de baja tensión.
 - [x] Validar que la cantidad ampliada se persista y se recupere correctamente.
 - [x] Completar el diagnóstico pendiente de tramos registrados en Supabase que no aparecen en el plano.
+- [x] Mostrar en el dashboard de Base de Datos el total de tubos por cada red MT, BT y Datos.
+- [x] Validar el cálculo con tramos de una y varias conducciones.

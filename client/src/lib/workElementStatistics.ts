@@ -9,9 +9,12 @@ export interface StatusBreakdown {
   total: number;
 }
 
+export type WorkNetwork = 'MT' | 'BT' | 'Datos';
+
 export interface WorkElementStatistics {
-  cameras: Record<'MT' | 'BT' | 'Datos', StatusBreakdown>;
-  pipes: Record<'MT' | 'BT' | 'Datos', StatusBreakdown>;
+  cameras: Record<WorkNetwork, StatusBreakdown>;
+  pipes: Record<WorkNetwork, StatusBreakdown>;
+  tubeTotals: Record<WorkNetwork, number>;
   totalCameras: number;
   totalPipes: number;
 }
@@ -31,16 +34,23 @@ const normalizeCameraType = (value?: string): 'MT' | 'BT' | 'Datos' | null => {
   return null;
 };
 
-const getPipeTypes = (photo: InspectionPhoto): Array<'MT' | 'BT' | 'Datos'> => {
-  const networks = photo.pipeConduits?.length
-    ? photo.pipeConduits.map((conduit) => conduit.networkType)
-    : photo.pipeNetworkType ? [photo.pipeNetworkType] : [];
-  return Array.from(new Set(networks)).flatMap((network) => {
-    if (network === 'media_tension') return ['MT'];
-    if (network === 'baja_tension') return ['BT'];
-    if (network === 'datos') return ['Datos'];
-    return [];
-  });
+const getPipeNetwork = (network: string): WorkNetwork | null => {
+  if (network === 'media_tension') return 'MT';
+  if (network === 'baja_tension') return 'BT';
+  if (network === 'datos') return 'Datos';
+  return null;
+};
+
+const getPipeConduits = (photo: InspectionPhoto) => photo.pipeConduits?.length
+  ? photo.pipeConduits
+  : photo.pipeNetworkType
+    ? [{ networkType: photo.pipeNetworkType, configuration: photo.tramo || '' }]
+    : [];
+
+const getTubeQuantity = (configuration?: string): number => {
+  const match = configuration?.trim().match(/^(\d+)/);
+  const quantity = match ? Number(match[1]) : 1;
+  return Number.isFinite(quantity) && quantity > 0 ? quantity : 1;
 };
 
 const addToBreakdown = (breakdown: StatusBreakdown, status: ExecutionStatus) => {
@@ -59,6 +69,7 @@ export const getWorkElementStatistics = (photos: InspectionPhoto[]): WorkElement
     BT: emptyBreakdown(),
     Datos: emptyBreakdown(),
   };
+  const tubeTotals: WorkElementStatistics['tubeTotals'] = { MT: 0, BT: 0, Datos: 0 };
   let totalCameras = 0;
   let totalPipes = 0;
 
@@ -73,9 +84,14 @@ export const getWorkElementStatistics = (photos: InspectionPhoto[]): WorkElement
 
     if (elementType === 'tuberia') {
       totalPipes += 1;
-      getPipeTypes(photo).forEach((pipeType) => addToBreakdown(pipes[pipeType], photo.executionStatus));
+      getPipeConduits(photo).forEach((conduit) => {
+        const pipeType = getPipeNetwork(conduit.networkType);
+        if (!pipeType) return;
+        addToBreakdown(pipes[pipeType], photo.executionStatus);
+        tubeTotals[pipeType] += getTubeQuantity(conduit.configuration);
+      });
     }
   });
 
-  return { cameras, pipes, totalCameras, totalPipes };
+  return { cameras, pipes, tubeTotals, totalCameras, totalPipes };
 };

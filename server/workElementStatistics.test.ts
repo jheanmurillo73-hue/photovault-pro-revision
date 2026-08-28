@@ -48,12 +48,15 @@ describe('Estadísticas de elementos de obra', () => {
           { id: 'datos', networkType: 'datos', configuration: '3x4"', meters: 20 },
         ],
       }),
-      photo({ elementType: 'tuberia', pipeNetworkType: 'baja_tension', executionStatus: 'No iniciado' }),
+      photo({ elementType: 'tuberia', pipeNetworkType: 'baja_tension', tramo: '21x6"', executionStatus: 'No iniciado' }),
     ]);
 
     expect(statistics.totalPipes).toBe(2);
     expect(statistics.pipes.MT.Terminado).toBe(1);
     expect(statistics.pipes.Datos.Terminado).toBe(1);
     expect(statistics.pipes.BT['No iniciado']).toBe(1);
+    expect(statistics.tubeTotals.MT).toBe(3);
+    expect(statistics.tubeTotals.BT).toBe(21);
+    expect(statistics.tubeTotals.Datos).toBe(3);
   });
 });
