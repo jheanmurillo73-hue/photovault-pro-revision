@@ -619,6 +619,7 @@ export const UploadPhotoView: React.FC<UploadPhotoViewProps> = ({
                 onTramoChange={setTramo}
                 metraje={metraje}
                 onMetrajeChange={setMetraje}
+                maxQuantity={pipeNetworkType === 'baja_tension' ? 21 : 24}
                 label="Propiedades de Tramo y Metraje de Tubería (4&quot;, 6&quot;, etc.)"
               />
             </div>

@@ -824,6 +824,7 @@ export const EditPhotoModal: React.FC<EditPhotoModalProps> = ({
                     onTramoChange={(configuration) => updatePipeConduit(conduit.id, { configuration })}
                     metraje={String(conduit.meters ?? '')}
                     onMetrajeChange={(meters) => updatePipeConduit(conduit.id, { meters })}
+                    maxQuantity={option.value === 'baja_tension' ? 21 : 24}
                     label={`Calibre y metraje · ${option.label}`}
                   />
                 </div>

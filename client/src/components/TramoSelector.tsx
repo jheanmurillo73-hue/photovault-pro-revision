@@ -1,6 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { PIPE_DIMENSIONS, PIPE_QUANTITIES, TRAMO_PRESETS, METRAJE_PRESETS } from '../data/mockData';
 
+export const getPipeQuantityOptions = (maxQuantity = 24): number[] => {
+  const quantityLimit = Math.max(1, Math.floor(maxQuantity));
+  return Array.from(new Set([...PIPE_QUANTITIES, 10, 12, 16, 18, 20, 21, quantityLimit]))
+    .filter((quantity) => quantity <= quantityLimit)
+    .sort((left, right) => left - right);
+};
+
 interface TramoSelectorProps {
   // Support both unified or legacy prop patterns
   value?: string;
@@ -10,6 +17,7 @@ interface TramoSelectorProps {
   metraje?: string | number;
   onMetrajeChange?: (val: string) => void;
   label?: string;
+  maxQuantity?: number;
 }
 
 export const TramoSelector: React.FC<TramoSelectorProps> = ({
@@ -20,6 +28,7 @@ export const TramoSelector: React.FC<TramoSelectorProps> = ({
   metraje: propMetraje,
   onMetrajeChange,
   label = 'Tramo y Metraje de Tubería',
+  maxQuantity = 24,
 }) => {
   // Active tramo value
   const currentTramo = propTramo !== undefined ? propTramo : (value || '');
@@ -57,8 +66,11 @@ export const TramoSelector: React.FC<TramoSelectorProps> = ({
     handleTramoChange(`${qty}x${dim}`);
   };
 
+  const quantityLimit = Math.max(1, Math.floor(maxQuantity));
+  const quantityOptions = getPipeQuantityOptions(quantityLimit);
+
   const handleQtyChange = (delta: number) => {
-    const newQty = Math.max(1, Math.min(24, selectedQty + delta));
+    const newQty = Math.max(1, Math.min(quantityLimit, selectedQty + delta));
     setSelectedQty(newQty);
     handleTramoChange(`${newQty}x${selectedDim}`);
   };
@@ -163,6 +175,7 @@ export const TramoSelector: React.FC<TramoSelectorProps> = ({
           <div className="bg-[#f3faff] p-3 rounded-lg border border-[#c2c6d4]/80 space-y-2">
             <div className="flex items-center justify-between">
               <span className="text-[12px] font-bold text-[#071e27]">Cantidad de Tuberías</span>
+              <span className="text-[10px] font-semibold text-[#527284]">Máximo: {quantityLimit}</span>
               <div className="flex items-center gap-1">
                 <button
                   type="button"
@@ -187,7 +200,7 @@ export const TramoSelector: React.FC<TramoSelectorProps> = ({
             </div>
 
             <div className="flex flex-wrap gap-1">
-              {PIPE_QUANTITIES.map((q) => (
+              {quantityOptions.map((q) => (
                 <button
                   key={q}
                   type="button"
