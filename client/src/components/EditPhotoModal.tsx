@@ -269,10 +269,10 @@ export const EditPhotoModal: React.FC<EditPhotoModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-0 backdrop-blur-xs sm:items-center sm:p-4">
-      <div role="dialog" aria-modal="true" aria-labelledby="edit-photo-modal-title" className="flex max-h-[calc(100dvh-0.5rem)] w-full max-w-lg flex-col overflow-hidden rounded-t-2xl border border-[#c2c6d4] bg-white shadow-2xl animate-in zoom-in-95 duration-150 sm:max-h-[90vh] sm:rounded-xl">
+    <div className="fixed inset-0 z-50 flex items-end justify-center overflow-y-auto overscroll-contain bg-black/50 p-2 pb-[calc(0.5rem+env(safe-area-inset-bottom))] backdrop-blur-xs sm:items-center sm:p-4">
+      <div role="dialog" aria-modal="true" aria-labelledby="edit-photo-modal-title" className="flex max-h-[calc(100dvh-1rem-env(safe-area-inset-bottom))] min-h-0 w-full min-w-0 max-w-lg flex-col overflow-hidden rounded-t-2xl border border-[#c2c6d4] bg-white shadow-2xl animate-in zoom-in-95 duration-150 sm:max-h-[90vh] sm:rounded-xl">
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-[#c2c6d4] bg-[#e6f6ff] px-4 py-3 sm:p-4">
+        <div className="flex shrink-0 items-center justify-between border-b border-[#c2c6d4] bg-[#e6f6ff] px-4 py-3 sm:p-4">
           <div className="flex items-center gap-2">
             <span className="material-symbols-outlined text-[#004d99]">edit_document</span>
             <h3 id="edit-photo-modal-title" className="font-['Hanken_Grotesk'] text-base font-bold text-[#071e27] sm:text-lg">
@@ -290,7 +290,7 @@ export const EditPhotoModal: React.FC<EditPhotoModalProps> = ({
         </div>
 
         {/* Form Body */}
-        <form onSubmit={handleSubmit} className="min-h-0 flex-1 space-y-4 overflow-y-auto p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] sm:p-6">
+        <form onSubmit={handleSubmit} className="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] sm:p-6">
           <div>
             <label className="block font-['Inter'] font-bold text-[13px] text-[#071e27] mb-1">
               Nombre de la Inspección
@@ -917,17 +917,17 @@ export const EditPhotoModal: React.FC<EditPhotoModalProps> = ({
           </div>
 
           {/* Footer actions */}
-          <div className="sticky bottom-0 -mx-4 flex justify-end gap-3 border-t border-[#c2c6d4] bg-white px-4 pb-[calc(0.75rem+env(safe-area-inset-bottom))] pt-3 sm:-mx-6 sm:px-6">
+          <div className="sticky bottom-0 -mx-4 flex flex-col-reverse gap-2 border-t border-[#c2c6d4] bg-white px-4 pb-[calc(0.75rem+env(safe-area-inset-bottom))] pt-3 sm:-mx-6 sm:flex-row sm:justify-end sm:gap-3 sm:px-6">
             <button
               type="button"
               onClick={onClose}
-              className="h-10 px-4 border border-[#c2c6d4] text-[#424752] font-bold text-[13px] rounded-lg hover:bg-[#e6f6ff] sm:h-9"
+              className="h-10 w-full border border-[#c2c6d4] px-4 text-[13px] font-bold text-[#424752] rounded-lg hover:bg-[#e6f6ff] sm:h-9 sm:w-auto"
             >
               Cancelar
             </button>
             <button
               type="submit"
-              className="h-10 px-5 bg-[#004d99] text-white font-bold text-[13px] rounded-lg hover:bg-[#1565c0] sm:h-9"
+              className="h-10 w-full rounded-lg bg-[#004d99] px-5 text-[13px] font-bold text-white hover:bg-[#1565c0] sm:h-9 sm:w-auto"
             >
               Guardar Cambios
             </button>

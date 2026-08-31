@@ -135,7 +135,8 @@ describe('Diálogos del plano en móvil', () => {
     fireEvent.click(marker);
 
     const dialog = screen.getByRole('dialog', { name: 'SB850 · Cámara móvil' });
-    expect(dialog.className).toContain('max-h-[calc(100dvh-1rem)]');
+    expect(dialog.className).toContain('max-h-[calc(100dvh-1rem-env(safe-area-inset-bottom))]');
+    expect(dialog.className).toContain('min-h-0');
     expect(dialog.className).toContain('rounded-t-2xl');
     expect(screen.getByText('Propiedades').closest('button')?.className).toContain('h-10');
     expect(within(dialog).getByLabelText('Cerrar propiedades del elemento').className).toContain('h-10');
@@ -145,10 +146,13 @@ describe('Diálogos del plano en móvil', () => {
     render(<EditPhotoModal photo={mobileElement} isOpen isAdmin={false} onClose={vi.fn()} onSave={vi.fn()} />);
 
     const dialog = screen.getByRole('dialog', { name: 'Editar Detalles de la Inspección' });
-    expect(dialog.className).toContain('max-h-[calc(100dvh-0.5rem)]');
+    expect(dialog.className).toContain('max-h-[calc(100dvh-1rem-env(safe-area-inset-bottom))]');
+    expect(dialog.className).toContain('min-h-0');
     expect(dialog.className).toContain('rounded-t-2xl');
     expect(screen.getByText('Guardar Cambios').className).toContain('h-10');
+    expect(screen.getByText('Guardar Cambios').className).toContain('w-full');
     expect(screen.getByText('Cancelar').className).toContain('h-10');
+    expect(screen.getByText('Cancelar').className).toContain('w-full');
   });
 
   it('permite al inspector actualizar el acta cuando administración habilita el permiso', () => {

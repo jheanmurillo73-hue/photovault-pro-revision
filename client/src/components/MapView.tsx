@@ -1831,7 +1831,7 @@ export const MapView: React.FC<MapViewProps> = ({
       )}
 
       {selectedPlanPhoto && !placementInstruction && !isMultipleSelectionMode && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center p-2 sm:items-center sm:p-4" role="presentation">
+        <div className="fixed inset-0 z-50 flex items-end justify-center overscroll-contain bg-slate-950/10 p-2 pb-[calc(0.5rem+env(safe-area-inset-bottom))] sm:items-center sm:bg-transparent sm:p-4" role="presentation">
           <button
             type="button"
             className="absolute inset-0 cursor-default bg-transparent"
@@ -1842,9 +1842,9 @@ export const MapView: React.FC<MapViewProps> = ({
             role="dialog"
             aria-modal="true"
             aria-labelledby="selected-element-title"
-            className="relative z-10 flex max-h-[calc(100dvh-1rem)] w-full max-w-lg flex-col overflow-hidden rounded-t-2xl border border-[#8eb4c7] bg-white shadow-[0_24px_72px_rgba(7,63,116,0.34)] sm:max-h-[min(86vh,720px)] sm:rounded-xl"
+            className="relative z-10 flex max-h-[calc(100dvh-1rem-env(safe-area-inset-bottom))] min-h-0 w-full min-w-0 max-w-lg flex-col overflow-hidden rounded-t-2xl border border-[#8eb4c7] bg-white shadow-[0_24px_72px_rgba(7,63,116,0.34)] sm:max-h-[min(86vh,720px)] sm:rounded-xl"
           >
-          <div className="flex items-start justify-between gap-3 border-b border-[#d3e1e8] bg-[#f4fbfe] px-4 py-3 sm:px-5 sm:py-4">
+          <div className="flex shrink-0 items-start justify-between gap-3 border-b border-[#d3e1e8] bg-[#f4fbfe] px-4 py-3 sm:px-5 sm:py-4">
             <div className="min-w-0">
               <p className="font-mono text-[9px] font-bold tracking-[0.14em] text-[#527284]">ELEMENTO SELECCIONADO</p>
               <h2 id="selected-element-title" className="mt-0.5 truncate text-base font-bold text-[#0b2940] sm:text-lg">
@@ -1857,7 +1857,7 @@ export const MapView: React.FC<MapViewProps> = ({
               <span className="material-symbols-outlined text-[20px]">close</span>
             </button>
           </div>
-          <div className="min-h-0 overflow-y-auto px-4 py-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] sm:px-5 sm:py-4">
+          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] sm:px-5 sm:py-4">
           {getElementType(selectedPlanPhoto) === 'tuberia' && (
             <>
               <div className="mt-3 flex items-center justify-between rounded-lg border border-[#b7d5e4] bg-[#eaf6fb] px-2.5 py-2">
@@ -2018,7 +2018,7 @@ export const MapView: React.FC<MapViewProps> = ({
               </button>
             </div>
           )}
-          <div className="sticky bottom-0 -mx-4 mt-4 grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] gap-2 border-t border-[#d3e1e8] bg-white px-4 pb-[calc(0.75rem+env(safe-area-inset-bottom))] pt-3 sm:-mx-5 sm:px-5">
+          <div className="sticky bottom-0 -mx-4 mt-4 shrink-0 grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] gap-2 border-t border-[#d3e1e8] bg-white px-4 pb-[calc(0.75rem+env(safe-area-inset-bottom))] pt-3 sm:-mx-5 sm:px-5">
             <button type="button" onClick={() => onEditPhoto(selectedPlanPhoto)} className="inline-flex h-10 items-center justify-center gap-1.5 bg-[#0566aa] px-2 text-xs font-bold text-white transition hover:bg-[#004d84] sm:h-9 sm:px-3">
               <span className="material-symbols-outlined text-[16px]">edit</span>
               Propiedades
